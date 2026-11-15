@@ -82,47 +82,26 @@ import Testing
     }
   }
 
-  @Test func systemIconChangesOnlyWithStaticStyleAndCanRestoreTheDefault() throws {
-    var images: [NSImage?] = []
-    let icon = SystemAppIcon(bundle: .main) { image, path in
-      #expect(path == Bundle.main.bundlePath)
-      images.append(image)
-      return true
-    }
-    let resources = try resourceBundle(products: [.xstats])
+  @Test func standardIconReadsBundleResourceWithoutCreatingCustomIconMetadata() throws {
+    let resources = try resourceBundle(products: [.xstats], iconFile: "xstats.png")
     defer { try? FileManager.default.removeItem(at: resources.directory) }
-    let mascot = try #require(DockIconRenderer.mascot(for: .xstats, in: resources.bundle))
-    #expect(icon.apply(.mascot, mascot: mascot))
-    #expect(icon.apply(.mascot, mascot: mascot))
-    #expect(images.count == 1)
-    #expect(images[0] === mascot)
-    #expect(icon.apply(.automatic, mascot: nil))
-    #expect(icon.apply(.standard, mascot: nil))
-    #expect(images.count == 2)
-    #expect(images[1] == nil)
-    #expect(icon.apply(.mascot, mascot: mascot))
-    #expect(images.count == 3)
+    let imageURL = resources.directory.appending(path: "Contents/Resources/xstats.png")
+    let original = try Data(contentsOf: imageURL)
+    let expected = try #require(NSImage(contentsOf: imageURL))
+    let image = try #require(SystemAppIcon(bundle: resources.bundle).standardImage)
+    #expect(image.size == expected.size)
+    #expect(try Data(contentsOf: imageURL) == original)
+    #expect(
+      !FileManager.default.fileExists(atPath: resources.directory.appending(path: "Icon\r").path))
   }
 
-  @Test func failedSystemIconWritesDoNotRetryOnEveryMonitoringRefresh() throws {
-    var attempts = 0
-    let icon = SystemAppIcon(bundle: .main) { _, _ in
-      attempts += 1
-      return false
-    }
-    let resources = try resourceBundle(products: [.capture])
+  @Test func missingStandardIconDoesNotLoadCustomizedWorkspaceArtwork() throws {
+    let resources = try resourceBundle(products: [])
     defer { try? FileManager.default.removeItem(at: resources.directory) }
-    let mascot = try #require(DockIconRenderer.mascot(for: .capture, in: resources.bundle))
-    #expect(!icon.apply(.mascot, mascot: nil))
-    #expect(attempts == 0)
-    #expect(!icon.apply(.mascot, mascot: mascot))
-    #expect(!icon.apply(.mascot, mascot: mascot))
-    #expect(attempts == 1)
-    #expect(!icon.apply(.standard, mascot: nil))
-    #expect(attempts == 2)
+    #expect(SystemAppIcon(bundle: resources.bundle).standardImage == nil)
   }
 
-  private func resourceBundle(products: [DockIconProduct]) throws -> (
+  private func resourceBundle(products: [DockIconProduct], iconFile: String? = nil) throws -> (
     bundle: Bundle, directory: URL
   ) {
     let directory = FileManager.default.temporaryDirectory.appending(
@@ -130,7 +109,8 @@ import Testing
     let resources = directory.appending(path: "Contents/Resources")
     try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
     do {
-      let info = ["CFBundleIdentifier": "DockIconTests.\(UUID())", "CFBundlePackageType": "BNDL"]
+      var info = ["CFBundleIdentifier": "DockIconTests.\(UUID())", "CFBundlePackageType": "BNDL"]
+      info["CFBundleIconFile"] = iconFile
       let data = try PropertyListSerialization.data(
         fromPropertyList: info, format: .xml, options: 0)
       try data.write(to: directory.appending(path: "Contents/Info.plist"))

@@ -2653,6 +2653,15 @@ macOS 随后会重新建立索引，完成前搜索结果可能不完整。	macO
 预览执行 mo optimize --dry-run，不应用更改；优化执行 mo optimize。	L’aperçu exécute mo optimize --dry-run sans appliquer de modifications ; l’optimisation exécute mo optimize.
 已停止，已完成的优化不会撤销	Arrêté ; les optimisations effectuées ne seront pas annulées
 查看清理范围，不删除文件	Voir les éléments à nettoyer sans supprimer de fichiers
+Mole 需要管理员权限来访问系统缓存。	Mole a besoin des droits d’administrateur pour accéder aux caches système.
+未获得管理员授权，将继续按普通权限运行。	L’autorisation administrateur n’a pas été accordée. L’exécution se poursuit avec les droits habituels.
+当前 Mole 安装不支持应用内管理员授权，将继续按普通权限运行。	Cette installation de Mole ne permet pas l’autorisation administrateur dans l’app. L’exécution se poursuit avec les droits habituels.
+请求管理员授权	Demander l’autorisation administrateur
+启用管理员授权请求？	Activer les demandes d’autorisation administrateur ?
+部分系统缓存需要管理员权限才能预览和清理。启用后，两项操作都会按需请求管理员授权。	Certains caches système nécessitent des droits d’administrateur pour leur aperçu et leur nettoyage. Une fois cette option activée, les deux opérations demanderont une autorisation administrateur si nécessaire.
+管理员清理会扩大可删除范围，误删可能影响应用运行或造成数据丢失。建议先预览，再确认清理。	Le nettoyage avec des droits d’administrateur permet de supprimer davantage de fichiers. Une suppression accidentelle peut perturber les apps ou entraîner une perte de données. Consultez d’abord l’aperçu, puis confirmez le nettoyage.
+取消授权或授权失败时，将按普通权限继续。	Si l’autorisation est annulée ou échoue, les opérations se poursuivront avec les droits habituels.
+确认启用	Confirmer l’activation
 查看优化项目，不应用更改	Voir les optimisations sans appliquer de modifications
 退出码 {}	Code de sortie {}
 预览失败	Échec de l’aperçu

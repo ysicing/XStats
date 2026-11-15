@@ -2,6 +2,7 @@
 
 import Darwin
 import Foundation
+import Localization
 
 public enum MoleCommand: Sendable {
   case scan, clean, optimizePreview, optimize, install
@@ -101,11 +102,11 @@ public enum MoleRunner {
     }
   }
 
-  /// 标准输入关闭，Mole 与 Homebrew 安装共用非交互执行；不收集密码或自动回答授权提示。
+  /// 标准输入关闭；清理与预览仅在明确选择后由 Mole 自身请求授权，XStats 不读取密码。
   /// 每次最多读取 64 KiB，每 200 ms 发布最近 128 KiB，避免连续输出占满主线程。
   @concurrent
   public static func run(
-    executable: URL, command: MoleCommand,
+    executable: URL, command: MoleCommand, requestAdministratorAccess: Bool = false,
     output: @Sendable (MoleOutput) async -> Void
   ) async throws -> Int32 {
     try Task.checkCancellation()
@@ -121,6 +122,7 @@ public enum MoleRunner {
     }
     let pid = try spawn(
       executable: executable, command: command,
+      requestAdministratorAccess: requestAdministratorAccess,
       output: pipe.fileHandleForWriting.fileDescriptor)
     // 先结束整个私有进程组，再回收 leader；PID 在最后一次 kill 前不能被复用。
     defer { stopAndReap(pid) }
@@ -167,7 +169,56 @@ public enum MoleRunner {
     }
   }
 
-  private static func spawn(executable: URL, command: MoleCommand, output: Int32) throws -> pid_t {
+  private static func spawn(
+    executable: URL, command: MoleCommand, requestAdministratorAccess: Bool, output: Int32
+  ) throws -> pid_t {
+    var executablePath = executable.path
+    var arguments = command.arguments
+    if requestAdministratorAccess, command == .scan || command == .clean {
+      let directory = executable.resolvingSymlinksInPath().deletingLastPathComponent()
+      var directories = [
+        directory.appendingPathComponent("lib/core"),
+        directory.deletingLastPathComponent().appendingPathComponent("libexec/lib/core"),
+      ]
+      let home = FileManager.default.homeDirectoryForCurrentUser
+      if [home.appendingPathComponent(".local/bin"), URL(fileURLWithPath: "/usr/local/bin")]
+        .contains(directory)
+      {
+        directories.append(home.appendingPathComponent(".config/mole/lib/core"))
+      }
+      let core = directories.first(where: {
+        FileManager.default.isReadableFile(atPath: $0.appendingPathComponent("base.sh").path)
+          && FileManager.default.isReadableFile(atPath: $0.appendingPathComponent("sudo.sh").path)
+      })
+      // sudo 时间戳可能绑定父进程；授权后必须 exec，不能另起一个会话运行 Mole。
+      // 只加载授权所需的库，避免 common.sh 为预览之外的功能初始化临时目录。
+      // Mole 1.72 的设备权限判断无法识别无控制终端；只在当前子进程内强制其 GUI 分支。
+      executablePath = "/bin/bash"
+      arguments =
+        [
+          "-c",
+          #"""
+          if [[ -n "$1" ]] && source "$1/base.sh" && source "$1/sudo.sh"; then
+            authorization=$(declare -f request_sudo_access) || authorization=""
+            if [[ "$authorization" == *"local is_gui_mode=false"* ]] &&
+              eval "${authorization/local is_gui_mode=false/local is_gui_mode=true}"; then
+              request_sudo_access "$3" || printf '%s\n' "$4" >&2
+            else
+              printf '%s\n' "$5" >&2
+            fi
+          else
+            printf '%s\n' "$5" >&2
+          fi
+          executable="$2"
+          shift 5
+          exec "$executable" "$@"
+          """#,
+          "xstats-mole-cleanup", core?.path ?? "", executable.path,
+          tr("Mole 需要管理员权限来访问系统缓存。"),
+          tr("未获得管理员授权，将继续按普通权限运行。"),
+          tr("当前 Mole 安装不支持应用内管理员授权，将继续按普通权限运行。"),
+        ] + command.arguments
+    }
     var actions: posix_spawn_file_actions_t?
     var attributes: posix_spawnattr_t?
     var error = posix_spawn_file_actions_init(&actions)
@@ -209,7 +260,7 @@ public enum MoleRunner {
       environment["HOMEBREW_NO_AUTO_UPDATE"] = "1"
       environment["HOMEBREW_NO_INSTALL_CLEANUP"] = "1"
     }
-    let argv = ([executable.path] + command.arguments).map { strdup($0) }
+    let argv = ([executablePath] + arguments).map { strdup($0) }
     let env = environment.map { strdup("\($0.key)=\($0.value)") }
     defer { for value in argv + env { free(value) } }
     guard (argv + env).allSatisfy({ $0 != nil }) else { throw POSIXError(.ENOMEM) }
@@ -217,7 +268,7 @@ public enum MoleRunner {
     error = (argv + [nil]).withUnsafeBufferPointer { args in
       (env + [nil]).withUnsafeBufferPointer { values in
         posix_spawn(
-          &pid, executable.path, &actions, &attributes, args.baseAddress!, values.baseAddress!)
+          &pid, executablePath, &actions, &attributes, args.baseAddress!, values.baseAddress!)
       }
     }
     guard error == 0 else { throw POSIXError(POSIXErrorCode(rawValue: error) ?? .EINVAL) }

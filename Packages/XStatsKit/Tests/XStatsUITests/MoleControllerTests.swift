@@ -10,6 +10,122 @@ import Testing
 
 @MainActor
 struct MoleControllerTests {
+  @Test func administratorAccessRequiresConfirmationAndIsSharedByCleanupCommands() async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let requests = MoleAuthorizationRequests()
+    let controller = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      run: { _, command, requested, _ in
+        await requests.append(command, requested)
+        return 0
+      })
+    await controller.refreshAvailability()
+    #expect(!controller.requestsAdministratorAccess)
+    controller.scan()
+    await controller.waitForExit()
+    controller.requestExecution()
+    controller.confirmExecution()
+    await controller.waitForExit()
+    #expect(await requests.commands == [.scan, .clean])
+    #expect(await requests.values == [false, false])
+
+    controller.setAdministratorAccessRequested(true)
+    #expect(controller.isConfirmingAdministratorAccess && !controller.requestsAdministratorAccess)
+    controller.cancelAdministratorAccessConfirmation()
+    controller.confirmAdministratorAccess()
+    #expect(!controller.requestsAdministratorAccess)
+    controller.setAdministratorAccessRequested(true)
+    controller.confirmAdministratorAccess()
+    #expect(controller.requestsAdministratorAccess && !controller.isConfirmingAdministratorAccess)
+    #expect(await requests.commands == [.scan, .clean])
+    controller.scan()
+    await controller.waitForExit()
+    controller.requestExecution()
+    #expect(controller.isConfirming)
+    controller.confirmExecution()
+    await controller.waitForExit()
+    #expect(await requests.values == [false, false, true, true])
+    controller.setAdministratorAccessRequested(false)
+    #expect(!controller.requestsAdministratorAccess && !controller.isConfirmingAdministratorAccess)
+    controller.scan()
+    await controller.waitForExit()
+    #expect(await requests.values == [false, false, true, true, false])
+  }
+
+  @Test func authorizationChangesInvalidateCleanupConfirmation() async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let requests = MoleAuthorizationRequests()
+    let controller = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      run: { _, command, requested, _ in
+        await requests.append(command, requested)
+        return 0
+      })
+    await controller.refreshAvailability()
+    controller.requestExecution()
+    controller.setAdministratorAccessRequested(true)
+    controller.confirmAdministratorAccess()
+    controller.confirmExecution()
+    #expect(!controller.isRunning && !controller.isConfirming)
+    #expect(await requests.values.isEmpty)
+    controller.requestExecution()
+    controller.setAdministratorAccessRequested(false)
+    controller.confirmExecution()
+    #expect(await requests.values.isEmpty)
+    controller.requestExecution()
+    controller.confirmExecution()
+    await controller.waitForExit()
+    #expect(await requests.values == [false])
+  }
+
+  @Test func leavingPageRevokesPendingAuthorizationConfirmation() async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let controller = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") })
+    await controller.refreshAvailability()
+    controller.setAdministratorAccessRequested(true)
+    controller.cancelPreview()
+    controller.confirmAdministratorAccess()
+    #expect(!controller.requestsAdministratorAccess && !controller.isConfirmingAdministratorAccess)
+    controller.setAdministratorAccessRequested(true)
+    controller.selectWorkflow(.optimize)
+    controller.confirmAdministratorAccess()
+    #expect(!controller.requestsAdministratorAccess && !controller.isConfirmingAdministratorAccess)
+  }
+
+  @Test func authorizationChoiceCannotChangeDuringRunAndDoesNotApplyToOptimization() async throws {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let gate = MoleRunGate()
+    let requests = MoleAuthorizationRequests()
+    let controller = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      run: { _, command, requested, _ in
+        await requests.append(command, requested)
+        await gate.wait()
+        return 0
+      })
+    await controller.refreshAvailability()
+    controller.setAdministratorAccessRequested(true)
+    controller.confirmAdministratorAccess()
+    controller.scan()
+    await gate.waitForStart()
+    controller.setAdministratorAccessRequested(false)
+    #expect(controller.requestsAdministratorAccess)
+    await gate.release()
+    await controller.waitForExit()
+    controller.selectWorkflow(.optimize)
+    controller.scan()
+    await controller.waitForExit()
+    controller.requestExecution()
+    controller.confirmExecution()
+    await controller.waitForExit()
+    #expect(await requests.values == [true, false, false])
+  }
+
   @Test func preinstallDetectionCannotOverwriteInstalledMole() async throws {
     let fixture = try MoleControllerFixture()
     defer { fixture.remove() }
@@ -26,7 +142,7 @@ struct MoleControllerTests {
         return URL(fileURLWithPath: "/fixture/mo")
       },
       findBrew: { URL(fileURLWithPath: "/fixture/brew") },
-      run: { _, _, _ in 0 })
+      run: { _, _, _, _ in 0 })
     let refresh = Task { await controller.refreshAvailability() }
     await gate.waitForStart()
     controller.install()
@@ -50,7 +166,7 @@ struct MoleControllerTests {
     let controller = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
       homebrewOperations: operations,
-      run: { _, command, _ in
+      run: { _, command, _, _ in
         await commands.append(command)
         if !command.isPreview { await gate.wait() }
         return 0
@@ -98,7 +214,7 @@ struct MoleControllerTests {
     let controller = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
       homebrewOperations: operations,
-      run: { _, _, _ in
+      run: { _, _, _, _ in
         await gate.wait()
         if fails { throw CocoaError(.fileReadUnknown) }
         return 0
@@ -129,7 +245,7 @@ struct MoleControllerTests {
       },
       findBrew: { URL(fileURLWithPath: "/fixture/brew") },
       homebrewOperations: operations,
-      run: { url, command, output in
+      run: { url, command, _, output in
         #expect(url.path == "/fixture/brew" && command == .install)
         await commands.append(command)
         await output(MoleOutput(text: "Installing\n", wasTruncated: false))
@@ -169,7 +285,7 @@ struct MoleControllerTests {
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
       findBrew: { URL(fileURLWithPath: "/fixture/brew") },
       homebrewOperations: operations,
-      run: { _, command, output in
+      run: { _, command, _, output in
         await commands.append(command)
         await output(
           MoleOutput(
@@ -213,7 +329,7 @@ struct MoleControllerTests {
     let controller = MoleController(
       settings: fixture.settings, detect: { nil },
       findBrew: { URL(fileURLWithPath: "/fixture/brew") },
-      run: { _, _, output in
+      run: { _, _, _, output in
         await output(MoleOutput(text: "Installation output", wasTruncated: false))
         await gate.wait()
         return 0
@@ -238,7 +354,7 @@ struct MoleControllerTests {
     defer { fixture.remove() }
     let controller = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
-      run: { _, _, output in
+      run: { _, _, _, output in
         await output(MoleOutput(text: "Preview output", wasTruncated: false))
         return 0
       })
@@ -266,7 +382,7 @@ struct MoleControllerTests {
         return URL(fileURLWithPath: "/fixture/mo")
       },
       findBrew: { URL(fileURLWithPath: "/fixture/brew") },
-      homebrewOperations: operations, run: { _, _, _ in 0 })
+      homebrewOperations: operations, run: { _, _, _, _ in 0 })
     controller.install()
     await gate.waitForStart()
     controller.cancel()
@@ -285,7 +401,7 @@ struct MoleControllerTests {
       settings: fixture.settings, detect: { nil },
       findBrew: { URL(fileURLWithPath: "/fixture/brew") },
       homebrewOperations: operations,
-      run: { _, _, _ in throw CocoaError(.fileNoSuchFile) })
+      run: { _, _, _, _ in throw CocoaError(.fileNoSuchFile) })
     controller.install()
     await controller.waitForExit()
     #expect(controller.failure != nil && controller.exitStatus == nil && !controller.canExecute)
@@ -301,7 +417,7 @@ struct MoleControllerTests {
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
       findBrew: { URL(fileURLWithPath: "/fixture/brew") },
       homebrewOperations: operations,
-      run: { _, _, output in
+      run: { _, _, _, output in
         await gate.wait()
         await output(MoleOutput(text: "late", wasTruncated: false))
         return 0
@@ -326,7 +442,7 @@ struct MoleControllerTests {
       settings: fixture.settings, detect: { nil },
       findBrew: { available ? URL(fileURLWithPath: "/fixture/brew") : nil },
       homebrewOperations: operations,
-      run: { _, command, _ in
+      run: { _, command, _, _ in
         await commands.append(command)
         return 0
       })
@@ -355,7 +471,7 @@ struct MoleControllerTests {
     let controller = MoleController(
       settings: fixture.settings, detect: { nil },
       findBrew: { URL(fileURLWithPath: "/fixture/brew") },
-      homebrewOperations: operations, run: { _, _, _ in status })
+      homebrewOperations: operations, run: { _, _, _, _ in status })
     controller.install()
     await controller.waitForExit()
     #expect(controller.executable == nil && !controller.canExecute && !operations.isRunning)
@@ -377,7 +493,7 @@ struct MoleControllerTests {
     let commands = MoleCommands()
     let mole = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
-      run: { _, command, _ in
+      run: { _, command, _, _ in
         await commands.append(command)
         return 0
       })
@@ -413,7 +529,7 @@ struct MoleControllerTests {
     let gate = MoleRunGate()
     let mole = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
-      run: { _, _, _ in
+      run: { _, _, _, _ in
         await gate.wait()
         return 0
       })
@@ -447,7 +563,7 @@ struct MoleControllerTests {
     let commands = MoleCommands()
     let controller = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
-      run: { _, command, _ in
+      run: { _, command, _, _ in
         await commands.append(command)
         return 0
       })
@@ -476,7 +592,7 @@ struct MoleControllerTests {
     let gate = MoleRunGate()
     let controller = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
-      run: { _, _, output in
+      run: { _, _, _, output in
         await gate.wait()
         await output(MoleOutput(text: "late", wasTruncated: false))
         return 0
@@ -502,7 +618,7 @@ struct MoleControllerTests {
     let previews = MoleCommands()
     let controller = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
-      run: { _, command, _ in
+      run: { _, command, _, _ in
         if command.isPreview {
           // 首次预览直接成功，第二次预览阻塞以验证离开时被停止。
           await previews.append(command)
@@ -543,7 +659,7 @@ struct MoleControllerTests {
     defer { fixture.remove() }
     let mole = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
-      run: { _, _, _ in 0 })
+      run: { _, _, _, _ in 0 })
     let cleaner = CleanerController(settings: fixture.settings, mole: mole)
     await mole.refreshAvailability()
     cleaner.showPreview([])
@@ -567,7 +683,7 @@ struct MoleControllerTests {
     let controller = MoleController(
       settings: fixture.settings,
       detect: { URL(fileURLWithPath: "/fixture/mo") },
-      run: { _, command, _ in
+      run: { _, command, _, _ in
         await commands.append(command)
         return 0
       })
@@ -600,7 +716,7 @@ struct MoleControllerTests {
       settings: fixture.settings,
       detect: { URL(fileURLWithPath: "/fixture/mo") },
       homebrewOperations: operations,
-      run: { _, command, output in
+      run: { _, command, _, output in
         await commands.append(command)
         await gate.wait()
         await output(MoleOutput(text: "late", wasTruncated: false))
@@ -656,7 +772,7 @@ struct MoleControllerTests {
     #expect(!missing.isConfirming && !missing.isRunning)
     let controller = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
-      run: { _, command, _ in
+      run: { _, command, _, _ in
         await commands.append(command)
         return 7
       })
@@ -689,7 +805,7 @@ struct MoleControllerTests {
         await detections.append(.scan)
         return URL(fileURLWithPath: path)
       },
-      run: { _, command, _ in
+      run: { _, command, _, _ in
         await commands.append(command)
         return 0
       })
@@ -717,7 +833,7 @@ struct MoleControllerTests {
     defer { fixture.remove() }
     let controller = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
-      run: { _, _, _ in
+      run: { _, _, _, _ in
         Issue.record("Rendering must not launch a command")
         return 0
       })
@@ -772,7 +888,7 @@ struct MoleControllerTests {
     defer { fixture.remove() }
     let mole = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
-      run: { _, _, _ in 0 })
+      run: { _, _, _, _ in 0 })
     let cleaner = CleanerController(settings: fixture.settings, mole: mole)
     cleaner.selectEngine(.mole)
     #expect(cleaner.engine == .native)
@@ -793,7 +909,7 @@ struct MoleControllerTests {
     defer { fixture.remove() }
     let mole = MoleController(
       settings: fixture.settings, detect: { nil },
-      run: { _, _, _ in
+      run: { _, _, _, _ in
         Issue.record("检测可用性不应执行命令")
         return 0
       })
@@ -820,7 +936,7 @@ struct MoleControllerTests {
         await detections.append(.scan)
         return count == 1 ? nil : URL(fileURLWithPath: "/fixture/mo")
       },
-      run: { _, _, _ in
+      run: { _, _, _, _ in
         Issue.record("引擎切换不应执行命令")
         return 0
       })
@@ -848,7 +964,7 @@ struct MoleControllerTests {
     let mole = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
       findBrew: { URL(fileURLWithPath: "/fixture/brew") },
-      run: { _, command, _ in
+      run: { _, command, _, _ in
         await commands.append(command)
         await gate.wait()
         return 0
@@ -874,7 +990,7 @@ struct MoleControllerTests {
     let gate = MoleRunGate()
     let mole = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
-      run: { _, _, _ in
+      run: { _, _, _, _ in
         Issue.record("原生扫描退出前不应执行 Mole")
         return 0
       })
@@ -898,6 +1014,68 @@ struct MoleControllerTests {
     #expect(mole.canStart)
   }
 
+  @Test(arguments: [MoleCommand.scan, .clean], [LayoutDirection.leftToRight, .rightToLeft])
+  func runningCleanupActionsRenderInBothDirections(command: MoleCommand, direction: LayoutDirection)
+    async throws
+  {
+    let fixture = try MoleControllerFixture()
+    defer { fixture.remove() }
+    let gate = MoleRunGate()
+    let controller = MoleController(
+      settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
+      run: { _, _, _, output in
+        await output(MoleOutput(text: "fixture output\n", wasTruncated: false))
+        await gate.wait()
+        return 0
+      })
+    await controller.refreshAvailability()
+    if command.isPreview {
+      controller.scan()
+    } else {
+      controller.requestExecution()
+      controller.confirmExecution()
+    }
+    await gate.waitForStart()
+    do {
+      for width in [340.0, 860.0] {
+        let size = NSSize(width: width, height: 380)
+        let host = NSHostingView(
+          rootView: MoleCommandView(controller: controller, nativeBusy: false)
+            .environment(\.layoutDirection, direction)
+            .environment(\.isSnapshot, true)
+            .preferredColorScheme(.light)
+            .frame(width: size.width, height: size.height)
+            .background(DS.Palette.background))
+        let window = NSWindow(
+          contentRect: NSRect(origin: NSPoint(x: -10_000, y: -10_000), size: size),
+          styleMask: .borderless, backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false
+        defer { window.close() }
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        #expect(host.fittingSize == size)
+        #expect(controller.isRunning && !controller.canExecute)
+        if let path = ProcessInfo.processInfo.environment["XSTATS_CLEANER_PREVIEW_DIR"] {
+          let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+          host.cacheDisplay(in: host.bounds, to: bitmap)
+          let directory = URL(fileURLWithPath: path, isDirectory: true)
+          try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+          let name =
+            "mole-running-\(command)-\(direction == .leftToRight ? "ltr" : "rtl")-\(Int(width)).png"
+          try #require(bitmap.representation(using: .png, properties: [:])).write(
+            to: directory.appendingPathComponent(name))
+        }
+      }
+    } catch {
+      controller.cancel()
+      await gate.release()
+      await controller.waitForExit()
+      throw error
+    }
+    await gate.release()
+    await controller.waitForExit()
+  }
+
   @Test(arguments: [MoleCommand.scan, .optimizePreview, .install])
   func consoleRendersLongOutputInBothDirectionsWithoutLaunchingCommands(
     command: MoleCommand
@@ -907,7 +1085,7 @@ struct MoleControllerTests {
     let controller = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
       findBrew: { URL(fileURLWithPath: "/fixture/brew") },
-      run: { _, _, output in
+      run: { _, _, _, output in
         await output(
           MoleOutput(
             text: String(repeating: "Mole · Bereinigung · تنظيف · 扫描\n", count: 500),
@@ -963,7 +1141,7 @@ struct MoleControllerTests {
     let controller = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
       findBrew: { URL(fileURLWithPath: "/fixture/brew") },
-      run: { _, _, _ in
+      run: { _, _, _, _ in
         if result == -1 { throw CocoaError(.fileReadUnknown) }
         return Int32(result)
       })
@@ -998,7 +1176,7 @@ struct MoleControllerTests {
     defer { fixture.remove() }
     let controller = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
-      run: { _, command, output in
+      run: { _, command, _, output in
         await output(
           MoleOutput(
             text: String(repeating: "Mole output\n", count: command == .clean ? 2 : lines),
@@ -1071,7 +1249,7 @@ struct MoleControllerTests {
     defer { fixture.remove() }
     let controller = MoleController(
       settings: fixture.settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
-      run: { _, _, output in
+      run: { _, _, _, output in
         await output(
           MoleOutput(
             text: (1...500).map { "line \($0)" }.joined(separator: "\n"),
@@ -1131,6 +1309,15 @@ private func logScrollView(in host: NSView) -> NSScrollView? {
     pending.append(contentsOf: view.subviews)
   }
   return nil
+}
+
+private actor MoleAuthorizationRequests {
+  var commands: [MoleCommand] = []
+  var values: [Bool] = []
+  func append(_ command: MoleCommand, _ requested: Bool) {
+    commands.append(command)
+    values.append(requested)
+  }
 }
 
 private actor MoleCommands {

@@ -16,7 +16,7 @@ final class MoleController {
   }
 
   typealias Runner =
-    @Sendable (URL, MoleCommand, @Sendable (MoleOutput) async -> Void) async throws -> Int32
+    @Sendable (URL, MoleCommand, Bool, @Sendable (MoleOutput) async -> Void) async throws -> Int32
 
   private(set) var executable: URL?
   private(set) var operation: MoleCommand?
@@ -28,7 +28,9 @@ final class MoleController {
   private(set) var wasCancelled = false
   private(set) var isCancelling = false
   private(set) var workflow: Workflow = .clean
+  private(set) var requestsAdministratorAccess = false
   var isConfirming = false
+  var isConfirmingAdministratorAccess = false
 
   @ObservationIgnored private let settings: AppSettings
   @ObservationIgnored private let detect: @Sendable () async -> URL?
@@ -37,6 +39,7 @@ final class MoleController {
   @ObservationIgnored private let run: Runner
   @ObservationIgnored private var task: Task<Void, Never>?
   @ObservationIgnored private var pendingExecutable: URL?
+  @ObservationIgnored private var pendingAdministratorExecutable: URL?
   @ObservationIgnored private var availabilityGeneration = UUID()
   @ObservationIgnored var nativeIsBusy: () -> Bool = { false }
   /// 真实执行（含取消或失败，可能已部分生效）结束后通知，原生扫描结果据此失效。
@@ -47,8 +50,9 @@ final class MoleController {
     detect: @escaping @Sendable () async -> URL? = { await MoleRunner.detect() },
     findBrew: @escaping () -> URL? = { MoleRunner.homebrewExecutable },
     homebrewOperations: HomebrewOperationState = HomebrewOperationState(),
-    run: @escaping Runner = { url, command, output in
-      try await MoleRunner.run(executable: url, command: command, output: output)
+    run: @escaping Runner = { url, command, requested, output in
+      try await MoleRunner.run(
+        executable: url, command: command, requestAdministratorAccess: requested, output: output)
     }
   ) {
     self.settings = settings
@@ -98,8 +102,35 @@ final class MoleController {
   func scan() { start(workflow.previewCommand) }
   func install() { start(.install) }
 
+  func setAdministratorAccessRequested(_ requested: Bool) {
+    guard canExecute, workflow == .clean else { return }
+    cancelConfirmation()
+    if requested && !requestsAdministratorAccess {
+      pendingAdministratorExecutable = executable
+      isConfirmingAdministratorAccess = true
+    } else if !requested {
+      requestsAdministratorAccess = false
+    }
+  }
+
+  func confirmAdministratorAccess() {
+    guard canExecute, workflow == .clean,
+      let pendingAdministratorExecutable, pendingAdministratorExecutable == executable
+    else {
+      cancelAdministratorAccessConfirmation()
+      return
+    }
+    cancelConfirmation()
+    requestsAdministratorAccess = true
+  }
+
+  func cancelAdministratorAccessConfirmation() {
+    pendingAdministratorExecutable = nil
+    isConfirmingAdministratorAccess = false
+  }
+
   func requestExecution() {
-    guard canExecute, let executable else {
+    guard canExecute, pendingAdministratorExecutable == nil, let executable else {
       return
     }
     pendingExecutable = executable
@@ -109,6 +140,7 @@ final class MoleController {
   func cancelConfirmation() {
     pendingExecutable = nil
     isConfirming = false
+    cancelAdministratorAccessConfirmation()
   }
 
   func confirmExecution() {
@@ -136,7 +168,7 @@ final class MoleController {
   func waitForExit() async { await task?.value }
 
   private func start(_ command: MoleCommand) {
-    guard canStart else { return }
+    guard canStart, pendingAdministratorExecutable == nil else { return }
     let executable: URL
     if command == .install {
       guard canInstall, let brew = findBrew() else { return }
@@ -157,7 +189,11 @@ final class MoleController {
     failure = nil
     wasCancelled = false
     isCancelling = false
-    Log.app.info("Mole \(command.displayCommand, privacy: .public) started")
+    let requestAdministratorAccess =
+      requestsAdministratorAccess && (command == .scan || command == .clean)
+    Log.app.info(
+      "Mole \(command.displayCommand, privacy: .public) started, request admin: \(requestAdministratorAccess, privacy: .public)"
+    )
     task = Task {
       defer {
         homebrewOperations.finish()
@@ -167,7 +203,8 @@ final class MoleController {
         if !command.isPreview { onExecutionFinished() }
       }
       do {
-        let status = try await run(executable, command) { [weak self] value in
+        let status = try await run(executable, command, requestAdministratorAccess) {
+          [weak self] value in
           guard !Task.isCancelled else { return }
           await self?.receive(value)
         }

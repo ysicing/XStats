@@ -25,6 +25,8 @@ with (root / "calls.jsonl").open("a") as f:
     f.write(json.dumps([name, *args]) + "\n")
 state_file = root / "registry.json"
 state = json.loads(state_file.read_text())
+attempts_file = root / "registration-attempts.json"
+attempts = json.loads(attempts_file.read_text()) if attempts_file.exists() else {}
 if name == "pluginkit":
     if "-m" in args:
         if os.environ.get("INSTALL_TEST_QUERY_FAIL"):
@@ -40,6 +42,33 @@ if name == "pluginkit":
         suffix = ("/Contents/PlugIns/XStatsFinderExtension.appex" if identifier.endswith(".finder")
                   else "/Contents/PlugIns/XStatsWidget.appex")
         entries = [entry for entry in state if entry["path"].endswith(suffix)]
+        replies = json.loads(os.environ.get("INSTALL_TEST_POST_REPLIES", "{}")).get(identifier)
+        if replies and attempts.get(identifier, 0):
+            queries_file = root / "post-queries.json"
+            queries = json.loads(queries_file.read_text()) if queries_file.exists() else {}
+            index = queries.get(identifier, 0)
+            queries[identifier] = index + 1
+            queries_file.write_text(json.dumps(queries))
+            reply = replies[min(index, len(replies) - 1)]
+            if reply == "query-failure":
+                print("match: Connection invalid", file=sys.stderr)
+                sys.exit(1)
+            if reply == "query-stderr":
+                print("match: Connection invalid", file=sys.stderr)
+            if reply == "malformed":
+                print("(no matches)\nunexpected registry reply")
+                sys.exit(0)
+            if reply == "zero-count-garbage":
+                print("(0 plug-ins)\nunexpected registry reply")
+                sys.exit(0)
+            if reply == "empty":
+                entries = []
+            elif reply == "wrong-parent":
+                entries = [{"path": entries[0]["path"], "parent": str(root / "Wrong.app")}]
+            elif reply in ["other-parent", "multiple"]:
+                other = str(root / "other workspace/Old.app")
+                extra = {"path": other + suffix, "parent": other}
+                entries = [extra] if reply == "other-parent" else entries + [extra]
         for entry in entries:
             print("     " + identifier + "(1.4.10)")
             print("            Path = " + entry["path"])
@@ -53,6 +82,13 @@ if name == "pluginkit":
             sys.exit(1)
         state = [x for x in state if x["path"] != args[1]]
     elif args[0] == "-a":
+        identifier = ("work.12306.xstats.app.finder" if "XStatsFinderExtension" in args[1]
+                      else "work.12306.xstats.app.widget")
+        attempts[identifier] = attempts.get(identifier, 0) + 1
+        attempts_file.write_text(json.dumps(attempts))
+        if (os.environ.get("INSTALL_TEST_RETRY_ADD_FAIL") == identifier
+                and attempts[identifier] > 1):
+            sys.exit(2)
         if os.environ.get("INSTALL_TEST_ADD_FAIL"):
             sys.exit(2)
         path = args[1]
@@ -123,7 +159,7 @@ class InstallLocalTests(unittest.TestCase):
         (self.root / "registry.json").write_text(json.dumps(self.registry))
         (self.root / "processes.json").write_text("[]")
         for name in ["pluginkit", "lsregister", "mdfind", "pgrep", "pkill",
-                     "codesign", "open", "defaults"]:
+                     "codesign", "open", "defaults", "sleep"]:
             path = self.bin / name
             path.write_text(SERVICE)
             path.chmod(0o755)
@@ -154,6 +190,8 @@ class InstallLocalTests(unittest.TestCase):
 
     def run_install(self, source=None, **flags):
         (self.root / "calls.jsonl").write_text("")
+        (self.root / "registration-attempts.json").write_text("{}")
+        (self.root / "post-queries.json").write_text("{}")
         return subprocess.run(["bash", str(self.script), str(source or self.source)],
                               env=dict(self.env, **flags), capture_output=True,
                               text=True, timeout=20)
@@ -254,6 +292,89 @@ class InstallLocalTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(["open", str(self.target)], self.calls())
 
+    def test_successful_registration_waits_for_both_extensions_to_become_visible(self):
+        replies = {identifier: ["empty", "empty", "normal"]
+                   for identifier in [WIDGET_ID, FINDER_ID]}
+        result = self.run_install(INSTALL_TEST_POST_REPLIES=json.dumps(replies))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.calls()
+        for identifier, suffix in [(WIDGET_ID, SUFFIX), (FINDER_ID, FINDER_SUFFIX)]:
+            self.assertEqual(calls.count(["pluginkit", "-a", str(self.target) + suffix]), 3)
+            self.assertEqual(sum(call[:2] == ["pluginkit", "-m"] and call[-1] == identifier
+                                 for call in calls), 4)
+        waits = [float(call[1]) for call in calls if call[0] == "sleep"]
+        self.assertEqual(len(waits), 4)
+        self.assertLessEqual(sum(waits), 2)
+        self.assertIn(["open", str(self.target)], calls)
+        self.assertIn("✅", result.stdout)
+        self.assertEqual(self.settings.read_bytes(), b"existing-five-widgets-and-layout")
+
+    def test_zero_count_with_unknown_text_is_not_a_valid_empty_snapshot(self):
+        replies = {WIDGET_ID: ["zero-count-garbage", "normal"]}
+        result = self.run_install(INSTALL_TEST_POST_REPLIES=json.dumps(replies))
+        self.assertNotEqual(result.returncode, 0, result.stdout)
+        calls = self.calls()
+        self.assertEqual(calls.count(["pluginkit", "-a", str(self.target) + SUFFIX]), 1)
+        self.assertFalse(any(call[0] == "sleep" for call in calls))
+        self.assertNotIn(["open", str(self.target)], calls)
+
+    def test_permanently_missing_registration_fails_after_bounded_attempts(self):
+        for identifier, suffix in [(WIDGET_ID, SUFFIX), (FINDER_ID, FINDER_SUFFIX)]:
+            with self.subTest(identifier=identifier):
+                (self.root / "registry.json").write_text(json.dumps(self.registry))
+                source = self.repo / identifier / "XStats.app"
+                self.make_app(source)
+                result = self.run_install(
+                    source, INSTALL_TEST_POST_REPLIES=json.dumps({identifier: ["empty"]}))
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                calls = self.calls()
+                self.assertEqual(calls.count(["pluginkit", "-a", str(self.target) + suffix]), 3)
+                self.assertEqual(sum(call[:2] == ["pluginkit", "-m"] and call[-1] == identifier
+                                     for call in calls), 4)
+                self.assertEqual(len([call for call in calls if call[0] == "sleep"]), 2)
+                self.assertNotIn(["open", str(self.target)], calls)
+                self.assertNotIn("✅", result.stdout)
+                self.assertEqual(self.settings.read_bytes(), b"existing-five-widgets-and-layout")
+
+    def test_invalid_postcheck_after_empty_snapshot_is_not_retried(self):
+        for identifier, suffix in [(WIDGET_ID, SUFFIX), (FINDER_ID, FINDER_SUFFIX)]:
+            for reply in ["query-failure", "query-stderr", "malformed", "wrong-parent",
+                          "other-parent", "multiple"]:
+                with self.subTest(identifier=identifier, reply=reply):
+                    (self.root / "registry.json").write_text(json.dumps(self.registry))
+                    source = self.repo / identifier / reply / "XStats.app"
+                    self.make_app(source)
+                    replies = {identifier: ["empty", reply, "normal"]}
+                    result = self.run_install(
+                        source, INSTALL_TEST_POST_REPLIES=json.dumps(replies))
+                    self.assertNotEqual(result.returncode, 0, result.stdout)
+                    calls = self.calls()
+                    self.assertEqual(
+                        calls.count(["pluginkit", "-a", str(self.target) + suffix]), 2)
+                    self.assertEqual(sum(call[:2] == ["pluginkit", "-m"]
+                                         and call[-1] == identifier for call in calls), 3)
+                    self.assertEqual(len([call for call in calls if call[0] == "sleep"]), 1)
+                    self.assertNotIn(["open", str(self.target)], calls)
+                    self.assertNotIn("✅", result.stdout)
+
+    def test_failed_reregistration_is_not_retried(self):
+        for identifier, suffix in [(WIDGET_ID, SUFFIX), (FINDER_ID, FINDER_SUFFIX)]:
+            with self.subTest(identifier=identifier):
+                (self.root / "registry.json").write_text(json.dumps(self.registry))
+                source = self.repo / identifier / "XStats.app"
+                self.make_app(source)
+                result = self.run_install(
+                    source, INSTALL_TEST_POST_REPLIES=json.dumps({identifier: ["empty", "normal"]}),
+                    INSTALL_TEST_RETRY_ADD_FAIL=identifier)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                calls = self.calls()
+                self.assertEqual(calls.count(["pluginkit", "-a", str(self.target) + suffix]), 2)
+                self.assertEqual(sum(call[:2] == ["pluginkit", "-m"] and call[-1] == identifier
+                                     for call in calls), 2)
+                self.assertFalse(any(call[0] == "sleep" for call in calls))
+                self.assertNotIn(["open", str(self.target)], calls)
+                self.assertNotIn("✅", result.stdout)
+
     def test_partial_or_inconsistent_registry_stops_before_unregistering(self):
         for reply in [
             "  (no matches)\nunexpected registry reply",
@@ -280,6 +401,10 @@ class InstallLocalTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0, result.stdout)
                 self.assertNotIn(["open", str(self.target)], self.calls())
                 self.assertTrue(self.target.exists())
+                for suffix in [SUFFIX, FINDER_SUFFIX]:
+                    self.assertLessEqual(
+                        self.calls().count(["pluginkit", "-a", str(self.target) + suffix]), 1)
+                self.assertFalse(any(call[0] == "sleep" for call in self.calls()))
 
     def test_rejects_installed_target_as_source_before_mutating(self):
         result = self.run_install(self.target)

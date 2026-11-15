@@ -49,7 +49,7 @@ import Testing
     }
   }
 
-  @Test func systemIconChangesKeepTheSelectedDockStyleAndUpdateWhileDockIsHidden() throws {
+  @Test func legacySystemIconPreferenceDoesNotRepaintTheDock() throws {
     let app = NSApplication.shared
     let previousPolicy = app.activationPolicy()
     let originalIcon = app.applicationIconImage
@@ -64,14 +64,9 @@ import Testing
     settings.menuBarLayout = .iconOnly
     let model = AppModel(
       settings: settings, historyURL: nil, magpieClient: UnavailableMagpieClient())
-    var systemStyles: [DockIconStyle] = []
     var renders = 0
     let controller = MenuBarController(
       model: model,
-      synchronizeApplicationIcon: {
-        systemStyles.append($0)
-        app.applicationIconImage = NSImage(size: NSSize(width: 1, height: 1))
-      },
       makeDockImage: { _, _ in
         renders += 1
         return NSImage(size: NSSize(width: 256, height: 256))
@@ -80,22 +75,19 @@ import Testing
     controller.refreshDockIcon()
     settings.applicationIconStyle = .mascot
     controller.refreshDockIcon()
-    #expect(systemStyles == [.standard, .mascot])
-    #expect(renders == 2)
+    #expect(renders == 1)
     #expect(app.applicationIconImage?.size == NSSize(width: 256, height: 256))
     settings.dockIconStyle = .standard
     controller.refreshDockIcon()
     let standard = try #require(app.applicationIconImage?.tiffRepresentation)
     controller.refreshDockIcon()
-    #expect(systemStyles == [.standard, .mascot])
     settings.applicationIconStyle = .standard
     controller.refreshDockIcon()
     #expect(app.applicationIconImage?.tiffRepresentation == standard)
     #expect(app.setActivationPolicy(.accessory))
     settings.applicationIconStyle = .mascot
     controller.refreshDockIcon()
-    #expect(systemStyles == [.standard, .mascot, .standard, .mascot])
-    #expect(renders == 2)
+    #expect(renders == 1)
     #expect(app.setActivationPolicy(.regular))
     controller.refreshDockIcon()
     #expect(app.applicationIconImage?.tiffRepresentation == standard)

@@ -8,7 +8,6 @@ import SwiftUI
 @MainActor
 final class MenuBarController: NSObject {
   private let model: AppModel
-  private let synchronizeApplicationIcon: @MainActor (DockIconStyle) -> Void
   private let makeDockImage: @MainActor (TrioReading, TrioConfiguration) -> NSImage
   private var items: [(key: MenuBarItem?, statusItem: NSStatusItem)] = []
   private var panels: [MenuBarItem: StatusPanel] = [:]
@@ -27,7 +26,6 @@ final class MenuBarController: NSObject {
     (reading: TrioReading, configuration: TrioConfiguration, language: AppLanguage)?
   private var renderedItemSpacing: Int?
   private var renderedDockStyle: DockIconStyle?
-  private var renderedApplicationStyle: DockIconStyle?
 
   /// 开发调试：启动后展开并固定某个弹窗
   var pinsNextPopover = false
@@ -38,15 +36,11 @@ final class MenuBarController: NSObject {
 
   init(
     model: AppModel,
-    synchronizeApplicationIcon: @escaping @MainActor (DockIconStyle) -> Void = {
-      DockIconRenderer.synchronizeSystemIcon($0, product: .xstats)
-    },
     makeDockImage: @escaping @MainActor (TrioReading, TrioConfiguration) -> NSImage =
       TrioIconRenderer
       .dockImage
   ) {
     self.model = model
-    self.synchronizeApplicationIcon = synchronizeApplicationIcon
     self.makeDockImage = makeDockImage
     super.init()
   }
@@ -215,13 +209,6 @@ final class MenuBarController: NSObject {
   /// 共用现有采样刷新；隐藏程序坞时释放动态图标，重新显示时立即补上当前状态。
   func refreshDockIcon(reading: TrioReading? = nil) {
     let style = model.settings.dockIconStyle
-    let applicationStyle = model.settings.applicationIconStyle
-    // 系统图标更新可能刷新 Dock，即使样式或读数未变也要补画运行中的图标。
-    let applicationStyleChanged = renderedApplicationStyle != applicationStyle
-    if applicationStyleChanged {
-      synchronizeApplicationIcon(applicationStyle)
-      renderedApplicationStyle = applicationStyle
-    }
     guard NSApp.activationPolicy() == .regular else {
       if renderedDockTrio != nil || renderedDockStyle == .mascot {
         NSApp.applicationIconImage = nil
@@ -231,7 +218,7 @@ final class MenuBarController: NSObject {
       return
     }
     guard style == .automatic, model.settings.menuBarLayout == .iconOnly else {
-      if applicationStyleChanged || renderedDockStyle != style || renderedDockTrio != nil {
+      if renderedDockStyle != style || renderedDockTrio != nil {
         DockIconRenderer.applyDockIcon(style, product: .xstats)
         renderedDockStyle = style
         renderedDockTrio = nil
@@ -251,7 +238,7 @@ final class MenuBarController: NSObject {
       NSApp.applicationIconImage?.accessibilityDescription = tooltip
     }
     guard
-      applicationStyleChanged || !sameImage || renderedDockTrio?.configuration != configuration
+      !sameImage || renderedDockTrio?.configuration != configuration
         || renderedDockTrio?.language != language
     else { return }
     NSApp.applicationIconImage = makeDockImage(reading, configuration)

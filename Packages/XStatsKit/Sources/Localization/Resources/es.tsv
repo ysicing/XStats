@@ -2653,6 +2653,15 @@ macOS 随后会重新建立索引，完成前搜索结果可能不完整。	macO
 预览执行 mo optimize --dry-run，不应用更改；优化执行 mo optimize。	La vista previa ejecuta mo optimize --dry-run sin aplicar cambios; la optimización ejecuta mo optimize.
 已停止，已完成的优化不会撤销	Detenido; no se revertirán las optimizaciones completadas
 查看清理范围，不删除文件	Ver el alcance de la limpieza sin eliminar archivos
+Mole 需要管理员权限来访问系统缓存。	Mole necesita permisos de administrador para acceder a las cachés del sistema.
+未获得管理员授权，将继续按普通权限运行。	No se concedió la autorización de administrador. Se continuará con permisos normales.
+当前 Mole 安装不支持应用内管理员授权，将继续按普通权限运行。	Esta instalación de Mole no admite la autorización de administrador dentro de la app. Se continuará con permisos normales.
+请求管理员授权	Solicitar autorización de administrador
+启用管理员授权请求？	¿Activar las solicitudes de autorización de administrador?
+部分系统缓存需要管理员权限才能预览和清理。启用后，两项操作都会按需请求管理员授权。	Algunas cachés del sistema requieren permisos de administrador para previsualizarlas y limpiarlas. Al activar esta opción, ambas operaciones solicitarán autorización de administrador cuando sea necesario.
+管理员清理会扩大可删除范围，误删可能影响应用运行或造成数据丢失。建议先预览，再确认清理。	La limpieza con permisos de administrador amplía lo que se puede eliminar. Una eliminación accidental puede afectar al funcionamiento de las apps o causar pérdida de datos. Revisa primero la vista previa y luego confirma la limpieza.
+取消授权或授权失败时，将按普通权限继续。	Si se cancela la autorización o esta falla, las operaciones continuarán con permisos normales.
+确认启用	Confirmar y activar
 查看优化项目，不应用更改	Ver las optimizaciones sin aplicar cambios
 退出码 {}	Código de salida {}
 预览失败	Error en la vista previa

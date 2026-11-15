@@ -51,6 +51,17 @@ struct MoleCommandView: View {
             "将执行 mo optimize，由 Mole 决定并应用优化。预览不是固定执行清单，Mole 可能请求管理员授权。停止不能撤销已完成的更改。"
           ))
     }
+    .alert(tr("启用管理员授权请求？"), isPresented: $mole.isConfirmingAdministratorAccess) {
+      Button(tr("取消"), role: .cancel) { mole.cancelAdministratorAccessConfirmation() }
+      Button(tr("确认启用")) { mole.confirmAdministratorAccess() }
+    } message: {
+      Text(
+        tr("部分系统缓存需要管理员权限才能预览和清理。启用后，两项操作都会按需请求管理员授权。")
+          + "\n\n"
+          + tr("管理员清理会扩大可删除范围，误删可能影响应用运行或造成数据丢失。建议先预览，再确认清理。")
+          + "\n\n"
+          + tr("取消授权或授权失败时，将按普通权限继续。"))
+    }
   }
 
   private var introduction: some View {
@@ -75,7 +86,10 @@ struct MoleCommandView: View {
           }
           .multilineTextAlignment(.center)
           .fixedSize(horizontal: false, vertical: true)
-          workflowActions
+          VStack(spacing: DS.Space.s3) {
+            administratorAccessOption
+            workflowActions
+          }
         }
         .frame(maxWidth: 520)
         .frame(maxWidth: .infinity)
@@ -83,6 +97,20 @@ struct MoleCommandView: View {
         .padding(.top, max(DS.Space.s4, geometry.size.height * 0.22))
         .padding(.bottom, DS.Space.s4)
       }
+    }
+  }
+
+  @ViewBuilder
+  private var administratorAccessOption: some View {
+    if controller.workflow == .clean {
+      Toggle(
+        tr("请求管理员授权"),
+        isOn: Binding(
+          get: { controller.requestsAdministratorAccess },
+          set: { controller.setAdministratorAccessRequested($0) })
+      )
+      .toggleStyle(.checkbox)
+      .disabled(!controller.canExecute || nativeBusy)
     }
   }
 
@@ -112,6 +140,7 @@ struct MoleCommandView: View {
   private var commandContent: some View {
     let mole = controller
     return VStack(alignment: .leading, spacing: DS.Space.s3) {
+      if !installation { administratorAccessOption }
       HStack(spacing: DS.Space.s2) {
         if installation {
           Button(tr("安装 Mole")) { mole.install() }

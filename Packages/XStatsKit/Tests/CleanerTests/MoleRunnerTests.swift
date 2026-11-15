@@ -6,6 +6,218 @@ import Testing
 @testable import Cleaner
 
 struct MoleRunnerTests {
+  @Test(arguments: [MoleCommand.scan, .clean])
+  func cleanupDoesNotRequestAuthorizationByDefault(command: MoleCommand) async throws {
+    let fixture = try MoleFixture(
+      "printf '%s\\n' \"$@\"", authorization: "printf 'unexpected authorization\\n'")
+    defer { fixture.remove() }
+    let received = MoleOutputProbe()
+    let status = try await MoleRunner.run(executable: fixture.executable, command: command) {
+      await received.append($0)
+    }
+    #expect(status == 0)
+    #expect(await received.outputs.last?.text == command.arguments.joined(separator: "\n") + "\n")
+  }
+
+  @Test(arguments: [MoleCommand.scan, .clean])
+  func cleanupUsesMoleGUIAuthorizationWhenRequested(command: MoleCommand) async throws {
+    let fixture = try MoleFixture(
+      "printf '%s\\n' \"$@\"",
+      authorization: #"""
+        [[ "$is_gui_mode" == true ]] || return 1
+        printf 'GUI authorization\n'
+        """#)
+    defer { fixture.remove() }
+    let received = MoleOutputProbe()
+    let status = try await MoleRunner.run(
+      executable: fixture.executable, command: command, requestAdministratorAccess: true
+    ) {
+      await received.append($0)
+    }
+    #expect(status == 0)
+    #expect(
+      await received.outputs.last?.text
+        == "GUI authorization\n" + command.arguments.joined(separator: "\n") + "\n")
+  }
+
+  @Test(arguments: [MoleCommand.scan, .clean])
+  func cleanupAuthorizesBeforeExecutingInTheSameProcess(command: MoleCommand) async throws {
+    let fixture = try MoleFixture(
+      #"""
+      printf '%s\n' "$$"
+      cat "$(dirname "$0")/lib/core/authorized-pid"
+      printf '%s\n' "$@"
+      """#,
+      authorization: #"""
+        printf '%s\n' "$$" > "$MOLE_FIXTURE_CORE/authorized-pid"
+        """#)
+    defer { fixture.remove() }
+    let received = MoleOutputProbe()
+    let status = try await MoleRunner.run(
+      executable: fixture.executable, command: command, requestAdministratorAccess: true
+    ) {
+      await received.append($0)
+    }
+    let lines = try #require(await received.outputs.last?.text.split(separator: "\n"))
+    #expect(status == 0)
+    #expect(lines.count == 2 + command.arguments.count)
+    #expect(lines.first == lines.dropFirst().first)
+    #expect(lines.suffix(command.arguments.count).map(String.init) == command.arguments)
+  }
+
+  @Test(arguments: [1, 2, 130], [MoleCommand.scan, .clean])
+  func deniedAuthorizationFallsBackToOrdinaryCleanup(
+    authorizationStatus: Int, command: MoleCommand
+  ) async throws {
+    let fixture = try MoleFixture(
+      "printf '%s\\n' \"$@\"", authorization: "return \(authorizationStatus)")
+    defer { fixture.remove() }
+    let received = MoleOutputProbe()
+    let status = try await MoleRunner.run(
+      executable: fixture.executable, command: command, requestAdministratorAccess: true
+    ) {
+      await received.append($0)
+    }
+    #expect(status == 0)
+    #expect(
+      await received.outputs.last?.text.hasSuffix(command.arguments.joined(separator: "\n") + "\n")
+        == true)
+  }
+
+  @Test(arguments: [MoleCommand.scan, .clean])
+  func missingAuthorizationSupportFallsBackToOrdinaryCleanup(command: MoleCommand) async throws {
+    let fixture = try MoleFixture("printf '%s\\n' \"$@\"")
+    defer { fixture.remove() }
+    try FileManager.default.removeItem(
+      at: fixture.directory.appendingPathComponent("lib/core/sudo.sh"))
+    let received = MoleOutputProbe()
+    let status = try await MoleRunner.run(
+      executable: fixture.executable, command: command, requestAdministratorAccess: true
+    ) {
+      await received.append($0)
+    }
+    #expect(status == 0)
+    #expect(
+      await received.outputs.last?.text.hasSuffix(command.arguments.joined(separator: "\n") + "\n")
+        == true)
+  }
+
+  @Test(
+    arguments: ["", "request_sudo_access() { return 0; }\n", "return 1\n"],
+    [MoleCommand.scan, .clean])
+  func incompatibleAuthorizationLibraryFallsBackToOrdinaryCleanup(
+    library: String, command: MoleCommand
+  ) async throws {
+    let fixture = try MoleFixture("printf '%s\\n' \"$@\"")
+    defer { fixture.remove() }
+    try library.write(
+      to: fixture.directory.appendingPathComponent("lib/core/sudo.sh"),
+      atomically: true, encoding: .utf8)
+    let received = MoleOutputProbe()
+    let status = try await MoleRunner.run(
+      executable: fixture.executable, command: command, requestAdministratorAccess: true
+    ) {
+      await received.append($0)
+    }
+    #expect(status == 0)
+    #expect(
+      await received.outputs.last?.text.hasSuffix(command.arguments.joined(separator: "\n") + "\n")
+        == true)
+  }
+
+  @Test func ordinaryPreviewFailureIsNotHiddenByAuthorizationFallback() async throws {
+    let fixture = try MoleFixture("printf '%s\\n' \"$@\"; exit 7", authorization: "return 1")
+    defer { fixture.remove() }
+    let received = MoleOutputProbe()
+    let status = try await MoleRunner.run(
+      executable: fixture.executable, command: .scan, requestAdministratorAccess: true
+    ) {
+      await received.append($0)
+    }
+    #expect(status == 7)
+    #expect(await received.outputs.last?.text.hasSuffix("clean\n--dry-run\n") == true)
+  }
+
+  @Test(arguments: [false, true])
+  func previewResolvesAuthorizationLibrariesThroughSymlinks(homebrew: Bool) async throws {
+    let fixture = try MoleFixture("printf '%s\\n' \"$@\"")
+    defer { fixture.remove() }
+    var target = fixture.executable
+    if homebrew {
+      let bin = fixture.directory.appendingPathComponent("bin")
+      let libexec = fixture.directory.appendingPathComponent("libexec")
+      try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+      try FileManager.default.createDirectory(at: libexec, withIntermediateDirectories: true)
+      target = bin.appendingPathComponent("mo")
+      try FileManager.default.moveItem(at: fixture.executable, to: target)
+      try FileManager.default.moveItem(
+        at: fixture.directory.appendingPathComponent("lib"),
+        to: libexec.appendingPathComponent("lib"))
+    }
+    let alias = fixture.directory.appendingPathComponent("mo alias ' $HOME")
+    try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: target)
+    let received = MoleOutputProbe()
+    let status = try await MoleRunner.run(
+      executable: alias, command: .scan, requestAdministratorAccess: true
+    ) {
+      await received.append($0)
+    }
+    #expect(status == 0)
+    #expect(await received.outputs.last?.text == "clean\n--dry-run\n")
+  }
+
+  @Test func otherCommandsDoNotRequestCleanupAuthorization() async throws {
+    let fixture = try MoleFixture("printf '%s\\n' \"$@\"", authorization: "return 1")
+    defer { fixture.remove() }
+    for command in [MoleCommand.optimizePreview, .optimize, .install] {
+      let received = MoleOutputProbe()
+      let status = try await MoleRunner.run(
+        executable: fixture.executable, command: command, requestAdministratorAccess: true
+      ) {
+        await received.append($0)
+      }
+      #expect(status == 0)
+      #expect(await received.outputs.last?.text == command.arguments.joined(separator: "\n") + "\n")
+    }
+  }
+
+  @Test(.timeLimit(.minutes(1)), arguments: [MoleCommand.scan, .clean])
+  func cancellationDuringAuthorizationDoesNotStartCleanup(command: MoleCommand) async throws {
+    let fixture = try MoleFixture(
+      "touch \"$0.executed\"",
+      authorization: #"""
+        sleep 30 &
+        echo "$!"
+        wait
+        """#)
+    defer { fixture.remove() }
+    let received = MoleOutputProbe()
+    let task = Task {
+      try await MoleRunner.run(
+        executable: fixture.executable, command: command, requestAdministratorAccess: true
+      ) {
+        await received.append($0)
+      }
+    }
+    defer { task.cancel() }
+    for _ in 0..<100 {
+      if await received.outputs.first != nil || task.isCancelled { break }
+      try await Task.sleep(for: .milliseconds(20))
+    }
+    let child = try #require(
+      await received.outputs.first.flatMap {
+        Int32($0.text.trimmingCharacters(in: .whitespacesAndNewlines))
+      })
+    task.cancel()
+    await #expect(throws: CancellationError.self) { try await task.value }
+    for _ in 0..<100 {
+      if kill(child, 0) != 0 { break }
+      try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(kill(child, 0) != 0)
+    #expect(!FileManager.default.fileExists(atPath: fixture.executable.path + ".executed"))
+  }
+
   @Test func installationUsesHomebrewArgumentsAndDisablesUnrelatedCleanup() async throws {
     let fixture = try MoleFixture(
       #"""
@@ -228,10 +440,17 @@ private struct MoleFixture {
   let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
   var executable: URL { directory.appendingPathComponent("mo") }
 
-  init(_ body: String) throws {
+  init(_ body: String, authorization: String = "return 0") throws {
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     try ("#!/bin/sh\n" + body + "\n").write(to: executable, atomically: true, encoding: .utf8)
     try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+    let core = directory.appendingPathComponent("lib/core")
+    try FileManager.default.createDirectory(at: core, withIntermediateDirectories: true)
+    try "".write(to: core.appendingPathComponent("base.sh"), atomically: true, encoding: .utf8)
+    try
+      ("MOLE_FIXTURE_CORE=\"$(dirname \"${BASH_SOURCE[0]}\")\"\n"
+      + "request_sudo_access() {\nlocal is_gui_mode=false\n" + authorization + "\n}\n")
+      .write(to: core.appendingPathComponent("sudo.sh"), atomically: true, encoding: .utf8)
   }
 
   func remove() { try? FileManager.default.removeItem(at: directory) }

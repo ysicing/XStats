@@ -45,7 +45,7 @@ XStats is a free, open-source native app built with Swift, AppKit and SwiftUI. N
 
 ### Menu bar and optional features
 
-Show metrics **separately**, in **Aggregated Mode**, or as **a three-in-one icon** with freely combined sources. Customize items, order and styles, and open metric details from the overview. Choose standard or hand-drawn app artwork, with live status available in the Dock.
+Show metrics **separately**, in **Aggregated Mode**, or as **a three-in-one icon** with freely combined sources. Customize items, order and styles, and open metric details from the overview. The running app’s Dock icon can use standard or hand-drawn artwork, or show live status.
 
 Enable monitoring and tools as needed, and configure menu bar entries separately. Hiding an entry leaves the feature running. Disabling monitoring stops live collection, related alerts and new history while keeping existing records.
 

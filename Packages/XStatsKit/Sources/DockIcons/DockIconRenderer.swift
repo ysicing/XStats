@@ -19,8 +19,8 @@ import UniformTypeIdentifiers
     return image
   }
 
+  /// 仅更新运行中的 Dock；Finder 自定义图标会写入应用包元数据并破坏严格签名校验。
   public static func apply(_ style: DockIconStyle, product: DockIconProduct) {
-    synchronizeSystemIcon(style, product: product)
     applyDockIcon(style, product: product)
   }
 
@@ -28,8 +28,4 @@ import UniformTypeIdentifiers
     NSApp.applicationIconImage = style == .mascot ? mascot(for: product) : standardIcon
   }
 
-  public static func synchronizeSystemIcon(_ style: DockIconStyle, product: DockIconProduct) {
-    guard Bundle.main.bundleIdentifier == product.bundleIdentifier else { return }
-    systemIcon.apply(style, mascot: style == .mascot ? mascot(for: product) : nil)
-  }
 }

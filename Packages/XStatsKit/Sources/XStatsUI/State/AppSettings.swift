@@ -1037,6 +1037,7 @@ public final class AppSettings {
     }
     set { preferredDockIconStyle = newValue }
   }
+  /// 仅保留旧版系统图标偏好与备份兼容，不再用于修改应用包。
   public var applicationIconStyle: DockIconStyle {
     didSet { defaults.set(applicationIconStyle.rawValue, forKey: Keys.applicationIconStyle) }
   }

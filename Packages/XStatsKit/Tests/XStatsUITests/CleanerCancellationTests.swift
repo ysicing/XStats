@@ -16,7 +16,7 @@ struct CleanerCancellationTests {
     let gate = ScanGate()
     let mole = MoleController(
       settings: settings, detect: { URL(fileURLWithPath: "/fixture/mo") },
-      run: { _, _, _ in
+      run: { _, _, _, _ in
         Issue.record("Mole started while native scan was stopping")
         return 0
       })

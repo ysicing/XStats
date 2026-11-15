@@ -98,8 +98,8 @@ try:
     count = re.search(r"^\s*\((\d+) plug-ins?\)\s*$", text, re.MULTILINE)
     if (path is not None or len(headers) != len(records)
             or (count and int(count[1]) != len(records))
-            or (text.strip() not in ("", "(no matches)")
-                and not records and (not count or count[1] != "0"))):
+            or (not records
+                and not re.fullmatch(r"\s*(?:\(no matches\)|\(0 plug-ins?\))?\s*", text))):
         raise ValueError("无法确认扩展登记列表完整性")
 except ValueError as error:
     sys.exit(f"error: {error}；登记快照：{snapshot}")
@@ -178,21 +178,35 @@ if ! "$LSREGISTER" -f "$TARGET" || ! pluginkit -a "$TARGET$WIDGET_SUFFIX" \
   exit 1
 fi
 
-# 只接受正式安装这一条记录，避免登记失败后仍输出“安装成功”。
-read_extension_registration "$REGISTRATION_DIR/after.txt" "$WIDGET_ID" "$WIDGET_SUFFIX"
-expected="$(printf '%s\t%s' "$TARGET$WIDGET_SUFFIX" "$TARGET")"
-if [ "$(cat "$REGISTRATION_DIR/after.txt.paths")" != "$expected" ]; then
-  cat "$REGISTRATION_DIR/after.txt" >&2
-  echo "error: Widget 登记未收敛到正式安装；应用已替换，保留全部配置和其他构建，请检查快照：$REGISTRATION_DIR" >&2
-  exit 1
-fi
-read_extension_registration "$REGISTRATION_DIR/finder-after.txt" "$FINDER_ID" "$FINDER_SUFFIX"
-expected="$(printf '%s\t%s' "$TARGET$FINDER_SUFFIX" "$TARGET")"
-if [ "$(cat "$REGISTRATION_DIR/finder-after.txt.paths")" != "$expected" ]; then
-  cat "$REGISTRATION_DIR/finder-after.txt" >&2
-  echo "error: Finder 扩展登记未收敛到正式安装；请检查快照：$REGISTRATION_DIR" >&2
-  exit 1
-fi
+# 只对成功解析的空快照重登记；两个扩展合计最多等待 2 秒，保留每次快照。
+verify_extension_registration() {
+  local snapshot="$1" identifier="$2" suffix="$3" label="$4"
+  local expected attempt current_snapshot
+  expected="$(printf '%s\t%s' "$TARGET$suffix" "$TARGET")"
+  for attempt in 1 2 3; do
+    current_snapshot="$snapshot"
+    if [ "$attempt" -gt 1 ]; then
+      current_snapshot="$snapshot.retry-$((attempt - 1))"
+    fi
+    read_extension_registration "$current_snapshot" "$identifier" "$suffix" || return 1
+    if [ "$(cat "$current_snapshot.paths")" = "$expected" ]; then
+      return 0
+    fi
+    if [ -s "$current_snapshot.paths" ] || [ "$attempt" -eq 3 ]; then
+      cat "$current_snapshot" >&2
+      echo "error: $label 登记未收敛到正式安装；应用已替换，保留全部配置和其他构建，请检查快照：$REGISTRATION_DIR" >&2
+      return 1
+    fi
+    if ! pluginkit -a "$TARGET$suffix"; then
+      echo "error: $label 重新登记失败；保留现有配置，登记快照：$REGISTRATION_DIR" >&2
+      return 1
+    fi
+    sleep 0.5
+  done
+}
+
+verify_extension_registration "$REGISTRATION_DIR/after.txt" "$WIDGET_ID" "$WIDGET_SUFFIX" "Widget"
+verify_extension_registration "$REGISTRATION_DIR/finder-after.txt" "$FINDER_ID" "$FINDER_SUFFIX" "Finder 扩展"
 
 open "$TARGET"
 version="$(defaults read "$TARGET/Contents/Info" CFBundleShortVersionString) ($(defaults read "$TARGET/Contents/Info" CFBundleVersion))"

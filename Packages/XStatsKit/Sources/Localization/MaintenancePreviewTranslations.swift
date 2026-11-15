@@ -9,6 +9,15 @@ extension Translations {
     可先预览清理范围，也可直接开始清理。	Preview what to clean, or start cleanup directly.
     可先预览优化项目，也可直接开始优化。	Preview optimizations, or start optimizing directly.
     查看清理范围，不删除文件	Preview cleanup scope without deleting files
+    Mole 需要管理员权限来访问系统缓存。	Mole needs administrator privileges to access system caches.
+    未获得管理员授权，将继续按普通权限运行。	Administrator authorization was not granted. Continuing with standard privileges.
+    当前 Mole 安装不支持应用内管理员授权，将继续按普通权限运行。	This Mole installation does not support in-app administrator authorization. Continuing with standard privileges.
+    请求管理员授权	Request Administrator Authorization
+    启用管理员授权请求？	Enable Administrator Authorization Requests?
+    部分系统缓存需要管理员权限才能预览和清理。启用后，两项操作都会按需请求管理员授权。	Some system caches require administrator privileges to preview and clean. When enabled, both operations will request administrator authorization as needed.
+    管理员清理会扩大可删除范围，误删可能影响应用运行或造成数据丢失。建议先预览，再确认清理。	Cleaning with administrator privileges expands what can be deleted. Accidental deletion may affect apps or cause data loss. Preview first, then confirm cleanup.
+    取消授权或授权失败时，将按普通权限继续。	If authorization is canceled or fails, operations will continue with standard privileges.
+    确认启用	Confirm and Enable
     查看优化项目，不应用更改	Preview optimizations without applying changes
     退出码 {}	Exit code {}
     预览失败	Preview failed
