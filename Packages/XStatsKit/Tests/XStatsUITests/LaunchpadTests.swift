@@ -555,7 +555,8 @@ struct LaunchpadTests {
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let apps = (0..<120).map { application("App \($0)") }
-    let controller = LaunchpadWindowController(defaults: defaults)
+    // CI 镜像默认开启减少动态效果；预览断言显式选择动画路径，不修改系统偏好。
+    let controller = LaunchpadWindowController(defaults: defaults, shouldReduceMotion: { false })
     controller.show(frame: frame, applicationLoader: { apps })
     defer { controller.dismiss() }
     try await waitForCatalog(controller, count: apps.count)
@@ -600,7 +601,7 @@ struct LaunchpadTests {
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let apps = (0..<14).map { application("App \($0)") }
-    let controller = LaunchpadWindowController(defaults: defaults)
+    let controller = LaunchpadWindowController(defaults: defaults, shouldReduceMotion: { false })
     defer { controller.dismiss() }
     controller.setBrowsingMode(.list)
     controller.show(
@@ -635,6 +636,43 @@ struct LaunchpadTests {
     #expect(controller.page == 1 - startingPage)
     #expect(descendant(LaunchpadPagePreview.self, in: content) == nil)
     #expect(content.convert(grid.bounds, from: grid).maxY == top)
+  }
+
+  @Test(arguments: [LaunchpadBrowsingMode.grid, .list], [0, 1])
+  func reducedMotionSwipePagesWithoutPreviewAndResetsAfterCancellation(
+    mode: LaunchpadBrowsingMode, startingPage: Int
+  ) async throws {
+    _ = NSApplication.shared
+    let suite = "LaunchpadTests.reducedMotionSwipe.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let apps = (0..<120).map { application("App \($0)") }
+    let controller = LaunchpadWindowController(defaults: defaults, shouldReduceMotion: { true })
+    defer { controller.dismiss() }
+    controller.setBrowsingMode(mode)
+    controller.show(frame: frame, applicationLoader: { apps })
+    try await waitForCatalog(controller, count: apps.count)
+    controller.changePage(by: startingPage)
+    let panel = try #require(controller.panel)
+    let content = try #require(panel.contentView)
+    let direction: Int32 = startingPage == 0 ? -1 : 1
+    for (ending, time) in [(NSEvent.Phase.cancelled, 1.0), (.ended, 2.0)] {
+      panel.sendEvent(try swipeEvent(phase: .began, delta: direction * 20, timestamp: time))
+      panel.sendEvent(
+        try swipeEvent(phase: .changed, delta: direction * 300, timestamp: time + 0.01))
+      #expect(controller.page == startingPage)
+      #expect(descendant(LaunchpadPagePreview.self, in: content) == nil)
+      panel.sendEvent(try swipeEvent(phase: ending, delta: 0, timestamp: time + 0.02))
+      #expect(controller.page == (ending == .cancelled ? startingPage : 1 - startingPage))
+      #expect(descendant(LaunchpadPagePreview.self, in: content) == nil)
+    }
+    panel.sendEvent(try swipeEvent(phase: .began, delta: -direction * 3, timestamp: 3))
+    panel.sendEvent(try swipeEvent(phase: .ended, delta: 0, timestamp: 3.01))
+    #expect(controller.page == 1 - startingPage)
+    #expect(appButtons(in: panel).count <= controller.pageSize)
+    #expect(descendant(LaunchpadPagePreview.self, in: content) == nil)
+    controller.dismiss()
+    #expect(panel.contentView == nil)
   }
 
   @Test(arguments: [AppLanguage.chinese, .german, .arabic])

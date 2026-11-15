@@ -84,6 +84,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   private let usage: CommandBarUsage?
   private let layoutStore: LaunchpadLayoutStore?
   private let defaults: UserDefaults
+  private let shouldReduceMotion: () -> Bool
   private let applicationRemover: @Sendable (URL) throws -> Void
   var onSelect: (AppCommand) -> Void = { _ in }
   var isVisible: Bool { panel?.isVisible == true }
@@ -162,6 +163,9 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   init(
     usage: CommandBarUsage? = nil, layoutStore: LaunchpadLayoutStore? = nil,
     defaults: UserDefaults = .standard,
+    shouldReduceMotion: @escaping () -> Bool = {
+      NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    },
     applicationRemover: @escaping @Sendable (URL) throws -> Void = {
       try LaunchpadApplicationRemoval.trash($0)
     }
@@ -169,6 +173,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     self.usage = usage
     self.layoutStore = layoutStore
     self.defaults = defaults
+    self.shouldReduceMotion = shouldReduceMotion
     self.applicationRemover = applicationRemover
     browsingMode =
       defaults.string(forKey: LaunchpadBrowsingMode.preferenceKey)
@@ -1279,7 +1284,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   func handlePageSwipe(_ event: NSEvent) {
     guard let grid, let content = panel?.contentView, !results.isEmpty else { return }
     let ending = event.phase.contains(.ended) || event.phase.contains(.cancelled)
-    let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    let reduceMotion = shouldReduceMotion()
     if reduceMotion {
       if !pageSwipe.isActive { swipePage = page }
       if event.scrollingDeltaX != 0 {
