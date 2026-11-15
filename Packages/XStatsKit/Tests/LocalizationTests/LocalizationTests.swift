@@ -81,7 +81,10 @@ import Testing
   @Test func reviewedInterfaceKeysHaveTranslationsInEveryLanguage() throws {
     for language in AppLanguage.allCases where language != .system && language != .chinese {
       let table = try #require(Translations.catalog(for: language))
-      for key in ["未启用", "正在启用…", "重试", "输入", "输出", "磁盘可用 1.2 TB"] {
+      for key in [
+        "未启用", "正在启用…", "重试", "输入", "输出", "磁盘可用 1.2 TB",
+        "更多应用", "了解更多", "轻量开源的 Git 桌面客户端，Sourcetree 的开源替代。",
+      ] {
         let translated = try #require(table.translate(key), "\(language): \(key)")
         #expect(translated != key)
         if key.contains("1.2 TB") { #expect(translated.contains("1.2 TB")) }

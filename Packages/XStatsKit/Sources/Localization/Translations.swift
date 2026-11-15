@@ -1765,6 +1765,9 @@ extension Translations {
     自定义转速时，CPU 达到该温度自动恢复系统控制	With a custom speed, fans return to system control at this CPU temperature
     自己的进程为实际占用内存，系统进程为常驻内存	Footprint for your processes, resident memory for system processes
     致谢	Acknowledgements
+    更多应用	More Apps
+    了解更多	Learn More
+    轻量开源的 Git 桌面客户端，Sourcetree 的开源替代。	A lightweight, open-source Git desktop client. An open-source alternative to Sourcetree.
     良好	Good
     节点	Edge
     芯片	Chip

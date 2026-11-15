@@ -30,6 +30,28 @@ enum SnapshotRenderer {
       return
     }
 
+    if CommandLine.arguments.contains("--about-only") {
+      let suite = "XStats.aboutSnapshot.\(UUID())"
+      guard let defaults = UserDefaults(suiteName: suite) else { return }
+      defer { defaults.removePersistentDomain(forName: suite) }
+      let settings = AppSettings(defaults: defaults)
+      settings.language = L10n.language
+      settings.enabledMonitoringModules = []
+      settings.historyEnabled = false
+      let model = AppModel(settings: settings, historyURL: nil, networkCacheDefaults: defaults)
+      for (name, suffix) in [(NSAppearance.Name.aqua, "light"), (.darkAqua, "dark")] {
+        guard let appearance = NSAppearance(named: name) else { continue }
+        for width: CGFloat in [576, 900] {
+          write(
+            SettingsTabPage { AboutSettings() }
+              .frame(width: width).appLanguageEnvironment(),
+            model: model, appearance: appearance,
+            to: outputDirectory.appendingPathComponent("about-\(Int(width))-\(suffix).png"))
+        }
+      }
+      return
+    }
+
     if CommandLine.arguments.contains("--finder-documents-only") {
       let suite = "XStats.finderDocumentsSnapshot.\(UUID())"
       guard let defaults = UserDefaults(suiteName: suite) else { return }

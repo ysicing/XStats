@@ -1129,6 +1129,9 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 自定义转速时，CPU 达到该温度自动恢复系统控制	Avec une vitesse personnalisée, le système reprend le contrôle à cette température CPU
 自己的进程为实际占用内存，系统进程为常驻内存	Empreinte mémoire pour vos processus, mémoire résidente pour les processus système
 致谢	Remerciements
+更多应用	Autres applications
+了解更多	En savoir plus
+轻量开源的 Git 桌面客户端，Sourcetree 的开源替代。	Un client Git de bureau léger et open source. Une alternative open source à Sourcetree.
 良好	Bon
 节点	Nœud
 芯片	Puce

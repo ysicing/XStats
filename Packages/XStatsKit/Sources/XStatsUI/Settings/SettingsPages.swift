@@ -1407,6 +1407,10 @@ private struct CapabilityLine: View {
 struct AboutSettings: View {
   @State private var legalDocument: LegalDocument?
 
+  private static let codeIcon =
+    Bundle.module.url(forResource: "51code", withExtension: "png", subdirectory: "Logos")
+    .flatMap { NSImage(contentsOf: $0) }
+
   var body: some View {
     let version =
       Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? tr("开发版")
@@ -1436,6 +1440,35 @@ struct AboutSettings: View {
 
     UpdateSettings()
     DiagnosticsSettings()
+
+    SettingsGroup(caption: tr("更多应用")) {
+      GroupRow(showsDivider: false) {
+        HStack(spacing: DS.Space.s3) {
+          if let icon = Self.codeIcon {
+            Image(nsImage: icon)
+              .resizable()
+              .scaledToFit()
+              .frame(width: DS.Space.s12, height: DS.Space.s12)
+              .accessibilityHidden(true)
+          }
+          SettingRow(
+            title: "51Code",
+            subtitle: tr("轻量开源的 Git 桌面客户端，Sourcetree 的开源替代。")
+          ) {
+            Button {
+              if let url = URL(string: "https://github.com/ysicing/51code") {
+                NSWorkspace.shared.open(url)
+              }
+            } label: {
+              Label(tr("了解更多"), systemImage: "arrow.up.right.square")
+            }
+            .buttonStyle(DSButtonStyle(kind: .secondary))
+            .fixedSize()
+            .accessibilityLabel(tr("查看 \(String("51Code"))"))
+          }
+        }
+      }
+    }
 
     SettingsGroup(caption: tr("法律与隐私")) {
       GroupRow(showsDivider: false) {

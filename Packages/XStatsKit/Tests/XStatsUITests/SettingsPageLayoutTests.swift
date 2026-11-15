@@ -11,6 +11,7 @@ struct SettingsPageLayoutTests {
   @Test(
     arguments: [
       PanelTab.settingsGeneral, .settingsShortcuts, .settingsHelper, .settingsFeatures,
+      .settingsAbout,
       .audio, .cpu, .gpu, .memory, .network,
     ], [840.0, 1753.0])
   func pagesRenderInMainWindow(page: PanelTab, width: Double) throws {

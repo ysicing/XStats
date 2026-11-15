@@ -1129,6 +1129,9 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 自定义转速时，CPU 达到该温度自动恢复系统控制	Bei eigener Drehzahl übernimmt das System ab dieser CPU-Temperatur wieder die Steuerung
 自己的进程为实际占用内存，系统进程为常驻内存	Bei eigenen Prozessen tatsächlicher Speicherbedarf, bei Systemprozessen residenter Speicher
 致谢	Danksagung
+更多应用	Weitere Apps
+了解更多	Mehr erfahren
+轻量开源的 Git 桌面客户端，Sourcetree 的开源替代。	Ein schlanker Open-Source-Git-Client für den Desktop. Eine quelloffene Alternative zu Sourcetree.
 良好	Gut
 节点	Knoten
 芯片	Chip

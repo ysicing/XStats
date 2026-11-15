@@ -2,6 +2,13 @@
 
 XStats 新增代码与修改采用 AGPL-3.0-or-later，范围见 [LICENSING.md](LICENSING.md)。以下列出当前使用的第三方代码、依赖、素材与参考来源。
 
+## 51Code 应用图标
+
+`Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/51code.png` 来自
+[ysicing/51code](https://github.com/ysicing/51code) 的 `resources/icon.png`，
+Copyright (c) 2026 ysicing，采用 AGPL-3.0-only，用于「关于 → 更多应用」中的产品识别。
+图标原样保留，未引入该项目的代码或运行时依赖。
+
 ## Finder 苹果原生空白模板
 
 `Packages/XStatsKit/Sources/FinderDocuments/Templates/blank.{pages,key}` 基于
