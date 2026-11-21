@@ -62,7 +62,10 @@ sampling loop. Views consume published snapshots rather than starting collectors
   battery protection, remain until control has been safely handed back.
 
 Collectors retain their own cadence within this loop: disk at most every 30 seconds,
-battery every 10 seconds and IOReport roughly every two seconds. App Energy uses
+battery every 10 seconds and IOReport roughly every two seconds. GPU power subscribes
+to `GPU Energy` and falls back to the full `Energy Model` group if the narrow subscription
+cannot be created or fails to yield data on three successive eligible reads. The
+fallback stays active for the life of the sampler and starts a fresh baseline. App Energy uses
 process energy-counter deltas only while its section is visible, clears baselines
 on suspension and bounds metadata to live processes. Its CPU energy reading is not
 whole-application or whole-machine power.

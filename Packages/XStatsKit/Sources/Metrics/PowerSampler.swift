@@ -6,6 +6,7 @@
 import Foundation
 import IOKit
 import SMC
+import os
 
 /// 功耗与 CPU / GPU 频率
 public struct PowerReading: Sendable, Equatable {
@@ -53,8 +54,17 @@ public struct PowerReading: Sendable, Equatable {
 /// 功耗读 SMC，CPU 频率与 GPU 能耗读 IOReport，都不需要 root。
 /// 注：新款芯片上 IOReport 的 CPU 能耗计数器（mJ）长时间不更新，因此不显示 CPU 功耗。
 public final class PowerSampler: @unchecked Sendable {
+  typealias EnergyReader = () -> CFDictionary?
+
+  private static let logger = Logger(subsystem: "work.12306.xstats", category: "power")
+  private static let gpuEnergyChannel = "GPU Energy"
+
   private let smc = try? SMCConnection()
-  private var energy: Subscription?
+  private let subscribeEnergy: (String?) -> EnergyReader?
+  private let energyDelta: (CFDictionary, CFDictionary) -> Double?
+  private var energy: EnergyReader?
+  private var usesFullEnergyGroup = false
+  private var narrowEnergyMisses = 0
   private var cpuStates: Subscription?
   private var gpuStates: Subscription?
   private var lastGPUStates: (date: Date, sample: CFDictionary)?
@@ -63,9 +73,23 @@ public final class PowerSampler: @unchecked Sendable {
   private var lastStates: (date: Date, sample: CFDictionary)?
   private lazy var frequencyTables: [[Double]] = Self.readFrequencyTables()
 
-  public init() {}
+  public convenience init() {
+    self.init(
+      subscribeEnergy: { channel in
+        Subscription(group: "Energy Model", subgroup: nil, channelName: channel)?.sample
+      },
+      energyDelta: Self.gpuEnergyDelta)
+  }
 
-  /// SMC 读数几乎没有开销；IOReport 每次采样约 5 毫秒 CPU，GPU 功耗与 CPU 频率只在界面需要时读
+  init(
+    subscribeEnergy: @escaping (String?) -> EnergyReader?,
+    energyDelta: @escaping (CFDictionary, CFDictionary) -> Double?
+  ) {
+    self.subscribeEnergy = subscribeEnergy
+    self.energyDelta = energyDelta
+  }
+
+  /// GPU 功耗与 CPU／GPU 频率只在界面需要时读取，分别管理采样基线。
   public func sample(
     system includeSystem: Bool = true, gpu includeGPU: Bool = true,
     frequency includeFrequency: Bool = true, gpuFrequency includeGPUFrequency: Bool = false,
@@ -89,7 +113,10 @@ public final class PowerSampler: @unchecked Sendable {
   /// 需求变化或暂停后重新建立基线，避免把关闭期间的计数算进实时读数。
   public func resetBaselines(gpu: Bool = true, cpuFrequency: Bool = true, gpuFrequency: Bool = true)
   {
-    if gpu { lastEnergy = nil }
+    if gpu {
+      lastEnergy = nil
+      narrowEnergyMisses = 0
+    }
     if cpuFrequency { lastStates = nil }
     if gpuFrequency { lastGPUStates = nil }
   }
@@ -102,21 +129,48 @@ public final class PowerSampler: @unchecked Sendable {
   // MARK: GPU
 
   private func sampleGPU(now: Date) -> Double? {
-    if energy == nil { energy = Subscription(group: "Energy Model", subgroup: nil) }
-    guard let energy, let current = energy.sample() else { return nil }
-    defer { lastEnergy = (now, current) }
-    // 间隔太短噪声大；太长（界面关闭过一段时间）的平均值没有意义
-    guard let last = lastEnergy, (0.2...15).contains(now.timeIntervalSince(last.date)),
-      let delta = IOReportCreateSamplesDelta(last.sample, current, nil)?.takeRetainedValue()
-    else {
+    if energy == nil {
+      if !usesFullEnergyGroup {
+        energy = subscribeEnergy(Self.gpuEnergyChannel)
+        usesFullEnergyGroup = energy == nil
+      }
+      if usesFullEnergyGroup { energy = subscribeEnergy(nil) }
+    }
+    guard let current = energy?() else {
+      recordGPUEnergyMiss(now: now)
       return nil
     }
-    let seconds = now.timeIntervalSince(last.date)
-    for channel in Subscription.channels(in: delta) where Subscription.name(channel) == "GPU Energy"
-    {
+    let previous = lastEnergy
+    lastEnergy = (now, current)
+    // 间隔太短噪声大；太长（界面关闭过一段时间）的平均值没有意义
+    guard let previous else { return nil }
+    let interval = now.timeIntervalSince(previous.date)
+    guard (0.2...15).contains(interval) else { return nil }
+    guard let joules = energyDelta(previous.sample, current) else {
+      recordGPUEnergyMiss(now: now)
+      return nil
+    }
+    narrowEnergyMisses = 0
+    return joules / interval
+  }
+
+  private func recordGPUEnergyMiss(now: Date) {
+    guard !usesFullEnergyGroup else { return }
+    narrowEnergyMisses += 1
+    guard narrowEnergyMisses >= 3 else { return }
+    usesFullEnergyGroup = true
+    Self.logger.notice("GPU 功耗窄订阅连续无数据，回退到 Energy Model")
+    energy = subscribeEnergy(nil)
+    lastEnergy = energy?().map { (now, $0) }
+  }
+
+  private static func gpuEnergyDelta(_ previous: CFDictionary, _ current: CFDictionary) -> Double? {
+    guard let delta = IOReportCreateSamplesDelta(previous, current, nil)?.takeRetainedValue()
+    else { return nil }
+    for channel in Subscription.channels(in: delta)
+    where Subscription.name(channel) == gpuEnergyChannel {
       let value = Double(IOReportSimpleGetIntegerValue(channel, 0))
-      let joules = value * Self.joulesPerUnit(Subscription.unit(channel))
-      return joules / seconds
+      return value * joulesPerUnit(Subscription.unit(channel))
     }
     return nil
   }
@@ -343,12 +397,23 @@ private final class Subscription {
   private let channels: CFMutableDictionary
   private let subscription: IOReportSubscriptionRef
 
-  init?(group: String, subgroup: String?) {
+  init?(group: String, subgroup: String?, channelName: String? = nil) {
     guard
       let channels = IOReportCopyChannelsInGroup(group as CFString, subgroup as CFString?, 0, 0, 0)?
         .takeRetainedValue()
     else {
       return nil
+    }
+    if let channelName {
+      let matching = Self.channels(in: channels).filter { Self.name($0) == channelName }
+      guard !matching.isEmpty else { return nil }
+      let key = "IOReportChannels" as CFString
+      let selected = matching as CFArray
+      withExtendedLifetime((key, selected)) {
+        CFDictionarySetValue(
+          channels, Unmanaged.passUnretained(key).toOpaque(),
+          Unmanaged.passUnretained(selected).toOpaque())
+      }
     }
     var subscribed: Unmanaged<CFMutableDictionary>?
     guard let subscription = IOReportCreateSubscription(nil, channels, &subscribed, 0, nil) else {
@@ -361,8 +426,8 @@ private final class Subscription {
 
   // subscription 是 OpaquePointer，不受 ARC 管理，本类也不释放它：IOReport 是私有框架，
   // 没有公开的释放入口，而它是否为 CF 对象无法验证——释放错了会在 dealloc 时崩溃。
-  // 目前全进程只有 MetricsHub 持有的那一个 PowerSampler，三个 Subscription 各只创建一次且
-  // 随进程存在，不会增长。若将来 PowerSampler 改成可反复创建，必须先确认正确的释放方式再补 deinit。
+  // 常驻 MetricsHub 的 PowerSampler 对每种订阅最多成功创建一次，GPU 功耗仅单向回退。
+  // 若将来 PowerSampler 改成可反复创建，必须先确认正确的释放方式再补 deinit。
 
   func sample() -> CFDictionary? {
     IOReportCreateSamples(subscription, channels, nil)?.takeRetainedValue()

@@ -779,6 +779,7 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Von uv geladener Py
 无法推出“{}”：{}	„{1}“ konnte nicht ausgeworfen werden: {2}
 无法确认是否经过代理	Proxy-Nutzung nicht bestätigt
 无法移到废纸篓：{}	Verschieben in den Papierkorb fehlgeschlagen: {}
+项目已移动或被替换，请重新分析。	Dieses Element wurde verschoben oder ersetzt. Führe die Analyse erneut aus.
 无法读取	Nicht lesbar
 无法连接 WebDAV，请检查网络、地址和 HTTPS 证书	Verbindung zu WebDAV nicht möglich. Netzwerk, URL und HTTPS-Zertifikat prüfen
 无法连接辅助工具	Verbindung zum Hilfsprogramm nicht möglich

@@ -1408,6 +1408,7 @@ extension Translations {
     无法推出“{}”：{}	Couldn't eject “{1}”: {2}
     无法确认是否经过代理	Can't Confirm Proxy Use
     无法移到废纸篓：{}	Couldn't move to the Trash: {}
+    项目已移动或被替换，请重新分析。	This item was moved or replaced. Run the analysis again.
     无法读取	Unreadable
     无法连接辅助工具	Couldn't connect to the helper
     无法连接辅助工具：{}	Couldn't connect to the helper: {}

@@ -84,4 +84,31 @@ import Testing
     #expect(
       !SpaceScanner.canTrash(home.appendingPathComponent("Downloads/../../other/file"), home: home))
   }
+
+  @Test(arguments: ["archive.dmg", "archive.sparsebundle"])
+  func trashRequiresTheScannedItem(_ name: String) throws {
+    let manager = FileManager.default
+    let root = try scratch().resolvingSymlinksInPath()
+    defer { try? manager.removeItem(at: root) }
+    let url = root.appendingPathComponent("Downloads/\(name)")
+    let content = name.hasSuffix(".sparsebundle") ? url.appendingPathComponent("data") : url
+    try write(content, bytes: 60_000_000)
+    let result = try SpaceScanner.scan(root: root)
+    let file = try #require(result.largestFiles.first)
+    #expect(file.name == name)
+
+    var requested: [URL] = []
+    try SpaceScanner.trash(file, home: root) { requested.append($0) }
+    #expect(requested == [file.url])
+
+    try manager.moveItem(at: url, to: url.appendingPathExtension("old"))
+    #expect(throws: SpaceScanner.TrashError.itemChanged) {
+      try SpaceScanner.trash(file, home: root) { requested.append($0) }
+    }
+    try write(content, bytes: 1)
+    #expect(throws: SpaceScanner.TrashError.itemChanged) {
+      try SpaceScanner.trash(file, home: root) { requested.append($0) }
+    }
+    #expect(requested == [file.url])
+  }
 }

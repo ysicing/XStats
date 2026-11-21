@@ -179,8 +179,31 @@ public struct SpaceScanResult: Sendable, Equatable {
     public let bytes: UInt64
     public let modified: Date?
     public let isPackage: Bool
+    let identity: FileIdentity
     public var id: String { url.path }
     public var name: String { url.lastPathComponent }
+  }
+
+  struct FileIdentity: Sendable, Equatable {
+    let device: dev_t
+    let inode: ino_t
+    let createdSeconds: Int
+    let createdNanoseconds: Int
+
+    init(_ metadata: stat) {
+      device = metadata.st_dev
+      inode = metadata.st_ino
+      createdSeconds = metadata.st_birthtimespec.tv_sec
+      createdNanoseconds = metadata.st_birthtimespec.tv_nsec
+    }
+
+    init?(at url: URL, isPackage: Bool) {
+      var metadata = stat()
+      guard url.path.withCString({ lstat($0, &metadata) }) == 0,
+        metadata.st_mode & S_IFMT == (isPackage ? S_IFDIR : S_IFREG)
+      else { return nil }
+      self.init(metadata)
+    }
   }
 
   public let root: URL
@@ -221,6 +244,12 @@ public struct SpaceScanProgress: Sendable, Equatable {
 /// 用 fts 逐层遍历，比 FileManager 的枚举器快一个数量级；只读，不跟随符号链接、不跨越挂载点，
 /// 没有权限的目录跳过。扫描在调用方的任务里进行，任务取消即停止
 public enum SpaceScanner {
+  enum TrashError: LocalizedError, Equatable {
+    case itemChanged
+
+    var errorDescription: String? { tr("项目已移动或被替换，请重新分析。") }
+  }
+
   public static let largestFileCount = 20
   /// 小于这个体积的文件不进“最大的文件”
   public static let largestFileFloor: UInt64 = 50_000_000
@@ -280,9 +309,14 @@ public enum SpaceScanner {
       } else if values.isRegularFile == true {
         bytes = UInt64(values.totalFileAllocatedSize ?? 0)
         items = 1
-        consider(
-          SpaceScanResult.File(
-            url: entry, bytes: bytes, modified: values.contentModificationDate, isPackage: false))
+        if bytes >= largestFileFloor,
+          let identity = SpaceScanResult.FileIdentity(at: entry, isPackage: false)
+        {
+          consider(
+            SpaceScanResult.File(
+              url: entry, bytes: bytes, modified: values.contentModificationDate, isPackage: false,
+              identity: identity))
+        }
       } else {
         continue
       }
@@ -318,7 +352,10 @@ public enum SpaceScanner {
     var bytes: UInt64 = 0
     var items = 0
     // 正在经过的包（最外层在前）；内层包的体积并入外层
-    var packages: [(path: String, bytes: UInt64, modified: Date?)] = []
+    var packages:
+      [(
+        path: String, bytes: UInt64, modified: Date, identity: SpaceScanResult.FileIdentity
+      )] = []
     let name = directory.lastPathComponent
 
     while let entry = fts_read(stream) {
@@ -332,7 +369,10 @@ public enum SpaceScanner {
         if isPackage(path) {
           let stat = entry.pointee.fts_statp.pointee
           packages.append(
-            (path, 0, Date(timeIntervalSince1970: TimeInterval(stat.st_mtimespec.tv_sec))))
+            (
+              path, 0, Date(timeIntervalSince1970: TimeInterval(stat.st_mtimespec.tv_sec)),
+              SpaceScanResult.FileIdentity(stat)
+            ))
         }
       case FTS_DP:
         let path = String(cString: entry.pointee.fts_path)
@@ -342,7 +382,7 @@ public enum SpaceScanner {
             consider(
               SpaceScanResult.File(
                 url: URL(fileURLWithPath: path), bytes: last.bytes, modified: last.modified,
-                isPackage: true))
+                isPackage: true, identity: last.identity))
           } else {
             packages[packages.count - 1].bytes += last.bytes
           }
@@ -352,14 +392,14 @@ public enum SpaceScanner {
         let stat = entry.pointee.fts_statp.pointee
         let size = UInt64(max(0, stat.st_blocks)) * 512
         bytes += size
-        if packages.isEmpty {
+        if !packages.isEmpty {
+          packages[packages.count - 1].bytes += size
+        } else if size >= largestFileFloor {
           consider(
             SpaceScanResult.File(
               url: URL(fileURLWithPath: String(cString: entry.pointee.fts_path)), bytes: size,
               modified: Date(timeIntervalSince1970: TimeInterval(stat.st_mtimespec.tv_sec)),
-              isPackage: false))
-        } else {
-          packages[packages.count - 1].bytes += size
+              isPackage: false, identity: SpaceScanResult.FileIdentity(stat)))
         }
       default:
         // 符号链接、没权限的目录、读取出错的条目都跳过
@@ -399,10 +439,21 @@ public enum SpaceScanner {
     return true
   }
 
-  /// 移到废纸篓（可恢复）；不允许的路径直接报错
-  public static func trash(_ url: URL) throws {
-    guard canTrash(url) else { throw CocoaError(.fileWriteNoPermission) }
-    try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+  /// 移到废纸篓前复核路径和扫描时的文件身份。
+  public static func trash(_ file: SpaceScanResult.File) throws {
+    try trash(file, home: FileManager.default.homeDirectoryForCurrentUser) { url in
+      try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+    }
+  }
+
+  static func trash(
+    _ file: SpaceScanResult.File, home: URL, moveToTrash: (URL) throws -> Void
+  ) throws {
+    let allowedPath = canTrash(file.url, home: home)
+    guard SpaceScanResult.FileIdentity(at: file.url, isPackage: file.isPackage) == file.identity
+    else { throw TrashError.itemChanged }
+    guard allowedPath else { throw CocoaError(.fileWriteNoPermission) }
+    try moveToTrash(file.url)
   }
 }
 

@@ -50,6 +50,67 @@ import Testing
     #expect(PowerSampler.joulesPerUnit("nJ") == 1e-9)
     #expect(PowerSampler.joulesPerUnit("mJ") == 1e-3)
   }
+
+  @Test(arguments: [true, false])
+  func fallsBackWhenTheNarrowSubscriptionStopsProvidingData(missingSample: Bool) {
+    let narrow = [String: Int]() as CFDictionary
+    let full = ["Full": 1] as CFDictionary
+    var subscriptions: [String?] = []
+    let sampler = PowerSampler(
+      subscribeEnergy: { channel in
+        subscriptions.append(channel)
+        if channel == nil { return { full } }
+        return { missingSample ? nil : narrow }
+      },
+      energyDelta: { previous, current in
+        if current === narrow { return nil }
+        #expect(previous === full && current === full)
+        return 4
+      })
+    let started = Date(timeIntervalSince1970: 1_000)
+    let switchTime: TimeInterval = missingSample ? 4 : 6
+    for elapsed in stride(from: 0.0, through: switchTime, by: 2) {
+      let reading = sampler.sample(
+        system: false, frequency: false, now: started.addingTimeInterval(elapsed))
+      #expect(reading.gpu == nil)
+      #expect(subscriptions == (elapsed == switchTime ? ["GPU Energy", nil] : ["GPU Energy"]))
+    }
+    let reading = sampler.sample(
+      system: false, frequency: false, now: started.addingTimeInterval(switchTime + 2))
+    #expect(reading.gpu == 2)
+
+    sampler.resetBaselines()
+    let resumed = sampler.sample(
+      system: false, frequency: false, now: started.addingTimeInterval(switchTime + 4))
+    #expect(resumed.gpu == nil)
+    #expect(subscriptions == ["GPU Energy", nil])
+  }
+
+  @Test func zeroWattsAndResetBreakTheFailureStreak() {
+    let snapshot = [String: Int]() as CFDictionary
+    var subscriptions: [String?] = []
+    var delta: Double?
+    let sampler = PowerSampler(
+      subscribeEnergy: { channel in
+        subscriptions.append(channel)
+        return { snapshot }
+      },
+      energyDelta: { _, _ in delta })
+    let started = Date(timeIntervalSince1970: 1_000)
+    let readings: [(elapsed: TimeInterval, delta: Double?, expected: Double?)] = [
+      (0, nil, nil), (2, nil, nil), (4, nil, nil), (6, 0, 0),
+      (8, nil, nil), (10, nil, nil), (12, nil, nil), (12.1, nil, nil),
+      (30, nil, nil), (32, nil, nil), (34, 2, 1),
+    ]
+    for reading in readings {
+      if reading.elapsed == 12 { sampler.resetBaselines() }
+      delta = reading.delta
+      let watts = sampler.sample(
+        system: false, frequency: false, now: started.addingTimeInterval(reading.elapsed))
+      #expect(watts.gpu == reading.expected)
+      #expect(subscriptions == ["GPU Energy"])
+    }
+  }
 }
 
 @Suite struct DiskSamplerTests {

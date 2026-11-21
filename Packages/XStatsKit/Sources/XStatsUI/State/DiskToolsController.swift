@@ -278,7 +278,7 @@ final class DiskToolsController {
   /// 把扫描结果里的一个文件移到废纸篓，然后从结果里去掉它
   func trash(_ file: SpaceScanResult.File) {
     do {
-      try SpaceScanner.trash(file.url)
+      try SpaceScanner.trash(file)
       trashOutcome = Outcome(text: tr("已把“\(file.name)”移到废纸篓"), isError: false)
       if case .finished(let result) = scanPhase {
         scanPhase = .finished(
