@@ -2943,3 +2943,14 @@ UTC 时间	UTC-Zeit
 功能未启用，启用后生效	Verfügbar, sobald die Funktion aktiviert ist
 与「{}」的快捷键重复	Kurzbefehl bereits „{}“ zugewiesen
 独立版快捷键请在 XStats Capture 的设置中管理。	Verwalten Sie die Kurzbefehle der eigenständigen App in den Einstellungen von XStats Capture.
+本机自动	Lokal (automatisch)
+远端	Remote
+网关地址	Gateway-Adresse
+网关密钥	Gateway-Schlüssel
+测试连接	Verbindung testen
+配置已保存	Konfiguration gespeichert
+连接成功	Verbindung erfolgreich
+请检查 Magpie 网关密钥。	Prüfe deinen Magpie-Gateway-Schlüssel.
+Magpie 网关密钥无权读取此数据。	Dieser Magpie-Gateway-Schlüssel hat keine Leseberechtigung für diese Daten.
+无法访问 Magpie 钥匙串项目。	Auf den Magpie-Schlüsselbundeintrag kann nicht zugegriffen werden.
+请输入有效的 HTTP 或 HTTPS 网关地址。	Gib eine gültige HTTP- oder HTTPS-Gateway-Adresse ein.

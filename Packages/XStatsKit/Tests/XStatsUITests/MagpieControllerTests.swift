@@ -86,6 +86,40 @@ struct MagpieControllerTests {
         application: nil, commandLineInstalled: false, previouslyConnected: true) == .retry)
   }
 
+  @Test func localMagpieAvailabilityRequiresAValidResponseFromTheLocalClient() async throws {
+    let settings = settings()
+    settings.aiUsageEnabled = false
+    let endpoint = try #require(MagpieClient.remoteEndpoint("http://magpie.example.test"))
+    let local = MagpieStub(quotaPayload: Data(#"{"object":"list","data":[]}"#.utf8))
+    let remote = MagpieStub()
+    let controller = AIUsageController(settings: settings, magpieClient: local)
+    controller.switchMagpieSource(to: endpoint, client: remote)
+
+    #expect(await controller.checkLocalMagpieAvailability())
+    await local.setQuotaPayload(Data("invalid payload".utf8))
+    #expect(await !controller.checkLocalMagpieAvailability())
+    #expect(settings.magpieRemoteURL == endpoint)
+    #expect(await local.counts().0 == 2)
+    #expect(await local.counts().1.isEmpty)
+    #expect(await remote.counts().0 == 0)
+    #expect(controller.lastAttemptAt == nil)
+  }
+
+  @Test func reopeningSettingsUsesRediscoveredLocalClientForSubsequentRefreshes() async {
+    let settings = settings()
+    let original = MagpieStub()
+    let moved = MagpieStub()
+    var candidates = [original, moved].makeIterator()
+    let controller = AIUsageController(
+      settings: settings, discoverLocalMagpie: { candidates.next() ?? moved })
+    controller.cumulativeWidgetIsInstalled = { false }
+    #expect(await controller.checkLocalMagpieAvailability())
+    await controller.refresh()
+    #expect(await original.counts().0 == 0)
+    #expect(await moved.counts().0 == 2)
+    #expect(await moved.counts().1 == [.daily])
+  }
+
   @Test func unavailableMagpiePageFitsBothLayoutDirections() async {
     let model = AppModel(
       settings: settings(), historyURL: nil, magpieClient: UnavailableMagpieClient())
@@ -954,6 +988,38 @@ struct MagpieControllerTests {
     #expect(controller.magpieQuotas.isEmpty)
     #expect(controller.todayTokens == nil)
     #expect(!controller.isRefreshing)
+  }
+
+  @Test func switchingMagpieSourceDiscardsOldResultsAndKeepsLocalPreferences() async throws {
+    let settings = settings()
+    let local = MagpieStub()
+    let remote = MagpieStub(quotaPayload: Data(#"{"object":"list","data":[]}"#.utf8))
+    let controller = AIUsageController(settings: settings, magpieClient: local)
+    controller.cumulativeWidgetIsInstalled = { false }
+    defer { controller.stop() }
+    await controller.refresh()
+    let localID = try #require(controller.widgetQuotaAccounts(at: .now).first?.id)
+    settings.aiPreferredAccounts["grok"] = localID
+    #expect(controller.todayTokens == 120)
+
+    await local.hold()
+    let lateRefresh = Task { await controller.refresh() }
+    let deadline = ContinuousClock.now + .seconds(2)
+    while await local.counts().0 < 2, ContinuousClock.now < deadline { await Task.yield() }
+    #expect(await local.counts().0 == 2)
+    let endpoint = try #require(MagpieClient.remoteEndpoint("http://magpie.example.test:3425"))
+    controller.switchMagpieSource(to: endpoint, client: remote)
+    #expect(controller.todayTokens == nil)
+    #expect(controller.magpieQuotas.isEmpty)
+    #expect(settings.magpiePreferredAccounts.isEmpty)
+    await local.release()
+    await lateRefresh.value
+    await controller.refresh()
+    #expect(controller.magpieQuotas.isEmpty)
+    #expect(controller.todayTokens == 120)
+    #expect(settings.aiPreferredAccounts["grok"] == localID)
+    controller.switchMagpieSource(to: nil)
+    #expect(settings.magpiePreferredAccounts["grok"] == localID)
   }
   @Test func nativePopoverRendersInBothLayoutDirections() async throws {
     let settings = settings()

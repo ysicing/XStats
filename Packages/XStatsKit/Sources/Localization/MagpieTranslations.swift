@@ -3,6 +3,17 @@
 
 extension Translations {
   static let magpieEnglish = #"""
+    本机自动	Automatic (local)
+    远端	Remote
+    网关地址	Gateway address
+    网关密钥	Gateway key
+    测试连接	Test Connection
+    配置已保存	Configuration saved
+    连接成功	Connection succeeded
+    请检查 Magpie 网关密钥。	Check your Magpie gateway key.
+    Magpie 网关密钥无权读取此数据。	This Magpie gateway key cannot read this data.
+    无法访问 Magpie 钥匙串项目。	Cannot access the Magpie Keychain item.
+    请输入有效的 HTTP 或 HTTPS 网关地址。	Enter a valid HTTP or HTTPS gateway address.
     到期：{}	Expires: {}
     显示 Token 用量	Show token usage
     从 Magpie 读取 Token 与费用；关闭后只读取额度。	Reads tokens and costs from Magpie; when off, only quotas are read.

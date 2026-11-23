@@ -2,6 +2,10 @@
 
 XStats 新增代码与修改采用 AGPL-3.0-or-later，范围见 [LICENSING.md](LICENSING.md)。以下列出当前使用的第三方代码、依赖、素材与参考来源。
 
+## Magpie 远端 HTTP
+
+远端 HTTP 网关请求动态链接 macOS 提供的 libcurl（Daniel Stenberg 等，采用 [curl 许可](https://curl.se/docs/copyright.html)）。
+
 ## 51Code 应用图标
 
 `Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/51code.png` 来自

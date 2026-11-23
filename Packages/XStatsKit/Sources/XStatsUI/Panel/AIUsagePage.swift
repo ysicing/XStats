@@ -54,7 +54,8 @@ private struct MagpieUsageContent: View {
           Button(tr("启用 AI")) { model.settings.aiUsageEnabled = true }
             .buttonStyle(DSButtonStyle(kind: .primary))
         }
-      } else if model.aiUsage.magpieQuotas.isEmpty,
+      } else if model.settings.magpieRemoteURL == nil,
+        model.aiUsage.magpieQuotas.isEmpty,
         model.aiUsage.magpieSummary(for: activityMode) == nil,
         model.aiUsage.magpieQuotaFailure == .unavailable,
         !model.settings.aiUsageShowsLocalUsage
@@ -175,10 +176,21 @@ private struct MagpieUsageContent: View {
 
   private func connectionStatus(_ failure: MagpieFailure, stale: Bool) -> some View {
     VStack(alignment: .leading, spacing: DS.Space.s1) {
-      Text(tr(failure == .unavailable ? "无法连接 Magpie，请确认它已运行。" : "Magpie 数据无法读取，请检查版本或数据大小。"))
+      Text(failure.connectionMessage)
       if stale { Text(tr("显示上次成功读取的数据。")) }
     }.dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
       .fixedSize(horizontal: false, vertical: true)
+  }
+}
+
+extension MagpieFailure {
+  fileprivate var connectionMessage: String {
+    switch self {
+    case .unavailable: tr("无法连接 Magpie，请确认它已运行。")
+    case .authenticationRequired: tr("请检查 Magpie 网关密钥。")
+    case .forbidden: tr("Magpie 网关密钥无权读取此数据。")
+    case .invalidResponse, .responseTooLarge: tr("Magpie 数据无法读取，请检查版本或数据大小。")
+    }
   }
 }
 
@@ -597,7 +609,7 @@ private struct UsageSettings: View {
       }
       HairlineDivider()
       Text(tr("数据来源")).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-      SettingRow(title: "Magpie", subtitle: nil) { EmptyView() }
+      MagpieSourceSettings()
       HairlineDivider()
       SettingRow(title: tr("刷新间隔"), subtitle: tr("AI 用量与额度共用此间隔；新数据到达后更新菜单栏。")) {
         Picker(tr("刷新间隔"), selection: $settings.aiUsageRefreshMinutes) {
@@ -630,5 +642,135 @@ private struct UsageSettings: View {
         .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
         .fixedSize(horizontal: false, vertical: true)
     }
+  }
+}
+
+private struct MagpieSourceSettings: View {
+  @Environment(AppModel.self) private var model
+  @State private var localAvailable: Bool?
+  @State private var remote = false
+  @State private var address = ""
+  @State private var key = ""
+  @State private var message: String?
+  @State private var testTask: Task<Void, Never>?
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: DS.Space.s3) {
+      SettingRow(title: "Magpie", subtitle: nil) {
+        if localAvailable == true {
+          Picker("Magpie", selection: $remote) {
+            Text(tr("本机自动")).tag(false)
+            Text(tr("远端")).tag(true)
+          }.labelsHidden()
+        } else if localAvailable == false {
+          Text(tr("远端")).dsFont(.sm)
+        } else {
+          ProgressView().controlSize(.small).accessibilityLabel(tr("正在刷新"))
+        }
+      }
+      if remote {
+        SettingRow(title: tr("网关地址"), subtitle: nil) {
+          TextField(tr("网关地址"), text: $address, prompt: Text("http://magpie.example.com"))
+            .labelsHidden()
+            .frame(idealWidth: 210)
+        }
+        SettingRow(title: tr("网关密钥"), subtitle: nil) {
+          SecureField(tr("网关密钥"), text: $key)
+            .labelsHidden()
+            .frame(idealWidth: 210)
+        }
+      }
+      if remote || (localAvailable == true && model.settings.magpieRemoteURL != nil) {
+        HStack {
+          Spacer()
+          if remote {
+            Button(tr("测试连接")) { testConnection() }.buttonStyle(DSButtonStyle())
+          }
+          Button(tr("保存配置")) { save() }.buttonStyle(DSButtonStyle(kind: .primary))
+        }
+      }
+    }
+    .disabled(testTask != nil)
+    .task {
+      localAvailable = nil
+      let hasSavedRemote = model.settings.magpieRemoteURL != nil
+      remote = hasSavedRemote
+      address = model.settings.magpieRemoteURL?.absoluteString ?? ""
+      let available = await model.aiUsage.checkLocalMagpieAvailability()
+      guard !Task.isCancelled else { return }
+      localAvailable = available
+      remote = hasSavedRemote || !available
+    }
+    .onChange(of: address) { _, _ in
+      message = nil
+      key = ""
+    }
+    .onChange(of: remote) { _, _ in message = nil }
+    .onDisappear {
+      testTask?.cancel()
+      testTask = nil
+    }
+    if let message {
+      Text(message)
+        .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+
+  private func configuredClient() throws -> (MagpieClient, String) {
+    guard let endpoint = MagpieClient.remoteEndpoint(address) else {
+      throw ConfigurationError.invalidAddress
+    }
+    let credential = key.isEmpty ? try MagpieInstallation.gatewayKey(for: endpoint) : key
+    return (try MagpieClient(remoteURL: endpoint, gatewayKey: credential), credential)
+  }
+
+  private func save() {
+    do {
+      if remote {
+        let (client, credential) = try configuredClient()
+        if !key.isEmpty { try MagpieInstallation.saveGatewayKey(credential, for: client.baseURL) }
+        model.aiUsage.switchMagpieSource(to: client.baseURL, client: client)
+        key = ""
+      } else if localAvailable == true {
+        model.aiUsage.switchMagpieSource(to: nil)
+      } else {
+        return
+      }
+      message = tr("配置已保存")
+    } catch { message = errorMessage(error) }
+  }
+
+  private func testConnection() {
+    do {
+      let (client, _) = try configuredClient()
+      let readsUsage = model.settings.aiUsageShowsLocalUsage
+      message = nil
+      testTask = Task {
+        let result: String
+        do {
+          _ = try await client.quotas()
+          if readsUsage { _ = try await client.usage(period: .daily) }
+          result = tr("连接成功")
+        } catch { result = errorMessage(error) }
+        guard !Task.isCancelled else { return }
+        testTask = nil
+        message = result
+      }
+    } catch { message = errorMessage(error) }
+  }
+
+  private func errorMessage(_ error: any Error) -> String {
+    switch error {
+    case ConfigurationError.invalidAddress: tr("请输入有效的 HTTP 或 HTTPS 网关地址。")
+    case MagpieInstallation.GatewayKeyError.keychain: tr("无法访问 Magpie 钥匙串项目。")
+    case MagpieInstallation.GatewayKeyError.missingKey: tr("请检查 Magpie 网关密钥。")
+    case let failure as MagpieFailure: failure.connectionMessage
+    default: MagpieFailure.unavailable.connectionMessage
+    }
+  }
+
+  private enum ConfigurationError: Error {
+    case invalidAddress
   }
 }

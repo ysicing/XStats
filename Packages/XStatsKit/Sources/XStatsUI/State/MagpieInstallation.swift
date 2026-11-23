@@ -4,6 +4,7 @@
 import AIUsage
 import AppKit
 import Foundation
+import Security
 
 @MainActor
 enum MagpieInstallation {
@@ -54,5 +55,44 @@ enum MagpieInstallation {
       port = configured
     }
     return try! MagpieClient(baseURL: URL(string: "http://127.0.0.1:\(port)")!)
+  }
+
+  enum GatewayKeyError: Error {
+    case keychain, missingKey
+  }
+
+  private static func keyQuery(_ endpoint: URL) -> [String: Any] {
+    [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: "work.12306.xstats.magpie",
+      kSecAttrAccount as String: endpoint.absoluteString,
+    ]
+  }
+
+  static func gatewayKey(for endpoint: URL) throws -> String {
+    var query = keyQuery(endpoint)
+    query[kSecReturnData as String] = true
+    query[kSecMatchLimit as String] = kSecMatchLimitOne
+    var result: AnyObject?
+    let status = SecItemCopyMatching(query as CFDictionary, &result)
+    if status == errSecItemNotFound { throw GatewayKeyError.missingKey }
+    guard status == errSecSuccess, let data = result as? Data,
+      let key = String(data: data, encoding: .utf8), !key.isEmpty
+    else { throw GatewayKeyError.keychain }
+    return key
+  }
+
+  static func saveGatewayKey(_ key: String, for endpoint: URL) throws {
+    var query = keyQuery(endpoint)
+    let data = Data(key.utf8)
+    var status = SecItemUpdate(
+      query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+    if status == errSecItemNotFound {
+      query[kSecValueData as String] = data
+      query[kSecAttrLabel as String] = "XStats Magpie"
+      query[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+      status = SecItemAdd(query as CFDictionary, nil)
+    }
+    guard status == errSecSuccess else { throw GatewayKeyError.keychain }
   }
 }

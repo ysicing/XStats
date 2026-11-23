@@ -156,18 +156,28 @@ not that the system has visually applied it. Bookmarks and selections stay local
 
 ## Magpie and widgets
 
-`AIUsageController` reads only Magpie's public loopback quota and usage endpoints.
-The default port is 3425; bounded local settings supply the port. Tests and native
-screenshots inject `MagpieFetching`. The refresh default is five minutes; saved
-intervals are retained, and token statistics can be disabled independently of quotas.
+`AIUsageController` reads Magpie's quota and usage endpoints. On opening AI settings,
+a successful local quota read makes automatic local discovery available and selects
+it by default if no remote gateway is saved. The probe rereads the local port
+(default 3425), and subsequent local refreshes use the successfully probed client.
+Users can enter an HTTP or HTTPS gateway. Only explicitly configured HTTP gateways
+use macOS libcurl, so the main app keeps its default App Transport Security policy.
+The normalized URL identifies the gateway
+key in Keychain and scopes its preferred accounts. Switching sources clears the
+current summaries and invalidates in-flight results. The remote connection
+settings stay on this Mac and are excluded from settings backups.
+
+Tests and native screenshots inject `MagpieFetching`. The refresh default is five
+minutes; saved intervals are retained, and token statistics can be disabled
+independently of quotas.
 
 A refresh reads the visible usage period and today's total, plus cumulative usage
 when the Token widget is installed. Usage requests run sequentially alongside the
 quota request, with at most two requests in flight, four cached period summaries,
 bounded timeouts, an 8 MiB response limit and rejected redirects. Pause/cancellation
 stops work. Endpoint failures are independent and preserve stale last-good data;
-yesterday's total cannot become today's total. Magpie availability determines the
-connection/install guide; there is no second statistics source.
+yesterday's total cannot become today's total. The connection/install guide applies
+to local discovery, and remote requests report authentication and permission failures.
 
 Quotas retain account boundaries and original window names. Preferred accounts are
 configured in AI Usage and shared by the menu bar and all quota widgets. The default

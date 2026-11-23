@@ -20,7 +20,9 @@ public final class AIUsageController {
   public private(set) var magpieUsageFailures: [MagpiePeriod: MagpieFailure] = [:]
   public private(set) var magpieUsageUpdatedAt: [MagpiePeriod: Date] = [:]
   public private(set) var magpieRefreshing = false
-  @ObservationIgnored private let magpieClient: any MagpieFetching
+  @ObservationIgnored private let discoverLocalMagpie: @MainActor () -> any MagpieFetching
+  @ObservationIgnored private var localMagpieClient: any MagpieFetching
+  @ObservationIgnored private var remoteMagpieClient: (any MagpieFetching)?
   @ObservationIgnored private var magpiePeriod = MagpiePeriod.daily
   /// 沿用现有刷新周期查询安装需求，不为没有使用累计小组件的用户增加统计请求。
   @ObservationIgnored var cumulativeWidgetIsInstalled: @MainActor () async -> Bool = {
@@ -41,18 +43,49 @@ public final class AIUsageController {
   @ObservationIgnored private var generation = 0
   @ObservationIgnored private var paused = false
 
-  public init(
+  public convenience init(
     settings: AppSettings, magpieClient: any MagpieFetching,
     now: @escaping @Sendable () -> Date = Date.init
   ) {
+    self.init(settings: settings, discoverLocalMagpie: { magpieClient }, now: now)
+  }
+
+  init(
+    settings: AppSettings, discoverLocalMagpie: @escaping @MainActor () -> any MagpieFetching,
+    now: @escaping @Sendable () -> Date = Date.init
+  ) {
     self.settings = settings
-    self.magpieClient = magpieClient
+    self.discoverLocalMagpie = discoverLocalMagpie
+    localMagpieClient = discoverLocalMagpie()
     self.now = now
   }
 
   public var isRefreshing: Bool { magpieRefreshing }
 
   public var todayTokens: Int? { magpieSummary(for: .daily)?.total }
+
+  func checkLocalMagpieAvailability() async -> Bool {
+    guard !Task.isCancelled else { return false }
+    let candidate = discoverLocalMagpie()
+    guard case .success = await Self.readMagpieQuotas(candidate), !Task.isCancelled else {
+      return false
+    }
+    localMagpieClient = candidate
+    return true
+  }
+
+  func switchMagpieSource(to endpoint: URL?, client: (any MagpieFetching)? = nil) {
+    remoteMagpieClient = client
+    settings.magpieRemoteURL = endpoint
+    magpieQuotas = []
+    magpieQuotaFailure = nil
+    magpieQuotaUpdatedAt = nil
+    magpieUsage = [:]
+    magpieUsageFailures = [:]
+    magpieUsageUpdatedAt = [:]
+    lastAttemptAt = nil
+    start()
+  }
 
   public func start() {
     cadenceTask?.cancel()
@@ -129,7 +162,24 @@ public final class AIUsageController {
 
   private func performRefresh() async {
     guard settings.aiUsageEnabled, !paused, !Task.isCancelled else { return }
-    await refreshMagpie(magpieClient)
+    guard let endpoint = settings.magpieRemoteURL else {
+      await refreshMagpie(localMagpieClient)
+      return
+    }
+    do {
+      if remoteMagpieClient == nil {
+        remoteMagpieClient = try MagpieClient(
+          remoteURL: endpoint, gatewayKey: MagpieInstallation.gatewayKey(for: endpoint))
+      }
+      if let remoteMagpieClient { await refreshMagpie(remoteMagpieClient) }
+    } catch {
+      magpieQuotaFailure = .authenticationRequired
+      if settings.aiUsageShowsLocalUsage {
+        magpieUsageFailures[.daily] = .authenticationRequired
+        magpieUsageFailures[magpiePeriod] = .authenticationRequired
+      }
+      lastAttemptAt = now()
+    }
   }
 
   public func magpieSummary(for period: MagpiePeriod) -> MagpieUsageSummary? {
@@ -164,7 +214,7 @@ public final class AIUsageController {
     return availableMenuBarQuotaProviders.compactMap { provider in
       let accounts = allAccounts.filter { $0.provider == provider }
       let account = WidgetSnapshot.selectedQuotaAccount(
-        in: accounts, preferredID: settings.aiPreferredAccounts[provider])
+        in: accounts, preferredID: settings.magpiePreferredAccounts[provider])
       guard let quota = account?.quota, quota.remainingPercent.isFinite else { return nil }
       return quota
     }
@@ -259,11 +309,11 @@ public final class AIUsageController {
       // 仅成功读取账号列表后清除已删除的身份；请求失败或额度不可用不代表账号删除。
       let identities = Dictionary(grouping: widgetQuotaAccounts(at: attempt), by: \.provider)
         .mapValues { Set($0.map(\.id)) }
-      let preferred = settings.aiPreferredAccounts.filter { provider, id in
+      let preferred = settings.magpiePreferredAccounts.filter { provider, id in
         identities[provider]?.contains(id) == true
       }
-      if preferred != settings.aiPreferredAccounts {
-        settings.aiPreferredAccounts = preferred
+      if preferred != settings.magpiePreferredAccounts {
+        settings.magpiePreferredAccounts = preferred
       }
     case .failure(let failure): magpieQuotaFailure = failure
     }

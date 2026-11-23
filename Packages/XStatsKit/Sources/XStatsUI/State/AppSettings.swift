@@ -955,6 +955,25 @@ public final class AppSettings {
   public var aiPreferredAccounts: [String: String] {
     didSet { defaults.set(aiPreferredAccounts, forKey: Keys.aiPreferredAccounts) }
   }
+  var magpieRemoteURL: URL? {
+    didSet { defaults.set(magpieRemoteURL?.absoluteString, forKey: "magpieRemoteURL") }
+  }
+  private var remoteMagpieAccounts: [String: [String: String]] {
+    didSet { defaults.set(remoteMagpieAccounts, forKey: "remoteMagpieAccounts") }
+  }
+  var magpiePreferredAccounts: [String: String] {
+    get {
+      guard let magpieRemoteURL else { return aiPreferredAccounts }
+      return remoteMagpieAccounts[magpieRemoteURL.absoluteString] ?? [:]
+    }
+    set {
+      if let magpieRemoteURL {
+        remoteMagpieAccounts[magpieRemoteURL.absoluteString] = newValue.isEmpty ? nil : newValue
+      } else {
+        aiPreferredAccounts = newValue
+      }
+    }
+  }
   public var aiWidgetShowsResetRing: Bool {
     didSet { defaults.set(aiWidgetShowsResetRing, forKey: Keys.aiWidgetShowsResetRing) }
   }
@@ -1468,6 +1487,10 @@ public final class AppSettings {
     defaults.set(initialAIMenuBarProviders.sorted(), forKey: Keys.aiMenuBarProviders)
     aiPreferredAccounts =
       defaults.dictionary(forKey: Keys.aiPreferredAccounts) as? [String: String] ?? [:]
+    magpieRemoteURL = defaults.string(forKey: "magpieRemoteURL").flatMap(
+      MagpieClient.remoteEndpoint)
+    remoteMagpieAccounts =
+      defaults.dictionary(forKey: "remoteMagpieAccounts") as? [String: [String: String]] ?? [:]
     aiWidgetShowsResetRing = defaults.bool(forKey: Keys.aiWidgetShowsResetRing)
     aiUsageWesternUnits = defaults.bool(forKey: Keys.aiUsageWesternUnits)
     aiUsageRefreshMinutes =

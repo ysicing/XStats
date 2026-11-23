@@ -1053,7 +1053,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private func observeAIUsageState() {
     withObservationTracking {
       _ = model.aiUsage.lastAttemptAt
-      _ = model.settings.aiPreferredAccounts
+      _ = model.settings.magpiePreferredAccounts
       _ = model.settings.aiWidgetShowsResetRing
       _ = model.settings.aiQuotaShowsRemaining
       _ = model.settings.aiMenuBarProviders
@@ -1075,7 +1075,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       _ = model.settings.aiUsageEnabled
       _ = model.settings.aiMenuBarProviders
       _ = model.settings.aiMenuBarProviderOrder
-      _ = model.settings.aiPreferredAccounts
+      _ = model.settings.magpiePreferredAccounts
       _ = model.settings.aiWidgetShowsResetRing
       _ = model.settings.aiQuotaShowsRemaining
       _ = model.settings.aiUsageWesternUnits
@@ -1154,7 +1154,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     let quotas: [WidgetSnapshot.Quota] = quotaProviders.compactMap { provider in
       WidgetSnapshot.selectedQuotaAccount(
         in: quotaAccounts.filter { $0.provider == provider },
-        preferredID: settings.aiPreferredAccounts[provider])?.quota
+        preferredID: settings.magpiePreferredAccounts[provider])?.quota
     }
     let dailyTokens = model.aiUsage.todayTokens.map { tokens in
       [WidgetSnapshot.DailyTokenUsage(provider: "Magpie", day: today, tokens: tokens)]
@@ -1187,7 +1187,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       dailyTokens: dailyTokens,
       cumulativeTokens: cumulativeTokens, quotaProviders: quotaProviders,
       quotaAccounts: quotaAccounts,
-      preferredQuotaAccounts: settings.aiPreferredAccounts,
+      preferredQuotaAccounts: settings.magpiePreferredAccounts,
       quotaShowsResetRing: settings.aiWidgetShowsResetRing,
       localUsageEnabled: settings.aiUsageShowsLocalUsage,
       quotaShowsRemaining: settings.aiQuotaShowsRemaining,

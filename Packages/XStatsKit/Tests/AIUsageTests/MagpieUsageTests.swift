@@ -187,4 +187,28 @@ struct MagpieUsageTests {
     }
     #expect(try MagpieClient(baseURL: URL(string: "http://127.0.0.1:4321")!).baseURL.port == 4321)
   }
+
+  @Test(arguments: [
+    "http://192.0.2.1:3425", "https://magpie.example.test", "http://[fd00::1]:3425",
+  ])
+  func remoteRequestsAcceptEitherSchemeAndUseGatewayKey(_ address: String) throws {
+    let gateway = try #require(MagpieClient.remoteEndpoint(address + "/proxy/"))
+    let client = try MagpieClient(remoteURL: gateway, gatewayKey: "test-gateway-key")
+    let request = client.request(path: "v1/magpie/usage", period: .daily)
+    #expect(request.url?.absoluteString == address + "/proxy/v1/magpie/usage?period=today")
+    #expect(request.httpMethod == "GET")
+    #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer test-gateway-key")
+    let local = try MagpieClient()
+    #expect(
+      local.request(path: "v1/magpie/quotas").value(forHTTPHeaderField: "Authorization") == nil)
+  }
+
+  @Test(arguments: [
+    "magpie.example.test", "ftp://magpie.example.test", "http://",
+    "http://user@magpie.example.test", "https://magpie.example.test/?key=abc",
+    "https://magpie.example.test/#fragment",
+  ])
+  func invalidRemoteConfigurationIsRejected(_ address: String) {
+    #expect(MagpieClient.remoteEndpoint(address) == nil)
+  }
 }

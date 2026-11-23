@@ -23,6 +23,7 @@ final class AIUsageSettingsWindowController: NSObject, NSWindowDelegate {
     let window = self.window ?? makeWindow()
     self.window = window
     if !isVisible {
+      window.contentView = NSHostingView(rootView: AIUsageSettingsPanel().environment(model))
       isVisible = true
       onVisibilityChange?(true)
     }
@@ -39,13 +40,13 @@ final class AIUsageSettingsWindowController: NSObject, NSWindowDelegate {
     window.isReleasedWhenClosed = false
     window.delegate = self
     window.contentMinSize = NSSize(width: 390, height: 480)
-    window.contentView = NSHostingView(rootView: AIUsageSettingsPanel().environment(model))
     if !window.setFrameUsingName("XStatsAIUsageSettingsWindow") { window.center() }
     window.setFrameAutosaveName("XStatsAIUsageSettingsWindow")
     return window
   }
 
   func windowWillClose(_ notification: Notification) {
+    window?.contentView = nil
     isVisible = false
     onVisibilityChange?(false)
   }

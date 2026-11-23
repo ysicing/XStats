@@ -43,7 +43,8 @@ let package = Package(
     .target(
       name: "FinderDocuments", dependencies: ["Localization"], resources: [.copy("Templates")]),
     .testTarget(name: "FinderDocumentsTests", dependencies: ["FinderDocuments", "Localization"]),
-    .target(name: "AIUsage"),
+    .target(name: "MagpieHTTP", linkerSettings: [.linkedLibrary("curl")]),
+    .target(name: "AIUsage", dependencies: ["MagpieHTTP"]),
     .target(name: "SMC", dependencies: ["Localization"]),
     .target(
       name: "Metrics", dependencies: ["SMC", "Localization"],

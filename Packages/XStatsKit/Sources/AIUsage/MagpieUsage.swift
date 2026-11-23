@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
+import MagpieHTTP
+import os
 
 /// 采用 Magpie 的原始周期和 Token 口径，不把跨账户额度相加，也不混入本机日志。
 public enum MagpiePeriod: String, CaseIterable, Sendable, Codable {
@@ -159,7 +161,7 @@ public struct MagpieUsageBucket: Decodable, Equatable, Sendable {
 }
 
 public enum MagpieFailure: Error, Sendable, Equatable {
-  case unavailable, invalidResponse, responseTooLarge
+  case unavailable, invalidResponse, responseTooLarge, authenticationRequired, forbidden
 }
 
 public protocol MagpieFetching: Sendable {
@@ -169,7 +171,7 @@ public protocol MagpieFetching: Sendable {
 
 public struct MagpieClient: MagpieFetching, Sendable {
   public let baseURL: URL
-  private let session: URLSession
+  private let gatewayKey: String?
   static let responseLimit = 8 * 1024 * 1024
 
   public init(baseURL: URL = URL(string: "http://127.0.0.1:3425")!) throws {
@@ -179,17 +181,51 @@ public struct MagpieClient: MagpieFetching, Sendable {
       baseURL.fragment == nil, baseURL.path.isEmpty || baseURL.path == "/",
       let port = baseURL.port, (1024...65535).contains(port)
     else { throw MagpieFailure.invalidResponse }
-    self.baseURL = baseURL
+    self.init(validatedURL: baseURL, gatewayKey: nil)
+  }
+
+  public static func remoteEndpoint(_ address: String) -> URL? {
+    guard
+      var components = URLComponents(
+        string: address.trimmingCharacters(in: .whitespacesAndNewlines)),
+      let scheme = components.scheme?.lowercased(), ["http", "https"].contains(scheme),
+      let host = components.host, !host.isEmpty,
+      components.user == nil, components.password == nil, components.query == nil,
+      components.fragment == nil, components.port.map({ (1...65535).contains($0) }) ?? true
+    else { return nil }
+    components.scheme = scheme
+    components.host = host.lowercased()
+    if components.port == (scheme == "https" ? 443 : 80) { components.port = nil }
+    while components.percentEncodedPath.hasSuffix("/") {
+      components.percentEncodedPath.removeLast()
+    }
+    return components.url
+  }
+
+  public init(remoteURL: URL, gatewayKey: String) throws {
+    guard let endpoint = Self.remoteEndpoint(remoteURL.absoluteString),
+      !gatewayKey.isEmpty, gatewayKey.utf8.allSatisfy({ (33...126).contains($0) })
+    else { throw MagpieFailure.invalidResponse }
+    self.init(validatedURL: endpoint, gatewayKey: gatewayKey)
+  }
+
+  private init(validatedURL: URL, gatewayKey: String?) {
+    baseURL = validatedURL
+    self.gatewayKey = gatewayKey
+  }
+
+  private static let session: URLSession = {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.urlCache = nil
+    configuration.urlCredentialStorage = nil
     configuration.httpCookieStorage = nil
     configuration.httpShouldSetCookies = false
     configuration.requestCachePolicy = .reloadIgnoringLocalAndRemoteCacheData
     configuration.timeoutIntervalForRequest = 15
     configuration.timeoutIntervalForResource = 20
-    session = URLSession(
+    return URLSession(
       configuration: configuration, delegate: MagpieRedirectGuard(), delegateQueue: nil)
-  }
+  }()
 
   public func quotas() async throws -> [MagpieQuota] {
     let data = try await read(path: "v1/magpie/quotas")
@@ -203,17 +239,28 @@ public struct MagpieClient: MagpieFetching, Sendable {
     return try Self.decodeUsage(data, period: period)
   }
 
-  private func read(path: String, period: MagpiePeriod? = nil) async throws -> Data {
+  func request(path: String, period: MagpiePeriod? = nil) -> URLRequest {
     var components = URLComponents(
       url: baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
     if let period { components.queryItems = [URLQueryItem(name: "period", value: period.rawValue)] }
     var request = URLRequest(url: components.url!)
     request.setValue("application/json", forHTTPHeaderField: "Accept")
+    if let gatewayKey {
+      request.setValue("Bearer \(gatewayKey)", forHTTPHeaderField: "Authorization")
+    }
+    return request
+  }
+
+  private func read(path: String, period: MagpiePeriod? = nil) async throws -> Data {
+    let request = request(path: path, period: period)
+    if let gatewayKey, baseURL.scheme == "http", let url = request.url {
+      return try await Self.readRemoteHTTP(url, key: gatewayKey)
+    }
     do {
-      let (bytes, response) = try await session.bytes(for: request)
+      let (bytes, response) = try await Self.session.bytes(for: request)
+      defer { bytes.task.cancel() }
       guard let http = response as? HTTPURLResponse else { throw MagpieFailure.unavailable }
-      if http.statusCode == 404 { throw MagpieFailure.invalidResponse }
-      guard http.statusCode == 200 else { throw MagpieFailure.unavailable }
+      try Self.checkStatus(http.statusCode)
       guard response.expectedContentLength <= Self.responseLimit else {
         throw MagpieFailure.responseTooLarge
       }
@@ -227,6 +274,53 @@ public struct MagpieClient: MagpieFetching, Sendable {
     } catch let failure as MagpieFailure { throw failure } catch is CancellationError {
       throw CancellationError()
     } catch { throw MagpieFailure.unavailable }
+  }
+
+  private static func checkStatus(_ status: Int) throws {
+    switch status {
+    case 200: return
+    case 401: throw MagpieFailure.authenticationRequired
+    case 403: throw MagpieFailure.forbidden
+    case 404: throw MagpieFailure.invalidResponse
+    default: throw MagpieFailure.unavailable
+    }
+  }
+
+  private static func readRemoteHTTP(_ url: URL, key: String) async throws -> Data {
+    let cancelled = OSAllocatedUnfairLock(initialState: false)
+    return try await withTaskCancellationHandler {
+      try Task.checkCancellation()
+      let data: Data = try await withCheckedThrowingContinuation { continuation in
+        DispatchQueue.global(qos: .utility).async {
+          var body = Data()
+          var status = 0
+          var tooLarge = false
+          let ok = MagpieHTTPGet(url.absoluteString, "Authorization: Bearer \(key)", &status) {
+            bytes, count in
+            guard count <= responseLimit - body.count else {
+              tooLarge = true
+              return false
+            }
+            if let bytes { body.append(bytes, count: count) }
+            return true
+          } _: {
+            cancelled.withLock { $0 }
+          }
+          continuation.resume(
+            with: Result {
+              if cancelled.withLock({ $0 }) { throw CancellationError() }
+              try checkStatus(status)
+              if tooLarge { throw MagpieFailure.responseTooLarge }
+              guard ok else { throw MagpieFailure.unavailable }
+              return body
+            })
+        }
+      }
+      try Task.checkCancellation()
+      return data
+    } onCancel: {
+      cancelled.withLock { $0 = true }
+    }
   }
 
   static func decoder() -> JSONDecoder {

@@ -177,7 +177,7 @@ public final class AppModel {
       rest: rest, settings: settings, store: WellnessActivityStore(url: settings.wellnessStorageURL)
     )
     aiUsage = AIUsageController(
-      settings: settings, magpieClient: magpieClient ?? MagpieInstallation.client())
+      settings: settings, discoverLocalMagpie: { magpieClient ?? MagpieInstallation.client() })
     self.store = store
     self.helper = helper
     let samplingHub = hub

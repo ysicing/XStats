@@ -99,7 +99,7 @@ Install and run [Magpie](https://usemagpie.ai) to track AI service usage from th
 - **Usage trends**: tokens, requests, generation speed and estimated USD costs. Estimates are not subscription bills.
 - **Subscription accounts**: plans, quota usage and reset times.
 
-AI usage supports Magpie’s local API exclusively. Only requests routed through Magpie count toward token usage.
+AI usage connects to Magpie automatically on this Mac or to a remote gateway you configure. Only requests routed through the selected Magpie instance count toward token usage.
 
 ### Tools
 
@@ -215,7 +215,7 @@ Native cleanup requires preview, selection and confirmation; items go to Trash o
 Monitoring data, history and AI usage are processed locally.
 
 - **Update checks**: send the version and a hashed installation ID to retrieve the update feed.
-- **AI usage**: reads quotas and statistics through Magpie’s local API.
+- **AI usage**: reads quotas and statistics from a local or remote Magpie instance.
 - **Online features**: component and geography database downloads, along with network diagnostics, connect to their respective services. Global-probe targets and results may be queried by others.
 - **Menu bar folding**: this experimental macOS 27 feature requires access to one system configuration file to hide and restore selected apps.
 

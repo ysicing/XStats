@@ -13,7 +13,7 @@ struct MagpieQuotaAccounts: View {
   var visibleAccounts: [MagpiePreferredAccountOption] {
     MagpiePreferredAccountOption.ordered(
       accounts.filter { $0.provider == currentProvider },
-      preferredID: settings.aiPreferredAccounts[currentProvider])
+      preferredID: settings.magpiePreferredAccounts[currentProvider])
   }
 
   private var providers: [String] {
@@ -51,9 +51,9 @@ struct MagpieQuotaAccounts: View {
         if visibleAccounts.count > 1 {
           Menu {
             Button(tr("跟随 Magpie")) {
-              settings.aiPreferredAccounts[currentProvider] = nil
+              settings.magpiePreferredAccounts[currentProvider] = nil
             }
-            .disabled(settings.aiPreferredAccounts[currentProvider] == nil)
+            .disabled(settings.magpiePreferredAccounts[currentProvider] == nil)
           } label: {
             Label(tr("订阅账号"), systemImage: "ellipsis")
           }

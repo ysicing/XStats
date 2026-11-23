@@ -57,8 +57,8 @@ struct MagpiePreferredAccounts: View {
 
   var selection: Binding<String> {
     Binding(
-      get: { settings.aiPreferredAccounts[provider] ?? options.first?.id ?? "" },
-      set: { id in settings.aiPreferredAccounts[provider] = id.isEmpty ? nil : id })
+      get: { settings.magpiePreferredAccounts[provider] ?? options.first?.id ?? "" },
+      set: { id in settings.magpiePreferredAccounts[provider] = id.isEmpty ? nil : id })
   }
 
   var body: some View {

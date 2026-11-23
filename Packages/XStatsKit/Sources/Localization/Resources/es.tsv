@@ -2943,3 +2943,14 @@ UTC 时间	Hora UTC
 功能未启用，启用后生效	Disponible al activar la función
 与「{}」的快捷键重复	El atajo ya está asignado a «{}»
 独立版快捷键请在 XStats Capture 的设置中管理。	Gestiona los atajos de la aplicación independiente en los ajustes de XStats Capture.
+本机自动	Local (automático)
+远端	Remoto
+网关地址	Dirección de la puerta de enlace
+网关密钥	Clave de la puerta de enlace
+测试连接	Probar conexión
+配置已保存	Configuración guardada
+连接成功	Conexión correcta
+请检查 Magpie 网关密钥。	Comprueba la clave de la puerta de enlace de Magpie.
+Magpie 网关密钥无权读取此数据。	Esta clave de la puerta de enlace de Magpie no tiene permiso para leer estos datos.
+无法访问 Magpie 钥匙串项目。	No se puede acceder al elemento de Magpie en el llavero.
+请输入有效的 HTTP 或 HTTPS 网关地址。	Introduce una dirección HTTP o HTTPS válida para la puerta de enlace.
