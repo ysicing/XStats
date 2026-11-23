@@ -33,6 +33,18 @@ enum AppCloneBuilder {
     guard files.isExecutableFile(atPath: executable.path) else {
       throw AppCloneStore.Failure.invalidSource
     }
+    // 在修改副本前，从已校验的签名读取主程序和嵌套包的权限。
+    let originalEntitlements = try await entitlements(of: candidate, stage: stage)
+    let (nested, code, nestedPlists) = try nestedCode(in: contents, executable: executable)
+    var nestedEntitlements: [URL: URL] = [:]
+    let candidatePath = candidate.resolvingSymlinksInPath().pathComponents
+    for bundle in nested {
+      try Task.checkCancellation()
+      guard bundle.resolvingSymlinksInPath().pathComponents.starts(with: candidatePath) else {
+        throw AppCloneStore.Failure.invalidSource
+      }
+      nestedEntitlements[bundle] = try await entitlements(of: bundle, stage: stage)
+    }
     let frameworks = contents.appending(path: "Frameworks")
     try files.createDirectory(at: frameworks, withIntermediateDirectories: true)
     try rejectSymlinks([frameworks])
@@ -57,7 +69,6 @@ enum AppCloneBuilder {
       compiler + ["-dynamiclib", "-framework", "Foundation", runtime.path, "-o", library.path],
       stage: stage)
 
-    let originalEntitlements = try await entitlements(of: source, stage: stage)
     let mainProgram = macOS.appending(path: clone.engineName)
     try files.moveItem(at: executable, to: mainProgram)
     let attached =
@@ -114,37 +125,37 @@ enum AppCloneBuilder {
     }
     try writePlist(metadata, to: info)
 
-    let (nested, code) = try prepareNestedCode(
-      in: contents, mainProgram: mainProgram, sourceIdentifier: sourceIdentifier,
-      cloneIdentifier: clone.bundleID)
-    for binary in code {
+    for plist in nestedPlists {
+      try Task.checkCancellation()
+      guard var child = try? readPlist(plist),
+        let identifier = child["CFBundleIdentifier"] as? String,
+        identifier.hasPrefix(sourceIdentifier + ".")
+      else { continue }
+      child["CFBundleIdentifier"] = clone.bundleID + identifier.dropFirst(sourceIdentifier.count)
+      child.removeValue(forKey: "TeamIdentifier")
+      try writePlist(child, to: plist)
+    }
+    for binary in code + [library] {
       try Task.checkCancellation()
       try await sign(binary, entitlements: nil, stage: stage)
     }
     for bundle in nested.sorted(by: { $0.pathComponents.count > $1.pathComponents.count }) {
       try Task.checkCancellation()
-      let candidatePath = candidate.resolvingSymlinksInPath().pathComponents
-      let bundlePath = bundle.resolvingSymlinksInPath().pathComponents
-      guard bundlePath.starts(with: candidatePath) else {
-        throw AppCloneStore.Failure.invalidSource
-      }
-      let relativePath = bundlePath.dropFirst(candidatePath.count).joined(separator: "/")
-      let original = source.appending(path: relativePath)
-      let entitlementFile = try await entitlements(of: original, stage: stage)
-      try await sign(bundle, entitlements: entitlementFile, stage: stage)
+      try await sign(bundle, entitlements: nestedEntitlements[bundle], stage: stage)
     }
     try await sign(candidate, entitlements: attached ? originalEntitlements : nil, stage: stage)
     try await AppCloneStore.run(
       signer, ["--verify", "--deep", "--strict", candidate.path], stage: stage)
   }
 
-  private static func prepareNestedCode(
-    in contents: URL, mainProgram: URL, sourceIdentifier: String, cloneIdentifier: String
-  ) throws -> ([URL], [URL]) {
+  private static func nestedCode(
+    in contents: URL, executable: URL
+  ) throws -> (bundles: [URL], binaries: [URL], plists: [URL]) {
     // 保留 Helper 的文件名和相对路径，Chromium 通过这些路径查找子进程。
     let files = FileManager.default
     var nested: [URL] = []
     var code: [URL] = []
+    var plists: [URL] = []
     var enumerationFailure: Error?
     let keys: Set<URLResourceKey> = [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey]
     guard
@@ -162,15 +173,10 @@ enum AppCloneBuilder {
       if values.isDirectory == true, codeBundles.contains(entry.pathExtension) {
         nested.append(entry)
       } else if entries.level > 1, values.isRegularFile == true,
-        entry.lastPathComponent == "Info.plist",
-        var child = try? readPlist(entry), let identifier = child["CFBundleIdentifier"] as? String,
-        identifier.hasPrefix(sourceIdentifier + ".")
+        entry.lastPathComponent == "Info.plist"
       {
-        child["CFBundleIdentifier"] =
-          cloneIdentifier + identifier.dropFirst(sourceIdentifier.count)
-        child.removeValue(forKey: "TeamIdentifier")
-        try writePlist(child, to: entry)
-      } else if values.isRegularFile == true, entry != mainProgram,
+        plists.append(entry)
+      } else if values.isRegularFile == true, entry.path != executable.path,
         entry.pathExtension == "dylib" || entry.pathExtension == "so"
           || entry.pathExtension == "node"
           || files.isExecutableFile(atPath: entry.path),
@@ -181,7 +187,7 @@ enum AppCloneBuilder {
     }
     if let enumerationFailure { throw enumerationFailure }
 
-    return (nested, code)
+    return (nested, code, plists)
   }
 
   private static func entitlements(of bundle: URL, stage: URL) async throws -> URL? {

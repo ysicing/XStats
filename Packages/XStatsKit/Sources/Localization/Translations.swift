@@ -2042,14 +2042,19 @@ extension Translations {
     {} 个分身	{} clones
     暂无应用分身	No App Clones
     没有匹配的分身	No Matching Clones
-    正在处理分身	Working on Clone
+    正在创建分身	Creating Clone
+    正在更新	Updating
+    正在打开	Opening
+    正在移除	Removing
     找不到受支持的原应用	No supported source app found
     无法验证原应用的发布者或签名。	The source app’s publisher or signature could not be verified.
     请先退出分身	Quit the clone first
     分身名称过长，请缩短后重试。	The clone name is too long. Shorten it and try again.
     分身操作失败。请检查 Xcode 命令行工具。	The clone operation failed. Check the Xcode Command Line Tools.
     分身将重新签名并移除原沙盒。应用仍可能访问当前用户的资料。	The clone will be re-signed without the original sandbox. It may still access the current user’s data.
-    移除分身应用会保留分身资料。	Moving the clone app to the Trash keeps its data.
+    仅移除应用	Remove App Only
+    连同资料移到废纸篓	Move App and Data to Trash
+    仅移除应用会保留分身资料，也可以将应用和资料一起移到废纸篓。	Removing only the app keeps the clone’s data. You can also move both to the Trash.
     权限不足，无法完成卸载	Insufficient permissions to finish uninstalling
     请在访达中移到废纸篓，按提示输入管理员密码。	Move the item to the Trash in Finder and enter an administrator password if prompted.
     打开访达	Open Finder

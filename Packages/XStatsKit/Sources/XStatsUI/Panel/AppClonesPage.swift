@@ -25,8 +25,8 @@ struct AppClonesPage: View {
       }
       if rows.isEmpty {
         Group {
-          if controller.isWorking {
-            ProgressView(tr("正在处理分身"))
+          if controller.clones.isEmpty, controller.operation == .creating {
+            ProgressView(AppCloneController.Operation.creating.title)
           } else {
             ContentUnavailableView(
               search.isEmpty ? tr("暂无应用分身") : tr("没有匹配的分身"),
@@ -36,17 +36,14 @@ struct AppClonesPage: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
-        if controller.isWorking {
-          ProgressView().controlSize(.small).accessibilityLabel(tr("正在处理分身"))
-        }
         Table(rows) {
           TableColumn(tr("应用")) { clone in
             let app = clone.application
             Label {
               Text(app.displayName)
             } icon: {
-              if let url = app.installedURL {
-                Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
+              if let icon = controller.applicationIcons[app] {
+                Image(nsImage: icon)
                   .resizable().frame(width: 20, height: 20)
               } else {
                 Image(systemName: "app")
@@ -55,19 +52,29 @@ struct AppClonesPage: View {
           }
           TableColumn(tr("分身名称"), value: \.name)
           TableColumn(tr("状态")) { clone in
-            Text(controller.runningIDs.contains(clone.bundleID) ? tr("正在运行") : tr("未运行"))
-              .foregroundStyle(.secondary)
+            if let operation = controller.operation, operation.targetID == clone.id {
+              HStack(spacing: DS.Space.s2) {
+                ProgressView().controlSize(.small).accessibilityHidden(true)
+                Text(operation.title)
+              }
+            } else {
+              Text(controller.runningIDs.contains(clone.bundleID) ? tr("正在运行") : tr("未运行"))
+                .foregroundStyle(.secondary)
+            }
           }
-          .width(min: 68, ideal: 94)
+          .width(min: 92, ideal: 120)
           TableColumn("") { clone in
             HStack {
               Button(tr("打开")) { controller.launch(clone) }
+                .disabled(controller.isWorking)
               Menu {
                 Button(tr("更新分身")) { controller.update(clone) }
+                  .disabled(controller.isWorking)
                 Button(tr("在 Finder 中显示")) { controller.reveal(clone) }
                 Button(tr("显示分身资料")) { controller.reveal(clone, data: true) }
                 Divider()
                 Button(tr("移到废纸篓"), role: .destructive) { removing = clone }
+                  .disabled(controller.isWorking)
               } label: {
                 Image(systemName: "ellipsis")
               }
@@ -75,7 +82,6 @@ struct AppClonesPage: View {
               .menuStyle(.borderlessButton)
               .fixedSize()
             }
-            .disabled(controller.isWorking)
           }
           .width(min: 92, ideal: 110)
         }
@@ -110,9 +116,14 @@ struct AppClonesPage: View {
       titleVisibility: .visible,
       presenting: removing
     ) { clone in
-      Button(tr("移到废纸篓"), role: .destructive) { controller.moveToTrash(clone) }
+      Button(tr("仅移除应用"), role: .destructive) {
+        controller.moveToTrash(clone, includingData: false)
+      }
+      Button(tr("连同资料移到废纸篓"), role: .destructive) {
+        controller.moveToTrash(clone, includingData: true)
+      }
     } message: { _ in
-      Text(tr("移除分身应用会保留分身资料。"))
+      Text(tr("仅移除应用会保留分身资料，也可以将应用和资料一起移到废纸篓。"))
     }
   }
 }

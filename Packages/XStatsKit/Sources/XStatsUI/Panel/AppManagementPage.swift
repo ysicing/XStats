@@ -258,14 +258,22 @@ struct AppManagementPage: View {
   private var toolbarActions: some View {
     HStack(spacing: DS.Space.s2) {
       if section == .clones {
-        Button {
-          showsNewClone = true
-        } label: {
-          Label(tr("新建分身"), systemImage: "plus")
+        if model.appClones.operation == .creating, !model.appClones.clones.isEmpty {
+          HStack(spacing: DS.Space.s2) {
+            ProgressView().controlSize(.small).accessibilityHidden(true)
+            Text(AppCloneController.Operation.creating.title)
+          }
+          .fixedSize()
+        } else {
+          Button {
+            showsNewClone = true
+          } label: {
+            Label(tr("新建分身"), systemImage: "plus")
+          }
+          .buttonStyle(DSButtonStyle(kind: .secondary))
+          .fixedSize()
+          .disabled(model.appClones.isWorking)
         }
-        .buttonStyle(DSButtonStyle(kind: .secondary))
-        .fixedSize()
-        .disabled(model.appClones.isWorking)
       } else if section == .services {
         IconButton(systemName: "arrow.clockwise", help: tr("刷新")) {
           model.homebrewServices.refresh()

@@ -26,6 +26,8 @@ struct AppCloneSourceSignatureTests {
     #expect(!files.fileExists(atPath: bundle.deletingLastPathComponent().path))
 
     try makeBundle(at: bundle, identifier: clone.bundleID)
+    try JSONEncoder().encode(clone)
+      .write(to: bundle.deletingLastPathComponent().appending(path: "clone.json"))
     let profile = bundle.deletingLastPathComponent().appending(path: "Data")
     try files.createDirectory(at: profile, withIntermediateDirectories: false)
     let marker = profile.appending(path: "marker")
@@ -37,6 +39,107 @@ struct AppCloneSourceSignatureTests {
     }
     #expect(AppCloneStore.hasIdentity(bundle, clone.bundleID))
     #expect(try Data(contentsOf: marker) == contents)
+  }
+
+  @Test
+  func buildClearsOnlyUnregisteredCloneAndStageDirectories() async throws {
+    let files = FileManager.default
+    let root = files.temporaryDirectory.appending(path: UUID().uuidString)
+    defer { try? files.removeItem(at: root) }
+    let store = AppCloneStore(root: root.appending(path: "Clones"))
+    let stage = store.root.appending(path: ".stage-interrupted")
+    let orphan = store.root.appending(path: UUID().uuidString)
+    let registered = store.root.appending(path: UUID().uuidString)
+    let registeredStage = store.root.appending(path: ".stage-registered")
+    let other = store.root.appending(path: "Other")
+    let stageFile = store.root.appending(path: ".stage-file")
+    let linkedStage = store.root.appending(path: ".stage-link")
+    for directory in [stage, orphan, registered, registeredStage, other] {
+      try files.createDirectory(at: directory, withIntermediateDirectories: true)
+    }
+    for directory in [registered, registeredStage] {
+      try Data().write(to: directory.appending(path: "clone.json"))
+    }
+    try Data().write(to: stageFile)
+    try files.createSymbolicLink(at: linkedStage, withDestinationURL: other)
+    let source = root.appending(path: "Source.app")
+    try makeBundle(at: source, identifier: CloneApplication.qq.rawValue)
+    let clone = AppClone(id: UUID(), number: 42, application: .qq, name: "QQ")
+
+    await #expect(throws: AppCloneStore.Failure.invalidClone) {
+      try await store.build(clone, source: source, updating: true)
+    }
+
+    #expect(!files.fileExists(atPath: stage.path))
+    #expect(!files.fileExists(atPath: orphan.path))
+    for preserved in [
+      registered.appending(path: "clone.json"), registeredStage.appending(path: "clone.json"),
+      other, stageFile, linkedStage,
+    ] {
+      #expect(files.fileExists(atPath: preserved.path))
+    }
+  }
+
+  @Test
+  func trashIncludingDataMovesOnlySelectedCloneDirectory() async throws {
+    let files = FileManager.default
+    let root = files.temporaryDirectory.appending(path: UUID().uuidString)
+    defer { try? files.removeItem(at: root) }
+    let store = AppCloneStore(root: root.appending(path: "Clones"))
+    let clone = AppClone(id: UUID(), number: 42, application: .qq, name: "QQ")
+    let bundle = store.bundleURL(clone)
+    let directory = store.root.appending(path: clone.id.uuidString)
+    let other = store.root.appending(path: UUID().uuidString)
+    let trash = root.appending(path: "Trash")
+    try makeBundle(at: bundle, identifier: clone.bundleID)
+    try files.createDirectory(
+      at: directory.appending(path: "Data"), withIntermediateDirectories: false)
+    try JSONEncoder().encode(clone).write(to: directory.appending(path: "clone.json"))
+    try files.createDirectory(at: other, withIntermediateDirectories: false)
+    try files.createDirectory(at: trash, withIntermediateDirectories: false)
+
+    let trashed = trash.appending(path: clone.id.uuidString)
+    try await store.moveToTrashIncludingData(clone) { item in
+      #expect(item.path == directory.path)
+      try FileManager.default.moveItem(at: item, to: trashed)
+    }
+
+    #expect(!files.fileExists(atPath: directory.path))
+    #expect(files.fileExists(atPath: other.path))
+    for name in [clone.bundleFilename, "Data", "clone.json"] {
+      #expect(files.fileExists(atPath: trashed.appending(path: name).path))
+    }
+  }
+
+  @Test
+  func trashIncludingDataRejectsMismatchedIdentityAndSymlinkDirectory() async throws {
+    let files = FileManager.default
+    let root = files.temporaryDirectory.appending(path: UUID().uuidString)
+    defer { try? files.removeItem(at: root) }
+    let store = AppCloneStore(root: root.appending(path: "Clones"))
+    let clone = AppClone(id: UUID(), number: 42, application: .qq, name: "QQ")
+    let bundle = store.bundleURL(clone)
+    try makeBundle(at: bundle, identifier: CloneApplication.qq.rawValue)
+
+    await #expect(throws: AppCloneStore.Failure.invalidClone) {
+      try await store.moveToTrashIncludingData(clone) { _ in
+        Issue.record("Unexpected trash operation")
+      }
+    }
+    #expect(AppCloneStore.hasIdentity(bundle, CloneApplication.qq.rawValue))
+
+    let linkedClone = AppClone(id: UUID(), number: 43, application: .qq, name: "QQ")
+    let external = root.appending(path: "External")
+    let externalBundle = external.appending(path: linkedClone.bundleFilename)
+    try makeBundle(at: externalBundle, identifier: linkedClone.bundleID)
+    let link = store.root.appending(path: linkedClone.id.uuidString)
+    try files.createSymbolicLink(at: link, withDestinationURL: external)
+    await #expect(throws: AppCloneStore.Failure.invalidClone) {
+      try await store.moveToTrashIncludingData(linkedClone) { _ in
+        Issue.record("Unexpected trash operation")
+      }
+    }
+    #expect(AppCloneStore.hasIdentity(externalBundle, linkedClone.bundleID))
   }
 
   private func makeBundle(at url: URL, identifier: String) throws {

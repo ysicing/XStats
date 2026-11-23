@@ -30,17 +30,50 @@ extension CloneApplication {
 @MainActor
 @Observable
 final class AppCloneController {
+  enum Operation: Equatable {
+    case creating
+    case updating(UUID)
+    case opening(UUID)
+    case removing(UUID)
+
+    var title: String {
+      switch self {
+      case .creating: tr("正在创建分身")
+      case .updating: tr("正在更新")
+      case .opening: tr("正在打开")
+      case .removing: tr("正在移除")
+      }
+    }
+
+    var targetID: UUID? {
+      switch self {
+      case .creating: nil
+      case .updating(let id), .opening(let id), .removing(let id): id
+      }
+    }
+  }
+
   private let store = AppCloneStore()
   private let logger = Logger(subsystem: "work.12306.xstats.app", category: "AppClones")
 
   private(set) var clones: [AppClone] = []
-  private(set) var isWorking = false
+  private(set) var applicationIcons: [CloneApplication: NSImage] = [:]
+  private(set) var operation: Operation?
+  var isWorking: Bool { operation != nil }
   private(set) var runningIDs: Set<String> = []
   var error: String?
 
   func refresh() async {
     do {
-      clones = try await store.list()
+      let refreshedClones = try await store.list()
+      var icons: [CloneApplication: NSImage] = [:]
+      for application in Set(refreshedClones.map(\.application)) {
+        if let url = application.installedURL {
+          icons[application] = NSWorkspace.shared.icon(forFile: url.path)
+        }
+      }
+      applicationIcons = icons
+      clones = refreshedClones
     } catch {
       report(error)
     }
@@ -76,7 +109,7 @@ final class AppCloneController {
   }
 
   private func build(_ clone: AppClone, updating: Bool) {
-    perform {
+    perform(updating ? .updating(clone.id) : .creating) {
       guard let source = clone.application.installedURL else {
         throw AppCloneStore.Failure.invalidSource
       }
@@ -90,7 +123,7 @@ final class AppCloneController {
   }
 
   func launch(_ clone: AppClone) {
-    perform {
+    perform(.opening(clone.id)) {
       let url = self.store.bundleURL(clone)
       guard AppCloneStore.hasIdentity(url, clone.bundleID) else {
         throw AppCloneStore.Failure.invalidClone
@@ -109,12 +142,18 @@ final class AppCloneController {
     }
   }
 
-  func moveToTrash(_ clone: AppClone) {
-    perform {
+  func moveToTrash(_ clone: AppClone, includingData: Bool) {
+    perform(.removing(clone.id)) {
       try self.ensureStopped(clone)
-      try await self.store.moveToTrash(clone)
+      if includingData {
+        try await self.store.moveToTrashIncludingData(clone)
+      } else {
+        try await self.store.moveToTrash(clone)
+      }
       NotificationCenter.default.post(name: .launcherApplicationsChanged, object: nil)
-      self.logger.notice("Trashed clone bundle for \(clone.application.rawValue, privacy: .public)")
+      self.logger.notice(
+        "Trashed clone for \(clone.application.rawValue, privacy: .public), including data: \(includingData, privacy: .public)"
+      )
     }
   }
 
@@ -123,14 +162,16 @@ final class AppCloneController {
     guard !runningIDs.contains(clone.bundleID) else { throw AppCloneStore.Failure.running }
   }
 
-  private func perform(_ operation: @escaping @MainActor () async throws -> Void) {
+  private func perform(
+    _ operation: Operation, action: @escaping @MainActor () async throws -> Void
+  ) {
     guard !isWorking else { return }
-    isWorking = true
+    self.operation = operation
     error = nil
     Task {
-      defer { isWorking = false }
+      defer { self.operation = nil }
       do {
-        try await operation()
+        try await action()
       } catch {
         report(error)
       }

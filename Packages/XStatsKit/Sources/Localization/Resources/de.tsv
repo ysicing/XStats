@@ -711,13 +711,18 @@ Telegram（原生 Swift）	Telegram (nativ, Swift)
 {} 个分身	{} Klone
 暂无应用分身	Keine App-Klone
 没有匹配的分身	Keine passenden Klone
-正在处理分身	Klon wird verarbeitet
+正在创建分身	Klon wird erstellt
+正在更新	Wird aktualisiert
+正在打开	Wird geöffnet
+正在移除	Wird entfernt
 找不到受支持的原应用	Keine unterstützte Original-App gefunden
 请先退出分身	Bitte den Klon zuerst beenden
 分身名称过长，请缩短后重试。	Der Name des Klons ist zu lang. Kürze ihn und versuche es erneut.
 分身操作失败。请检查 Xcode 命令行工具。	Klonaktion fehlgeschlagen. Bitte die Xcode-Befehlszeilentools prüfen.
 分身将重新签名并移除原沙盒。应用仍可能访问当前用户的资料。	Der Klon wird ohne die ursprüngliche Sandbox neu signiert. Die App kann weiterhin auf Benutzerdaten zugreifen.
-移除分身应用会保留分身资料。	Beim Verschieben in den Papierkorb bleiben die Klondaten erhalten.
+仅移除应用	Nur App entfernen
+连同资料移到废纸篓	App und Daten in den Papierkorb legen
+仅移除应用会保留分身资料，也可以将应用和资料一起移到废纸篓。	Wenn du nur die App entfernst, bleiben die Klondaten erhalten. Du kannst auch App und Daten gemeinsam in den Papierkorb legen.
 忙	Ausgelastet
 快捷开关	Schnellschalter
 快照名称格式不认识，没有删除	Unbekanntes Format der Schnappschussnamen; nichts gelöscht

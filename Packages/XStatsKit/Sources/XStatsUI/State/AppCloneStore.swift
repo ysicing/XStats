@@ -2,6 +2,7 @@
 
 import Darwin
 import Foundation
+import OSLog
 
 enum CloneApplication: String, CaseIterable, Identifiable, Codable, Sendable {
   case weChat = "com.tencent.xinWeChat"
@@ -46,6 +47,7 @@ actor AppCloneStore {
   }
 
   private static let registrationLimit = 4096
+  private let logger = Logger(subsystem: "work.12306.xstats.app", category: "AppClones")
   nonisolated let root: URL
 
   init(root: URL = URL.applicationSupportDirectory.appending(path: "XStats/AppClones")) {
@@ -95,6 +97,8 @@ actor AppCloneStore {
       !source.resolvingSymlinksInPath().path.hasPrefix(root.resolvingSymlinksInPath().path + "/")
     else { throw Failure.invalidSource }
     let files = FileManager.default
+    // 控制器同一时间只允许一个分身操作，清理时没有其他构建占用这些目录。
+    cleanInterruptedBuilds()
     let directory = root.appending(path: clone.id.uuidString)
     let bundle = bundleURL(clone)
     let stage = root.appending(path: ".stage-\(UUID().uuidString)")
@@ -132,11 +136,46 @@ actor AppCloneStore {
         at: profile.appending(path: "Home/Library/Caches"), withIntermediateDirectories: true)
       try files.createDirectory(
         at: profile.appending(path: "Tmp"), withIntermediateDirectories: true)
+      try files.moveItem(at: candidate, to: bundle)
+      // 最后写入登记文件，确保中断时未完成的目录仍能被识别为残留。
       try registration.write(
         to: directory.appending(path: "clone.json"), options: .atomic)
-      try files.moveItem(at: candidate, to: bundle)
     }
     installed = true
+  }
+
+  private func cleanInterruptedBuilds() {
+    let files = FileManager.default
+    guard files.fileExists(atPath: root.path) else { return }
+    let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
+    do {
+      for directory in try files.contentsOfDirectory(
+        at: root, includingPropertiesForKeys: Array(keys))
+      where directory.lastPathComponent.hasPrefix(".stage-")
+        || UUID(uuidString: directory.lastPathComponent) != nil
+      {
+        do {
+          let values = try directory.resourceValues(forKeys: keys)
+          guard values.isDirectory == true, values.isSymbolicLink == false else { continue }
+          do {
+            _ = try files.attributesOfItem(atPath: directory.appending(path: "clone.json").path)
+            continue
+          } catch let error as CocoaError
+            where error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile
+          {
+            try files.removeItem(at: directory)
+          }
+        } catch {
+          logger.error(
+            "Interrupted clone build cleanup failed: \(String(describing: error).prefix(512), privacy: .private)"
+          )
+        }
+      }
+    } catch {
+      logger.error(
+        "Clone build directory listing failed: \(String(describing: error).prefix(512), privacy: .private)"
+      )
+    }
   }
 
   private static func swap(_ candidate: URL, _ bundle: URL) throws {
@@ -154,6 +193,21 @@ actor AppCloneStore {
     let bundle = bundleURL(clone)
     guard Self.hasIdentity(bundle, clone.bundleID) else { throw Failure.invalidClone }
     try FileManager.default.trashItem(at: bundle, resultingItemURL: nil)
+  }
+
+  func moveToTrashIncludingData(
+    _ clone: AppClone,
+    moveToTrash: @Sendable (URL) throws -> Void = {
+      try FileManager.default.trashItem(at: $0, resultingItemURL: nil)
+    }
+  ) throws {
+    let directory = root.appending(path: clone.id.uuidString)
+    let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
+    guard let values = try? directory.resourceValues(forKeys: keys),
+      values.isDirectory == true, values.isSymbolicLink == false,
+      Self.hasIdentity(bundleURL(clone), clone.bundleID)
+    else { throw Failure.invalidClone }
+    try moveToTrash(directory)
   }
 
   nonisolated static func hasIdentity(_ url: URL, _ bundleID: String) -> Bool {
