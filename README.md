@@ -230,7 +230,7 @@ AI 用量仅支持 Magpie 本地接口；Token 仅统计经过 Magpie 的请求�
 <!-- changelog:start -->
 <!-- 由 scripts/sync_changelog.py 从 CHANGELOG.md 生成，请勿手改。 -->
 
-最新版本 **1.6.4**（2026-11-15） · [完整更新日志](CHANGELOG.md)
+最新版本 **1.6.5**（2026-11-23） · [完整更新日志](CHANGELOG.md)
 
 <!-- changelog:end -->
 

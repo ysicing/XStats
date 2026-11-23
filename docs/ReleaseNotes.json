@@ -1,17 +1,19 @@
 {
-  "version": "1.6.4",
+  "version": "1.6.5",
   "sourceNotes": [
-    "关于页新增「更多应用」分组，提供 51Code 项目入口",
-    "Mole 清理预览与清理共用默认关闭的管理员授权选项",
-    "修复切换应用图标影响签名校验及 Widget、Finder 登记的问题",
-    "修复 Mole 操作期间停止按钮错位"
+    "新增默认关闭的实验性应用分身，支持微信、QQ、飞书、Telegram 和企业微信",
+    "命令栏与启动台自动收录已登记的应用分身，可按分身名或原应用名搜索",
+    "修复应用分身创建进度、名称和启动台布局",
+    "修复部分设备无法读取 GPU 功耗的问题",
+    "清理空间前核验大文件身份，避免误移走被替换的文件"
   ],
   "translations": {
     "en": [
-      "The About page adds a More Apps section with a link to 51Code.",
-      "Mole cleanup previews and cleanup share an administrator authorization option, off by default. If authorization is canceled or fails, the operation continues with standard privileges.",
-      "Fix app icon changes affecting code-signature verification and Widget and Finder registration.",
-      "Fix the misaligned Stop button while Mole is running."
+      "Adds experimental app cloning, off by default, for WeChat, QQ, Lark, Telegram, and WeCom. Each clone has separate data and can be launched and managed independently.",
+      "The command bar and Launchpad automatically list registered app clones, searchable by clone or original app name.",
+      "Fixes clone names, creation progress, and Launchpad layout, and removes leftover build files when deleting a clone.",
+      "Fixes missing GPU power readings on some devices by falling back when the dedicated energy channel is unavailable.",
+      "Rechecks a large file's identity before moving it to the Trash, preventing an unintended move if the file was replaced."
     ]
   }
 }
