@@ -26,6 +26,15 @@ struct AppClone: Codable, Identifiable, Equatable, Sendable {
 
   var bundleID: String { "\(application.rawValue).xstatsclone.\(number)" }
   var engineName: String { "XStats\(number)" }
+
+  var bundleFilename: String {
+    var stem = name.replacingOccurrences(of: "/", with: "／")
+      .replacingOccurrences(of: ":", with: "：")
+    if stem.hasPrefix(".") { stem.replaceSubrange(stem.startIndex...stem.startIndex, with: "．") }
+    stem = stem.precomposedStringWithCanonicalMapping
+    while stem.utf8.count > 240 { stem.removeLast() }
+    return "\(stem.isEmpty ? engineName : stem).app"
+  }
 }
 
 actor AppCloneStore {
@@ -41,7 +50,11 @@ actor AppCloneStore {
   }
 
   nonisolated func bundleURL(_ clone: AppClone) -> URL {
-    root.appending(path: clone.id.uuidString).appending(path: "\(clone.engineName).app")
+    let directory = root.appending(path: clone.id.uuidString)
+    let named = directory.appending(path: clone.bundleFilename)
+    let legacy = directory.appending(path: "\(clone.engineName).app")
+    return Self.hasIdentity(named, clone.bundleID) || !Self.hasIdentity(legacy, clone.bundleID)
+      ? named : legacy
   }
 
   func list() throws -> [AppClone] {
@@ -88,20 +101,19 @@ actor AppCloneStore {
       if !updating && !installed { try? files.removeItem(at: directory) }
     }
 
-    let candidate = stage.appending(path: bundle.lastPathComponent)
+    let namedBundle = directory.appending(path: clone.bundleFilename)
+    let candidate = stage.appending(path: clone.bundleFilename)
     try await AppCloneBuilder.build(
       clone, source: source, candidate: candidate, profile: profile, stage: stage)
     guard Self.hasIdentity(candidate, clone.bundleID) else { throw Failure.invalidClone }
     if updating {
       try await beforeReplacing()
       guard Self.hasIdentity(bundle, clone.bundleID) else { throw Failure.invalidClone }
-      let result = candidate.withUnsafeFileSystemRepresentation { newPath in
-        bundle.withUnsafeFileSystemRepresentation { oldPath in
-          guard let newPath, let oldPath else { return false }
-          return renamex_np(newPath, oldPath, UInt32(RENAME_SWAP)) == 0
-        }
+      if bundle.path != namedBundle.path {
+        // 先迁移旧包的名称；后续交换失败时，旧版本仍可通过新路径打开。
+        try files.moveItem(at: bundle, to: namedBundle)
       }
-      guard result else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+      try Self.swap(candidate, namedBundle)
     } else {
       try files.createDirectory(
         at: profile.appending(path: "Home/Library/Caches"), withIntermediateDirectories: true)
@@ -112,6 +124,17 @@ actor AppCloneStore {
       try files.moveItem(at: candidate, to: bundle)
     }
     installed = true
+  }
+
+  private static func swap(_ candidate: URL, _ bundle: URL) throws {
+    try candidate.withUnsafeFileSystemRepresentation { newPath in
+      try bundle.withUnsafeFileSystemRepresentation { oldPath in
+        guard let newPath, let oldPath else { throw Failure.invalidClone }
+        guard renamex_np(newPath, oldPath, UInt32(RENAME_SWAP)) == 0 else {
+          throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+      }
+    }
   }
 
   func moveToTrash(_ clone: AppClone) throws {

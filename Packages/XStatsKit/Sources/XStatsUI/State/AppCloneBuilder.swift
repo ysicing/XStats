@@ -94,6 +94,24 @@ enum AppCloneBuilder {
     metadata.removeValue(forKey: "CFBundleDocumentTypes")
     metadata.removeValue(forKey: "LSHasLocalizedDisplayName")
     metadata.removeValue(forKey: "TeamIdentifier")
+    let resources = contents.appending(path: "Resources")
+    if files.fileExists(atPath: resources.path) {
+      try rejectSymlinks([resources])
+      for localization in try files.contentsOfDirectory(
+        at: resources, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey]
+      ) where localization.pathExtension == "lproj" {
+        let values = try localization.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        guard values.isDirectory == true, values.isSymbolicLink != true else { continue }
+        let strings = localization.appending(path: "InfoPlist.strings")
+        guard files.fileExists(atPath: strings.path) else { continue }
+        try rejectSymlinks([strings])
+        var localized = try readPlist(strings)
+        localized["CFBundleName"] = clone.name
+        localized["CFBundleDisplayName"] = clone.name
+        try writePlist(localized, to: strings)
+        metadata["LSHasLocalizedDisplayName"] = true
+      }
+    }
     try writePlist(metadata, to: info)
 
     let (nested, code) = try prepareNestedCode(

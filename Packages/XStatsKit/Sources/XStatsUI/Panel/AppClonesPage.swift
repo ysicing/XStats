@@ -23,16 +23,22 @@ struct AppClonesPage: View {
       if let error = controller.error {
         InfoBanner(icon: "exclamationmark.triangle", text: error, tone: .error)
       }
-      if controller.isWorking {
-        ProgressView().controlSize(.small).accessibilityLabel(tr("正在处理分身"))
-      }
       if rows.isEmpty {
-        ContentUnavailableView(
-          search.isEmpty ? tr("暂无应用分身") : tr("没有匹配的分身"),
-          systemImage: "square.on.square"
-        )
+        Group {
+          if controller.isWorking {
+            ProgressView(tr("正在处理分身"))
+          } else {
+            ContentUnavailableView(
+              search.isEmpty ? tr("暂无应用分身") : tr("没有匹配的分身"),
+              systemImage: "square.on.square"
+            )
+          }
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
+        if controller.isWorking {
+          ProgressView().controlSize(.small).accessibilityLabel(tr("正在处理分身"))
+        }
         Table(rows) {
           TableColumn(tr("应用")) { clone in
             let app = clone.application
