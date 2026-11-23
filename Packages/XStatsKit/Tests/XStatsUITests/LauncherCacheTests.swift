@@ -6,6 +6,46 @@ import Testing
 
 @MainActor
 struct LauncherCacheTests {
+  @Test func catalogIncludesRegisteredClonesByNameWhenEnabled() async throws {
+    let files = FileManager.default
+    let root = files.temporaryDirectory.appending(path: UUID().uuidString)
+    defer { try? files.removeItem(at: root) }
+    let store = AppCloneStore(root: root)
+    let clone = AppClone(id: UUID(), number: 42, application: .qq, name: "工作号")
+    let named = store.bundleURL(clone)
+    let directory = named.deletingLastPathComponent()
+    let legacy = directory.appending(path: "\(clone.engineName).app")
+    let contents = legacy.appending(path: "Contents")
+    try files.createDirectory(at: contents, withIntermediateDirectories: true)
+    try JSONEncoder().encode(clone).write(to: directory.appending(path: "clone.json"))
+    let plist = try PropertyListSerialization.data(
+      fromPropertyList: ["CFBundleIdentifier": clone.bundleID], format: .xml, options: 0)
+    try plist.write(to: contents.appending(path: "Info.plist"))
+    let manuallyIndexed = AppCommand(
+      id: "application.\(legacy.path)", title: clone.engineName, symbol: "app",
+      keywords: "", action: .openApplication(legacy))
+    let empty = LauncherApplicationSnapshot(commands: [], isTruncated: false)
+    #expect(try await empty.includingAppClones(enabled: false, store: store).commands.isEmpty)
+
+    let snapshot = LauncherApplicationSnapshot(commands: [manuallyIndexed], isTruncated: false)
+    let indexed = try await snapshot.includingAppClones(enabled: true, store: store)
+    let command = try #require(indexed.commands.first)
+    #expect(indexed.commands.count == 1)
+    #expect(command.action == .openApplication(store.bundleURL(clone).standardizedFileURL))
+    let search = CommandBarSearch(commands: indexed.commands)
+    #expect(search.results(for: "工作号").map(\.id) == [command.id])
+    #expect(search.results(for: "QQ").map(\.id) == [command.id])
+
+    try files.moveItem(at: legacy, to: named)
+    let updated = try await empty.includingAppClones(enabled: true, store: store)
+    #expect(updated.commands.first?.id == command.id)
+    #expect(
+      updated.commands.first?.action == .openApplication(store.bundleURL(clone).standardizedFileURL)
+    )
+    try files.removeItem(at: named)
+    #expect(try await empty.includingAppClones(enabled: true, store: store).commands.isEmpty)
+  }
+
   @Test func catalogReusesFreshResultsAndRefreshesOnExpiryOrInvalidation() async throws {
     let loader = CatalogCounter()
     var now: TimeInterval = 0

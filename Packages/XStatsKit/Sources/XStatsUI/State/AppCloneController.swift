@@ -81,6 +81,7 @@ final class AppCloneController {
         throw AppCloneStore.Failure.invalidSource
       }
       try self.ensureStopped(clone)
+      defer { NotificationCenter.default.post(name: .launcherApplicationsChanged, object: nil) }
       try await self.store.build(clone, source: source, updating: updating) {
         try await self.ensureStopped(clone)
       }
@@ -112,6 +113,7 @@ final class AppCloneController {
     perform {
       try self.ensureStopped(clone)
       try await self.store.moveToTrash(clone)
+      NotificationCenter.default.post(name: .launcherApplicationsChanged, object: nil)
       self.logger.notice("Trashed clone bundle for \(clone.application.rawValue, privacy: .public)")
     }
   }

@@ -6,6 +6,37 @@ import OSLog
 struct LauncherApplicationSnapshot: Sendable {
   let commands: [AppCommand]
   let isTruncated: Bool
+
+  func includingAppClones(enabled: Bool, store: AppCloneStore) async throws -> Self {
+    guard enabled else { return self }
+    let clones: [AppClone]
+    do {
+      clones = try await store.list()
+    } catch {
+      try Task.checkCancellation()
+      return Self(commands: commands, isTruncated: true)
+    }
+    var cloneCommands: [AppCommand] = []
+    var clonePaths = Set<String>()
+    for clone in clones {
+      try Task.checkCancellation()
+      let url = store.bundleURL(clone).standardizedFileURL
+      guard AppCloneStore.hasIdentity(url, clone.bundleID) else { continue }
+      clonePaths.insert(url.path)
+      cloneCommands.append(
+        AppCommand(
+          id: "application.clone.\(clone.id.uuidString)", title: clone.name, symbol: "app",
+          keywords: "\(clone.application.displayName) \(clone.application.rawValue)",
+          action: .openApplication(url)))
+    }
+    let otherCommands = commands.filter {
+      if case .openApplication(let url) = $0.action {
+        return !clonePaths.contains(url.standardizedFileURL.path)
+      }
+      return true
+    }
+    return Self(commands: otherCommands + cloneCommands, isTruncated: isTruncated)
+  }
 }
 
 /// 两个启动入口共享短期清单；最后一个读取方取消后停止扫描，不使用后台刷新定时器。
@@ -26,8 +57,11 @@ final class LauncherApplicationCatalog: NSObject {
     loader: @escaping @Sendable () async throws -> LauncherApplicationSnapshot = {
       let scan = Task.detached(priority: .userInitiated) {
         let result = try CommandBarApplications.scanResult()
-        return LauncherApplicationSnapshot(
-          commands: result.commands, isTruncated: result.isTruncated)
+        return try await LauncherApplicationSnapshot(
+          commands: result.commands, isTruncated: result.isTruncated
+        )
+        .includingAppClones(
+          enabled: AppSettings.includesAppClones(in: .standard), store: AppCloneStore())
       }
       return try await withTaskCancellationHandler {
         try await scan.value

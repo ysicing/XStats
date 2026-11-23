@@ -1006,10 +1006,17 @@ public final class AppSettings {
       if appClonesEnabled && !hasAcknowledgedAppCloneRisk { appClonesEnabled = false }
       if !appClonesEnabled && appServicesSection == .clones { appServicesSection = .apps }
       defaults.set(appClonesEnabled, forKey: Keys.appClonesEnabled)
+      if oldValue != appClonesEnabled, defaults === UserDefaults.standard {
+        NotificationCenter.default.post(name: .launcherApplicationsChanged, object: nil)
+      }
     }
   }
   var hasAcknowledgedAppCloneRisk: Bool {
     didSet { defaults.set(hasAcknowledgedAppCloneRisk, forKey: "appCloneRiskAcknowledged") }
+  }
+  nonisolated static func includesAppClones(in defaults: UserDefaults) -> Bool {
+    defaults.bool(forKey: Keys.appClonesEnabled)
+      && defaults.bool(forKey: "appCloneRiskAcknowledged")
   }
   public var panelTab: PanelTab {
     didSet {
@@ -1487,7 +1494,7 @@ public final class AppSettings {
       defaults.string(forKey: "appServicesSection")
       .flatMap(AppServicesSection.init(rawValue:)) ?? .apps
     let acknowledgedAppCloneRisk = defaults.bool(forKey: "appCloneRiskAcknowledged")
-    let enablesAppClones = acknowledgedAppCloneRisk && defaults.bool(forKey: Keys.appClonesEnabled)
+    let enablesAppClones = Self.includesAppClones(in: defaults)
     hasAcknowledgedAppCloneRisk = acknowledgedAppCloneRisk
     appClonesEnabled = enablesAppClones
     appServicesSection =
