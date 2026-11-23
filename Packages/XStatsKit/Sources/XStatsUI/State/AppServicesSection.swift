@@ -5,7 +5,7 @@ import Localization
 
 /// 应用服务的基础分类；数据按页面需求读取，沿用 launchd 权限边界。
 public enum AppServicesSection: String, CaseIterable, Sendable {
-  case apps, homebrew, startup, services
+  case apps, homebrew, startup, services, clones
 
   var title: String {
     switch self {
@@ -13,6 +13,7 @@ public enum AppServicesSection: String, CaseIterable, Sendable {
     case .homebrew: "Homebrew"
     case .startup: tr("启动项")
     case .services: tr("服务")
+    case .clones: tr("应用分身")
     }
   }
 
@@ -21,7 +22,7 @@ public enum AppServicesSection: String, CaseIterable, Sendable {
   var launchScopes: [LaunchItem.Scope] {
     switch self {
     case .startup: [.user, .allUsers, .system]
-    case .apps, .homebrew, .services: []
+    case .apps, .homebrew, .services, .clones: []
     }
   }
 
@@ -31,6 +32,7 @@ public enum AppServicesSection: String, CaseIterable, Sendable {
     case .homebrew: tr("搜索软件包")
     case .startup: tr("搜索启动项")
     case .services: tr("搜索服务")
+    case .clones: tr("搜索应用分身")
     }
   }
 }

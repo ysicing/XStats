@@ -43,6 +43,7 @@ public final class AppModel {
   public let alerts: AlertController
   public let uninstaller: UninstallerController
   let appManagement: AppManagementController
+  let appClones = AppCloneController()
   public let bluetooth = BluetoothController()
   let sleepAssertions = SleepAssertionController()
   let startupItems = StartupItemsController()

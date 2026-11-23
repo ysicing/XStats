@@ -694,6 +694,29 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Cachés de paquetes
 循环 {} 次	{} ciclos
 循环次数	Ciclos
 微信	WeChat
+应用分身	Clones de apps
+无法验证原应用的发布者或签名。	No se pudo verificar el editor o la firma de la app original.
+应用分身风险提醒	Riesgos de clonar apps
+了解风险并开启	Aceptar los riesgos y activar
+搜索应用分身	Buscar clones de apps
+新建分身	Nuevo clon
+飞书	Feishu
+企业微信	WeCom
+Telegram（原生 Swift）	Telegram (Swift nativo)
+分身名称	Nombre del clon
+未运行	Detenido
+更新分身	Actualizar clon
+显示分身资料	Mostrar datos del clon
+分身操作	Acciones del clon
+{} 个分身	{} clones
+暂无应用分身	No hay clones de apps
+没有匹配的分身	No hay clones que coincidan
+正在处理分身	Procesando clon
+找不到受支持的原应用	No se encontró ninguna app original compatible
+请先退出分身	Cierra el clon primero
+分身操作失败。请检查 Xcode 命令行工具。	La operación falló. Comprueba las herramientas de línea de comandos de Xcode.
+分身将重新签名并移除原沙盒。应用仍可能访问当前用户的资料。	El clon se volverá a firmar sin el aislamiento original. La app aún puede acceder a los datos del usuario actual.
+移除分身应用会保留分身资料。	Al mover la app clonada a la Papelera, se conservan sus datos.
 忙	Ocupado
 快捷开关	Controles rápidos
 快照名称格式不认识，没有删除	Nombres de instantáneas desconocidos; no se eliminó nada

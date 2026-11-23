@@ -8,6 +8,21 @@ import Testing
 
 @MainActor
 struct AppServicesTests {
+  @Test func appCloneRiskRequiresExplicitAcknowledgmentEvenWithSavedSection() throws {
+    let suite = "AppServicesTests.cloneRisk.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    settings.appServicesSection = .clones
+
+    let reloaded = AppSettings(defaults: defaults)
+    #expect(reloaded.appServicesSection == .clones)
+    #expect(!reloaded.hasAcknowledgedAppCloneRisk)
+
+    reloaded.hasAcknowledgedAppCloneRisk = true
+    #expect(AppSettings(defaults: defaults).hasAcknowledgedAppCloneRisk)
+  }
+
   @Test func legacyRouteAndSavedSectionResolveToOneEntry() throws {
     let suite = "AppServicesTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))

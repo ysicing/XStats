@@ -997,6 +997,9 @@ public final class AppSettings {
       defaults.set(appServicesSection.rawValue, forKey: "appServicesSection")
     }
   }
+  var hasAcknowledgedAppCloneRisk: Bool {
+    didSet { defaults.set(hasAcknowledgedAppCloneRisk, forKey: "appCloneRiskAcknowledged") }
+  }
   public var panelTab: PanelTab {
     didSet {
       // 统一拦截旧路由与外部打开请求，关闭的音频与进程模块回到功能开关入口。
@@ -1473,6 +1476,7 @@ public final class AppSettings {
       defaults.string(forKey: "appServicesSection")
       .flatMap(AppServicesSection.init(rawValue:)) ?? .apps
     appServicesSection = savedPanelTab == .startupItems ? .startup : savedSection
+    hasAcknowledgedAppCloneRisk = defaults.bool(forKey: "appCloneRiskAcknowledged")
     // 旧版 AI 助手设置页已移除，升级后仍留在设置分组。
     if savedPanelTabValue == "settingsAI" || savedPanelTab == .settingsAccount {
       panelTab = .settingsGeneral

@@ -32,8 +32,13 @@ struct AppManagementPage: View {
   @State private var sortOrder = [KeyPathComparator<ManagedApplicationRow>(\.name)]
   @State private var filter: BrewFilter = .all
   @State private var showsUninstall = false
+  @State private var showsNewClone = false
+  @State private var showsAppCloneRisk = false
   @State private var pendingBrew: BrewConfirmation?
   private var controller: AppManagementController { model.appManagement }
+  private var canShowAppClones: Bool {
+    isSnapshot || model.settings.hasAcknowledgedAppCloneRisk
+  }
   private var checkingUpdates: Bool {
     tab == .apps ? controller.isCheckingAppStore : controller.isCheckingUpdates
   }
@@ -55,6 +60,10 @@ struct AppManagementPage: View {
         HomebrewServicesPage(search: search)
       } else if section == .startup {
         StartupItemsPage(section: section, search: search)
+      } else if section == .clones {
+        if canShowAppClones {
+          AppClonesPage(search: search, showsNewClone: $showsNewClone)
+        }
       } else {
         if let error = controller.error {
           InfoBanner(icon: "exclamationmark.triangle", text: error, tone: .error)
@@ -78,6 +87,19 @@ struct AppManagementPage: View {
       }
     }
     .padding([.horizontal, .bottom], DS.Space.s3)
+    .onChange(of: section == .clones && !canShowAppClones, initial: true) { _, needsConfirmation in
+      showsAppCloneRisk = needsConfirmation
+    }
+    .alert(tr("应用分身风险提醒"), isPresented: $showsAppCloneRisk) {
+      Button(tr("取消"), role: .cancel) {
+        model.settings.appServicesSection = .apps
+      }
+      Button(tr("了解风险并开启")) {
+        model.settings.hasAcknowledgedAppCloneRisk = true
+      }
+    } message: {
+      Text(tr("分身将重新签名并移除原沙盒。应用仍可能访问当前用户的资料。"))
+    }
     .overlay(alignment: .bottom) {
       ZStack {
         if section.managesApplications, let completion = controller.completion {
@@ -254,7 +276,16 @@ struct AppManagementPage: View {
 
   private var toolbarActions: some View {
     HStack(spacing: DS.Space.s2) {
-      if section == .services {
+      if section == .clones {
+        Button {
+          showsNewClone = true
+        } label: {
+          Label(tr("新建分身"), systemImage: "plus")
+        }
+        .buttonStyle(DSButtonStyle(kind: .secondary))
+        .fixedSize()
+        .disabled(!canShowAppClones || model.appClones.isWorking)
+      } else if section == .services {
         IconButton(systemName: "arrow.clockwise", help: tr("刷新")) {
           model.homebrewServices.refresh()
         }

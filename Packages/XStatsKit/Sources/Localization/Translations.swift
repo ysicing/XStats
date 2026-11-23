@@ -2026,6 +2026,29 @@ extension Translations {
 
 extension Translations {
   static let applicationManagementEnglish = #"""
+    应用分身	App Clones
+    应用分身风险提醒	App Clone Risks
+    了解风险并开启	Acknowledge Risks and Enable
+    搜索应用分身	Search app clones
+    新建分身	New Clone
+    飞书	Feishu
+    企业微信	WeCom
+    Telegram（原生 Swift）	Telegram (Native Swift)
+    分身名称	Clone Name
+    未运行	Not Running
+    更新分身	Update Clone
+    显示分身资料	Show Clone Data
+    分身操作	Clone Actions
+    {} 个分身	{} clones
+    暂无应用分身	No App Clones
+    没有匹配的分身	No Matching Clones
+    正在处理分身	Working on Clone
+    找不到受支持的原应用	No supported source app found
+    无法验证原应用的发布者或签名。	The source app’s publisher or signature could not be verified.
+    请先退出分身	Quit the clone first
+    分身操作失败。请检查 Xcode 命令行工具。	The clone operation failed. Check the Xcode Command Line Tools.
+    分身将重新签名并移除原沙盒。应用仍可能访问当前用户的资料。	The clone will be re-signed without the original sandbox. It may still access the current user’s data.
+    移除分身应用会保留分身资料。	Moving the clone app to the Trash keeps its data.
     权限不足，无法完成卸载	Insufficient permissions to finish uninstalling
     请在访达中移到废纸篓，按提示输入管理员密码。	Move the item to the Trash in Finder and enter an administrator password if prompted.
     打开访达	Open Finder

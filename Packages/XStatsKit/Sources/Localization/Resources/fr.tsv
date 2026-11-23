@@ -694,6 +694,29 @@ uv 下载的 Python 包与构建缓存，由 uv 自行清理	Caches de paquets P
 循环 {} 次	{} cycles
 循环次数	Nombre de cycles
 微信	WeChat
+应用分身	Clones d’apps
+无法验证原应用的发布者或签名。	Impossible de vérifier l’éditeur ou la signature de l’app d’origine.
+应用分身风险提醒	Risques liés aux clones d’apps
+了解风险并开启	Accepter les risques et activer
+搜索应用分身	Rechercher des clones d’apps
+新建分身	Nouveau clone
+飞书	Feishu
+企业微信	WeCom
+Telegram（原生 Swift）	Telegram (Swift natif)
+分身名称	Nom du clone
+未运行	À l’arrêt
+更新分身	Mettre à jour le clone
+显示分身资料	Afficher les données du clone
+分身操作	Actions du clone
+{} 个分身	{} clones
+暂无应用分身	Aucun clone d’app
+没有匹配的分身	Aucun clone correspondant
+正在处理分身	Traitement du clone
+找不到受支持的原应用	Aucune app d’origine compatible trouvée
+请先退出分身	Quittez d’abord le clone
+分身操作失败。请检查 Xcode 命令行工具。	L’opération a échoué. Vérifiez les outils de ligne de commande Xcode.
+分身将重新签名并移除原沙盒。应用仍可能访问当前用户的资料。	Le clone sera signé à nouveau sans le bac à sable d’origine. L’app pourra toujours accéder aux données de l’utilisateur actuel.
+移除分身应用会保留分身资料。	La mise à la Corbeille du clone conserve ses données.
 忙	Occupé
 快捷开关	Commandes rapides
 快照名称格式不认识，没有删除	Format des noms d’instantanés inconnu ; aucune suppression
