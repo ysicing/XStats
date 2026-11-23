@@ -2046,6 +2046,7 @@ extension Translations {
     找不到受支持的原应用	No supported source app found
     无法验证原应用的发布者或签名。	The source app’s publisher or signature could not be verified.
     请先退出分身	Quit the clone first
+    分身名称过长，请缩短后重试。	The clone name is too long. Shorten it and try again.
     分身操作失败。请检查 Xcode 命令行工具。	The clone operation failed. Check the Xcode Command Line Tools.
     分身将重新签名并移除原沙盒。应用仍可能访问当前用户的资料。	The clone will be re-signed without the original sandbox. It may still access the current user’s data.
     移除分身应用会保留分身资料。	Moving the clone app to the Trash keeps its data.

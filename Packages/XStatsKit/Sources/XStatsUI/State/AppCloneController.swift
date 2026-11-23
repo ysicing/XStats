@@ -146,6 +146,8 @@ final class AppCloneController {
       error = tr("无法验证原应用的发布者或签名。")
     case AppCloneStore.Failure.running:
       error = tr("请先退出分身")
+    case AppCloneStore.Failure.registrationTooLarge:
+      error = tr("分身名称过长，请缩短后重试。")
     default:
       error = tr("分身操作失败。请检查 Xcode 命令行工具。")
     }

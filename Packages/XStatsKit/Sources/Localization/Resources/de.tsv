@@ -714,6 +714,7 @@ Telegram（原生 Swift）	Telegram (nativ, Swift)
 正在处理分身	Klon wird verarbeitet
 找不到受支持的原应用	Keine unterstützte Original-App gefunden
 请先退出分身	Bitte den Klon zuerst beenden
+分身名称过长，请缩短后重试。	Der Name des Klons ist zu lang. Kürze ihn und versuche es erneut.
 分身操作失败。请检查 Xcode 命令行工具。	Klonaktion fehlgeschlagen. Bitte die Xcode-Befehlszeilentools prüfen.
 分身将重新签名并移除原沙盒。应用仍可能访问当前用户的资料。	Der Klon wird ohne die ursprüngliche Sandbox neu signiert. Die App kann weiterhin auf Benutzerdaten zugreifen.
 移除分身应用会保留分身资料。	Beim Verschieben in den Papierkorb bleiben die Klondaten erhalten.

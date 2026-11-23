@@ -17,6 +17,7 @@ struct LaunchpadLayout: Codable, Equatable, Sendable {
   /// `pruneMissing` 为 false 时（扫描被截断，缺失不代表已卸载）保留布局中本次未扫到的应用。
   mutating func reconcile(
     appIDs: [String], capacity: Int, pruneMissing: Bool = true,
+    preservingHiddenClones: Bool = false,
     preservingPageBoundaries: Bool = false
   ) {
     var available = Set(appIDs.prefix(2000))
@@ -31,7 +32,9 @@ struct LaunchpadLayout: Codable, Equatable, Sendable {
       let items = page.prefix(2000).flatMap { item -> [Item] in
         var item = item
         item.apps = item.apps.prefix(2000).filter {
-          available.contains($0) && seen.insert($0).inserted
+          (available.contains($0)
+            || (preservingHiddenClones && $0.hasPrefix(AppClone.launcherIDPrefix)))
+            && seen.insert($0).inserted
         }
         guard !item.apps.isEmpty else { return [] }
         if item.apps.count == 1 { return [.app(item.apps[0])] }

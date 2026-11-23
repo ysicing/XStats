@@ -6,9 +6,18 @@ import OSLog
 struct LauncherApplicationSnapshot: Sendable {
   let commands: [AppCommand]
   let isTruncated: Bool
+  let hidesAppClones: Bool
+
+  init(commands: [AppCommand], isTruncated: Bool, hidesAppClones: Bool = false) {
+    self.commands = commands
+    self.isTruncated = isTruncated
+    self.hidesAppClones = hidesAppClones
+  }
 
   func includingAppClones(enabled: Bool, store: AppCloneStore) async throws -> Self {
-    guard enabled else { return self }
+    guard enabled else {
+      return Self(commands: commands, isTruncated: isTruncated, hidesAppClones: true)
+    }
     let clones: [AppClone]
     do {
       clones = try await store.list()
@@ -25,7 +34,7 @@ struct LauncherApplicationSnapshot: Sendable {
       clonePaths.insert(url.path)
       cloneCommands.append(
         AppCommand(
-          id: "application.clone.\(clone.id.uuidString)", title: clone.name, symbol: "app",
+          id: AppClone.launcherIDPrefix + clone.id.uuidString, title: clone.name, symbol: "app",
           keywords: "\(clone.application.displayName) \(clone.application.rawValue)",
           action: .openApplication(url)))
     }

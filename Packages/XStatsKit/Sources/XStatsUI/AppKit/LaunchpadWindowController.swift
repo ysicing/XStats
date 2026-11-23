@@ -353,9 +353,12 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
         self.layout.reconcile(
           appIDs: index.results(for: "", favorites: self.usage?.favorites ?? []).map(\.id),
           capacity: self.gridCapacity, pruneMissing: !isTruncated,
+          preservingHiddenClones: snapshot?.hidesAppClones == true,
           preservingPageBoundaries: true)
         if !applications.isEmpty && !isTruncated { self.layoutStore?.save(self.layout) }
-        if let folderID = self.folderID, self.layout.item(folderID)?.isFolder != true {
+        if let folderID = self.folderID,
+          self.layout.item(folderID).map({ $0.isFolder && self.isVisible($0) }) != true
+        {
           self.folderID = nil
         }
         self.refreshResults(preservingSelection: true)
@@ -922,6 +925,7 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
       folderID = nil
       results = layout.pages.joined().compactMap { item -> AppCommand? in
         if !item.isFolder { return applicationMap[item.id] }
+        guard isVisible(item) else { return nil }
         return AppCommand(
           id: item.id, title: item.name?.isEmpty == false ? item.name! : text("文件夹"),
           symbol: "folder", keywords: "", action: .launchpad)
@@ -1433,11 +1437,12 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
   }
 
   private func folderImage(_ id: String) -> NSImage {
-    let icons = (layout.item(id)?.apps ?? []).prefix(4).compactMap { id -> NSImage? in
-      guard let command = applicationMap[id], case .openApplication(let url) = command.action else {
+    let commands = (layout.item(id)?.apps ?? []).lazy.compactMap { self.applicationMap[$0] }
+    let icons = commands.prefix(4).compactMap { command -> NSImage? in
+      guard case .openApplication(let url) = command.action else {
         return nil
       }
-      return LauncherIconCache.shared.image(for: url, size: 21 * iconSize / 64)
+      return LauncherIconCache.shared.image(for: url, size: 21 * self.iconSize / 64)
     }
     return NSImage(size: NSSize(width: iconSize, height: iconSize), flipped: false) { rect in
       NSGraphicsContext.saveGraphicsState()
@@ -1521,8 +1526,8 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
 
   private func materializeGridPages() {
     let items = Array(layout.pages.joined())
-    let visible = items.filter { $0.isFolder || applicationMap[$0.id] != nil }
-    let unavailable = items.filter { !$0.isFolder && applicationMap[$0.id] == nil }
+    let visible = items.filter { isVisible($0) }
+    let unavailable = items.filter { !isVisible($0) }
     // 拖动前将显示页落实到布局；扫描不完整时仍保留未读到的应用，避免误删布局。
     let pages =
       LaunchpadLayout.paginate(visible, capacity: gridCapacity)
@@ -1530,6 +1535,10 @@ final class LaunchpadWindowController: NSObject, NSWindowDelegate, NSSearchField
     guard pages != layout.pages else { return }
     layout.pages = pages
     refreshResults(preservingSelection: true)
+  }
+
+  private func isVisible(_ item: LaunchpadLayout.Item) -> Bool {
+    item.apps.contains { applicationMap[$0] != nil }
   }
 
   private func saveLayout() {

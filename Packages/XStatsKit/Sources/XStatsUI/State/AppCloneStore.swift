@@ -19,6 +19,7 @@ enum CloneApplication: String, CaseIterable, Identifiable, Codable, Sendable {
 }
 
 struct AppClone: Codable, Identifiable, Equatable, Sendable {
+  static let launcherIDPrefix = "application.clone."
   let id: UUID
   let number: UInt64
   let application: CloneApplication
@@ -40,9 +41,11 @@ struct AppClone: Codable, Identifiable, Equatable, Sendable {
 actor AppCloneStore {
   enum Failure: Error, Equatable {
     case invalidClone, invalidSource, untrustedSource, running, unsupportedExecutable
+    case registrationTooLarge
     case commandFailed(String)
   }
 
+  private static let registrationLimit = 4096
   nonisolated let root: URL
 
   init(root: URL = URL.applicationSupportDirectory.appending(path: "XStats/AppClones")) {
@@ -62,9 +65,15 @@ actor AppCloneStore {
     return try FileManager.default.contentsOfDirectory(
       at: root, includingPropertiesForKeys: nil, options: .skipsHiddenFiles
     ).compactMap { directory in
+      try Task.checkCancellation()
+      let registration = directory.appending(path: "clone.json")
       guard let id = UUID(uuidString: directory.lastPathComponent),
-        let data = try? Data(contentsOf: directory.appending(path: "clone.json")),
-        data.count <= 4096,
+        (try? registration.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true,
+        let handle = try? FileHandle(forReadingFrom: registration)
+      else { return nil }
+      defer { try? handle.close() }
+      guard let data = try? handle.read(upToCount: Self.registrationLimit + 1),
+        data.count <= Self.registrationLimit,
         let clone = try? JSONDecoder().decode(AppClone.self, from: data), clone.id == id,
         Self.hasIdentity(bundleURL(clone), clone.bundleID)
       else { return nil }
@@ -77,6 +86,10 @@ actor AppCloneStore {
     _ clone: AppClone, source: URL, updating: Bool,
     beforeReplacing: @Sendable () async throws -> Void = {}
   ) async throws {
+    let registration = updating ? nil : try JSONEncoder().encode(clone)
+    if let registration, registration.count > Self.registrationLimit {
+      throw Failure.registrationTooLarge
+    }
     guard source.isFileURL,
       clone.application.sourceIdentifiers.contains(where: { Self.hasIdentity(source, $0) }),
       !source.resolvingSymlinksInPath().path.hasPrefix(root.resolvingSymlinksInPath().path + "/")
@@ -114,12 +127,12 @@ actor AppCloneStore {
         try files.moveItem(at: bundle, to: namedBundle)
       }
       try Self.swap(candidate, namedBundle)
-    } else {
+    } else if let registration {
       try files.createDirectory(
         at: profile.appending(path: "Home/Library/Caches"), withIntermediateDirectories: true)
       try files.createDirectory(
         at: profile.appending(path: "Tmp"), withIntermediateDirectories: true)
-      try JSONEncoder().encode(clone).write(
+      try registration.write(
         to: directory.appending(path: "clone.json"), options: .atomic)
       try files.moveItem(at: candidate, to: bundle)
     }

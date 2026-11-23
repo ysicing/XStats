@@ -17,7 +17,10 @@ struct LauncherCacheTests {
     let legacy = directory.appending(path: "\(clone.engineName).app")
     let contents = legacy.appending(path: "Contents")
     try files.createDirectory(at: contents, withIntermediateDirectories: true)
-    try JSONEncoder().encode(clone).write(to: directory.appending(path: "clone.json"))
+    let registration = directory.appending(path: "clone.json")
+    let encoded = try JSONEncoder().encode(clone)
+    let atLimit = encoded + Data(repeating: 32, count: 4096 - encoded.count)
+    try atLimit.write(to: registration)
     let plist = try PropertyListSerialization.data(
       fromPropertyList: ["CFBundleIdentifier": clone.bundleID], format: .xml, options: 0)
     try plist.write(to: contents.appending(path: "Info.plist"))
@@ -25,7 +28,9 @@ struct LauncherCacheTests {
       id: "application.\(legacy.path)", title: clone.engineName, symbol: "app",
       keywords: "", action: .openApplication(legacy))
     let empty = LauncherApplicationSnapshot(commands: [], isTruncated: false)
-    #expect(try await empty.includingAppClones(enabled: false, store: store).commands.isEmpty)
+    let disabled = try await empty.includingAppClones(enabled: false, store: store)
+    #expect(disabled.commands.isEmpty)
+    #expect(disabled.hidesAppClones)
 
     let snapshot = LauncherApplicationSnapshot(commands: [manuallyIndexed], isTruncated: false)
     let indexed = try await snapshot.includingAppClones(enabled: true, store: store)
@@ -35,6 +40,11 @@ struct LauncherCacheTests {
     let search = CommandBarSearch(commands: indexed.commands)
     #expect(search.results(for: "工作号").map(\.id) == [command.id])
     #expect(search.results(for: "QQ").map(\.id) == [command.id])
+    #expect(!indexed.hidesAppClones)
+
+    try (atLimit + Data([32])).write(to: registration)
+    #expect(try await store.list().isEmpty)
+    try encoded.write(to: registration)
 
     try files.moveItem(at: legacy, to: named)
     let updated = try await empty.includingAppClones(enabled: true, store: store)
@@ -44,6 +54,19 @@ struct LauncherCacheTests {
     )
     try files.removeItem(at: named)
     #expect(try await empty.includingAppClones(enabled: true, store: store).commands.isEmpty)
+  }
+
+  @Test func oversizedCloneRegistrationFailsBeforeCreatingFiles() async throws {
+    let files = FileManager.default
+    let root = files.temporaryDirectory.appending(path: UUID().uuidString)
+    let store = AppCloneStore(root: root)
+    let name = "a" + String(repeating: "\u{0301}", count: 2048)
+    let clone = AppClone(id: UUID(), number: 42, application: .qq, name: name)
+    #expect(name.count == 1)
+    await #expect(throws: AppCloneStore.Failure.registrationTooLarge) {
+      try await store.build(clone, source: root.appending(path: "QQ.app"), updating: false)
+    }
+    #expect(!files.fileExists(atPath: root.path))
   }
 
   @Test func catalogReusesFreshResultsAndRefreshesOnExpiryOrInvalidation() async throws {

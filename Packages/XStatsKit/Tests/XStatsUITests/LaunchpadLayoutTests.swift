@@ -47,6 +47,24 @@ struct LaunchpadLayoutTests {
     #expect(layout.pages[0][0].isFolder)
   }
 
+  @Test func temporarilyHiddenClonesKeepTheirFolderAndPage() {
+    let first = AppClone.launcherIDPrefix + UUID().uuidString
+    let second = AppClone.launcherIDPrefix + UUID().uuidString
+    let folder = LaunchpadLayout.Item(id: "folder.clones", name: "Clones", apps: [first, second])
+    let saved = LaunchpadLayout(pages: [[.app("original")], [folder]])
+    var layout = saved
+    layout.pages[0].append(.app("uninstalled"))
+    layout.reconcile(
+      appIDs: ["original"], capacity: 4, preservingHiddenClones: true,
+      preservingPageBoundaries: true)
+    #expect(layout == saved)
+    layout.reconcile(
+      appIDs: ["original", first, second], capacity: 4, preservingPageBoundaries: true)
+    #expect(layout == saved)
+    layout.reconcile(appIDs: ["original", first], capacity: 4, preservingPageBoundaries: true)
+    #expect(layout.pages == [[.app("original")], [.app(first)]])
+  }
+
   @Test func malformedAndDuplicateFoldersDoNotLoseApplications() {
     var layout = LaunchpadLayout(pages: [
       [

@@ -259,9 +259,11 @@ enum AppCloneBuilder {
         const struct passwd *record = getpwuid(getuid());
         if (record == NULL || record->pw_dir == NULL) return paths;
         NSString *prefix = [[NSString stringWithUTF8String:record->pw_dir] stringByAppendingString:@"/"];
+        NSString *clonePrefix = [@CLONE_HOME stringByAppendingString:@"/"];
         NSMutableArray<NSString *> *rewritten = [NSMutableArray arrayWithCapacity:paths.count];
         for (NSString *path in paths) {
-            [rewritten addObject:[path hasPrefix:prefix]
+            BOOL isolated = [path isEqualToString:@CLONE_HOME] || [path hasPrefix:clonePrefix];
+            [rewritten addObject:!isolated && [path hasPrefix:prefix]
                 ? [@CLONE_HOME stringByAppendingPathComponent:[path substringFromIndex:prefix.length]]
                 : path];
         }
