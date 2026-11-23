@@ -270,6 +270,7 @@ enum SnapshotRenderer {
       let settings = AppSettings(defaults: defaults)
       settings.language = L10n.language
       settings.panelTab = .uninstaller
+      settings.hasAcknowledgedAppCloneRisk = true
       let model = AppModel(
         settings: settings, historyURL: nil)
       let apps = ["Atlas", "Boreal", "Editor", "Studio", "Terminal", "Weather"].map {
@@ -340,6 +341,7 @@ enum SnapshotRenderer {
         guard let appearance = NSAppearance(named: name) else { continue }
         NSApp.appearance = appearance
         for section in AppServicesSection.allCases {
+          model.settings.appClonesEnabled = section == .clones
           model.settings.appServicesSection = section
           // 覆盖宽窗口的列分配和窄窗口的工具栏换行；保持原有截图文件名。
           for (width, sizeSuffix) in [(CGFloat(1050), ""), (1240, "-wide"), (760, "-compact")] {

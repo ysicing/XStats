@@ -49,6 +49,7 @@ struct FeatureSettings: View {
   @Environment(AppModel.self) private var model
   @State private var managesNetworkComponent = false
   @State private var enablesAfterComponentInstall = false
+  @State private var showsAppCloneRisk = false
 
   @Environment(\.isSnapshot) private var isSnapshot
 
@@ -278,6 +279,29 @@ struct FeatureSettings: View {
       SettingsGroup {
         GroupRow(showsDivider: false) {
           FinderDocumentSettings()
+        }
+        GroupRow {
+          SettingRow(title: tr("应用分身"), icon: "square.on.square") {
+            DSToggle(
+              isOn: Binding(
+                get: { settings.appClonesEnabled },
+                set: { enabled in
+                  if enabled && !settings.hasAcknowledgedAppCloneRisk {
+                    showsAppCloneRisk = true
+                  } else {
+                    settings.appClonesEnabled = enabled
+                  }
+                }), label: tr("应用分身"))
+          }
+          .alert(tr("应用分身风险提醒"), isPresented: $showsAppCloneRisk) {
+            Button(tr("取消"), role: .cancel) {}
+            Button(tr("了解风险并开启")) {
+              settings.hasAcknowledgedAppCloneRisk = true
+              settings.appClonesEnabled = true
+            }
+          } message: {
+            Text(tr("分身将重新签名并移除原沙盒。应用仍可能访问当前用户的资料。"))
+          }
         }
         GroupRow {
           SettingRow(

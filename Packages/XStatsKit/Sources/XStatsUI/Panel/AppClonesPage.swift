@@ -31,7 +31,7 @@ struct AppClonesPage: View {
           search.isEmpty ? tr("暂无应用分身") : tr("没有匹配的分身"),
           systemImage: "square.on.square"
         )
-        .frame(maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
         Table(rows) {
           TableColumn(tr("应用")) { clone in

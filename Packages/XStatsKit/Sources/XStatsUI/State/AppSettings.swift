@@ -994,7 +994,18 @@ public final class AppSettings {
   /// 应用服务始终可用，浏览分类仅保存在本机。
   public var appServicesSection: AppServicesSection {
     didSet {
+      if appServicesSection == .clones && !appClonesEnabled { appServicesSection = .apps }
       defaults.set(appServicesSection.rawValue, forKey: "appServicesSection")
+    }
+  }
+  var appServicesSections: [AppServicesSection] {
+    AppServicesSection.allCases.filter { $0 != .clones || appClonesEnabled }
+  }
+  var appClonesEnabled: Bool {
+    didSet {
+      if appClonesEnabled && !hasAcknowledgedAppCloneRisk { appClonesEnabled = false }
+      if !appClonesEnabled && appServicesSection == .clones { appServicesSection = .apps }
+      defaults.set(appClonesEnabled, forKey: Keys.appClonesEnabled)
     }
   }
   var hasAcknowledgedAppCloneRisk: Bool {
@@ -1475,8 +1486,14 @@ public final class AppSettings {
     let savedSection =
       defaults.string(forKey: "appServicesSection")
       .flatMap(AppServicesSection.init(rawValue:)) ?? .apps
-    appServicesSection = savedPanelTab == .startupItems ? .startup : savedSection
-    hasAcknowledgedAppCloneRisk = defaults.bool(forKey: "appCloneRiskAcknowledged")
+    let acknowledgedAppCloneRisk = defaults.bool(forKey: "appCloneRiskAcknowledged")
+    let enablesAppClones = acknowledgedAppCloneRisk && defaults.bool(forKey: Keys.appClonesEnabled)
+    hasAcknowledgedAppCloneRisk = acknowledgedAppCloneRisk
+    appClonesEnabled = enablesAppClones
+    appServicesSection =
+      if savedPanelTab == .startupItems {
+        .startup
+      } else if savedSection == .clones && !enablesAppClones { .apps } else { savedSection }
     // 旧版 AI 助手设置页已移除，升级后仍留在设置分组。
     if savedPanelTabValue == "settingsAI" || savedPanelTab == .settingsAccount {
       panelTab = .settingsGeneral
@@ -1864,6 +1881,7 @@ public final class AppSettings {
     static let cleanerEnabled = "cleanerEnabled"
     static let agentDataEnabled = "agentDataEnabled"
     static let commandBarEnabled = "commandBarEnabled"
+    static let appClonesEnabled = "appClonesEnabled"
     static let launchpadEnabled = "launchpadEnabled"
     static let launchpadPinchFingers = "launchpadPinchFingers"
     static let launchpadHotCorner = "launchpadHotCorner"

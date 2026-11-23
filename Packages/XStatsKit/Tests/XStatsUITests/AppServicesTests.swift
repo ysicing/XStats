@@ -8,19 +8,34 @@ import Testing
 
 @MainActor
 struct AppServicesTests {
-  @Test func appCloneRiskRequiresExplicitAcknowledgmentEvenWithSavedSection() throws {
+  @Test func appClonesRequireOptInAndRiskAcknowledgment() throws {
     let suite = "AppServicesTests.cloneRisk.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(AppServicesSection.clones.rawValue, forKey: "appServicesSection")
     let settings = AppSettings(defaults: defaults)
+    #expect(!settings.appClonesEnabled)
+    #expect(!settings.appServicesSections.contains(.clones))
+    #expect(settings.appServicesSection == .apps)
     settings.appServicesSection = .clones
+    #expect(settings.appServicesSection == .apps)
+    settings.appClonesEnabled = true
+    #expect(!settings.appClonesEnabled)
 
+    settings.hasAcknowledgedAppCloneRisk = true
+    #expect(!AppSettings(defaults: defaults).appClonesEnabled)
+    settings.appClonesEnabled = true
+    #expect(settings.appServicesSections.contains(.clones))
+    settings.appServicesSection = .clones
     let reloaded = AppSettings(defaults: defaults)
+    #expect(reloaded.appClonesEnabled)
     #expect(reloaded.appServicesSection == .clones)
-    #expect(!reloaded.hasAcknowledgedAppCloneRisk)
-
-    reloaded.hasAcknowledgedAppCloneRisk = true
-    #expect(AppSettings(defaults: defaults).hasAcknowledgedAppCloneRisk)
+    reloaded.appClonesEnabled = false
+    #expect(reloaded.appServicesSection == .apps)
+    #expect(!reloaded.appServicesSections.contains(.clones))
+    let disabled = AppSettings(defaults: defaults)
+    #expect(!disabled.appClonesEnabled)
+    #expect(disabled.hasAcknowledgedAppCloneRisk)
   }
 
   @Test func legacyRouteAndSavedSectionResolveToOneEntry() throws {
@@ -51,7 +66,7 @@ struct AppServicesTests {
     defaults.set(false, forKey: "uninstallerEnabled")
     defaults.set(PanelTab.uninstaller.rawValue, forKey: "panelTab")
     let settings = AppSettings(defaults: defaults)
-    for section in AppServicesSection.allCases {
+    for section in settings.appServicesSections {
       settings.appServicesSection = section
       #expect(settings.appServicesSection == section)
       let reloaded = AppSettings(defaults: defaults)

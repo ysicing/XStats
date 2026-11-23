@@ -379,9 +379,11 @@ Homebrew 更新和卸载的命令正常退出后，复用已有的按需清单�
 
 定向验证：`swift test --package-path Packages/XStatsKit --filter 'AppStoreUpdatesTests|ApplicationManagementTests|AppManagementControllerTests'`。可选实机只读检查：设置 `XSTATS_APP_MANAGEMENT_RESOURCE_REPORT=<输出路径>`，筛选 `AppManagementControllerTests/nativeInventoryStopsWhenClosed`，验证关闭后的遍历退出与 5 秒内无新增读取；不执行软件包更新或卸载。原生布局截图：`XStats --snapshot <目录> --app-management-only --language zh-Hans`，可切换 `en` 与 `ar`，只使用演示数据，不读取真实应用或执行 brew 写操作。
 
-**应用分身**位于“应用管理 → 应用分身”，支持识别微信、QQ、飞书、Telegram 原生版、Telegram Desktop 和企业微信。XStats 使用系统工具复制和签名应用，并使用 Xcode 命令行工具编译分身需要的启动代码。分身使用空白资料目录，不复制原应用偏好或链接钥匙串及 SSH 目录。分身经 ad-hoc 重签名，原沙盒会被移除，独立资料目录不构成安全隔离。各应用能否登录、接收通知和稳定双开取决于实际版本。
+**应用分身**是默认关闭的实验性功能。在“设置 → 功能 → 实验性功能”开启后，才会在“应用管理”中显示“应用分身”。首次开启须确认风险，开关与确认状态保存在本机。关闭后隐藏入口，已创建的分身及资料保留。支持识别微信、QQ、飞书、Telegram 原生版、Telegram Desktop 和企业微信。XStats 使用系统工具复制和签名应用，并使用 Xcode 命令行工具编译分身需要的启动代码。分身使用空白资料目录，不复制原应用偏好或链接钥匙串及 SSH 目录。分身经 ad-hoc 重签名，原沙盒会被移除，独立资料目录不构成安全隔离。各应用能否登录、接收通知和稳定双开取决于实际版本。
 
-首次进入“应用分身”须确认风险，确认状态保存在本机。同一应用可以新建多个分身，例如 QQ 1、QQ 2、QQ 3。分身保存在 `~/Library/Application Support/XStats/AppClones/`，每个分身有独立的 `Data`。创建和更新会在改写临时副本前校验原始签名、Bundle ID 和受信发布团队。从对应行的菜单更新或移到废纸篓。更新沿用该分身的标识和资料路径，候选包完成签名验证后才替换旧包；移到废纸篓仅移动选中分身的 `.app`。关闭页面后没有轮询任务。实机验收应在独立 macOS 用户环境逐项验证启动、原版并行、不同账号登录、重启恢复和通知。
+应用分身的实现参考了 [ATBClone](https://github.com/aitobox/ATBClone) 的硬克隆方案和应用适配规则。XStats 自行完成应用复制、分身适配和签名，使用时无需安装 ATBClone。
+
+同一应用可以新建多个分身，例如 QQ 1、QQ 2、QQ 3。分身保存在 `~/Library/Application Support/XStats/AppClones/`，每个分身有独立的 `Data`。创建和更新会在改写临时副本前校验原始签名、Bundle ID 和受信发布团队。从对应行的菜单更新或移到废纸篓。更新沿用该分身的标识和资料路径，候选包完成签名验证后才替换旧包；移到废纸篓仅移动选中分身的 `.app`。关闭页面后没有轮询任务。实机验收应在独立 macOS 用户环境逐项验证启动、原版并行、不同账号登录、重启恢复和通知。
 
 卸载预览按真实工作显示身份核对、其他安装副本检查、残留查找和大小统计阶段。完成归属与路径检查后先显示候选列表，未计量项显示“待统计”，后台串行回填大小且不重置勾选；本轮扫描完成后才开放清理。关闭面板、切换应用或暂停时取消遍历并丢弃旧结果，未完成的扫描恢复时重做。本体计量失败阻止卸载，残留不可读则排除并提示扫描不完整；执行前仍重新核对应用文件身份、Bundle ID、其他副本、运行状态和每条目标路径。
 

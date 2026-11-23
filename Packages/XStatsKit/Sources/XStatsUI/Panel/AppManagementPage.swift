@@ -33,12 +33,8 @@ struct AppManagementPage: View {
   @State private var filter: BrewFilter = .all
   @State private var showsUninstall = false
   @State private var showsNewClone = false
-  @State private var showsAppCloneRisk = false
   @State private var pendingBrew: BrewConfirmation?
   private var controller: AppManagementController { model.appManagement }
-  private var canShowAppClones: Bool {
-    isSnapshot || model.settings.hasAcknowledgedAppCloneRisk
-  }
   private var checkingUpdates: Bool {
     tab == .apps ? controller.isCheckingAppStore : controller.isCheckingUpdates
   }
@@ -61,9 +57,7 @@ struct AppManagementPage: View {
       } else if section == .startup {
         StartupItemsPage(section: section, search: search)
       } else if section == .clones {
-        if canShowAppClones {
-          AppClonesPage(search: search, showsNewClone: $showsNewClone)
-        }
+        AppClonesPage(search: search, showsNewClone: $showsNewClone)
       } else {
         if let error = controller.error {
           InfoBanner(icon: "exclamationmark.triangle", text: error, tone: .error)
@@ -87,19 +81,6 @@ struct AppManagementPage: View {
       }
     }
     .padding([.horizontal, .bottom], DS.Space.s3)
-    .onChange(of: section == .clones && !canShowAppClones, initial: true) { _, needsConfirmation in
-      showsAppCloneRisk = needsConfirmation
-    }
-    .alert(tr("应用分身风险提醒"), isPresented: $showsAppCloneRisk) {
-      Button(tr("取消"), role: .cancel) {
-        model.settings.appServicesSection = .apps
-      }
-      Button(tr("了解风险并开启")) {
-        model.settings.hasAcknowledgedAppCloneRisk = true
-      }
-    } message: {
-      Text(tr("分身将重新签名并移除原沙盒。应用仍可能访问当前用户的资料。"))
-    }
     .overlay(alignment: .bottom) {
       ZStack {
         if section.managesApplications, let completion = controller.completion {
@@ -241,7 +222,7 @@ struct AppManagementPage: View {
   private var categoryPicker: some View {
     @Bindable var settings = model.settings
     return Picker(tr("应用服务"), selection: $settings.appServicesSection) {
-      ForEach(AppServicesSection.allCases, id: \.self) { value in
+      ForEach(settings.appServicesSections, id: \.self) { value in
         Text(value.title).tag(value)
       }
     }
@@ -284,7 +265,7 @@ struct AppManagementPage: View {
         }
         .buttonStyle(DSButtonStyle(kind: .secondary))
         .fixedSize()
-        .disabled(!canShowAppClones || model.appClones.isWorking)
+        .disabled(model.appClones.isWorking)
       } else if section == .services {
         IconButton(systemName: "arrow.clockwise", help: tr("刷新")) {
           model.homebrewServices.refresh()
