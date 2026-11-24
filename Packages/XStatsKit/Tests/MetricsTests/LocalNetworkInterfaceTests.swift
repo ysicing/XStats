@@ -56,4 +56,12 @@ struct LocalNetworkInterfaceTests {
     #expect(value.ipv6 == ["2001:db8::2", "fd00::2"])
     #expect(value.linkLocal == ["169.254.1.2", "fe80::2%en0", "febf::3%en0"])
   }
+
+  @Test func dashboardCanAdvertiseDirectEthernetWithoutDHCP() {
+    let result = NetworkDetailsReader.localInterfaces(
+      addresses: ["en7": .init(isUp: true, ipv4: ["169.254.1.2"])],
+      services: ["en7": .init(name: "Ethernet", kind: .ethernet)], primaryBSD: nil,
+      includeLinkLocalIPv4Only: true)
+    #expect(result.first?.linkLocal == ["169.254.1.2"])
+  }
 }

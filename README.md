@@ -72,6 +72,8 @@ XStats 使用 Swift、AppKit 与 SwiftUI 原生开发，免费开源，无需注
 
 频率、温度、功耗等读数取决于机型和系统是否提供。
 
+实验性[监控大屏](docs/DEVELOPMENT.md#监控大屏)可在局域网浏览器中查看这台 Mac 的实时指标。它默认关闭，开启后提供免登录的只读网页和本机 MCP 接口，也可选择通过 Tailscale 访问这两个入口。
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/overview-dark.png">

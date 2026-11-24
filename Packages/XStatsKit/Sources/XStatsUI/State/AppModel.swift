@@ -49,6 +49,7 @@ public final class AppModel {
   let startupItems = StartupItemsController()
   let homebrewServices: HomebrewServicesController
   let ports = PortsController()
+  let dashboard = DashboardController()
   public let history: HistoryRecorder
   public let sync: SyncController
   let diskTools: DiskToolsController
@@ -317,6 +318,7 @@ public final class AppModel {
       && (tab == .battery || (tab.monitoringModule.map(settings.isModuleEnabled) ?? true))
     let energyEnabled = settings.isModuleEnabled(.battery)
     let processPage = settings.processesEnabled && window && tab == .processes
+    let remoteDashboard = settings.dashboardEnabled && dashboard.hasViewerDemand
     let popover = openPopover.flatMap { settings.isModuleEnabled(for: $0) ? $0 : nil }
     let menu = Set(drawnMenuBarItems)
     let overview = isCombinedOverviewVisible ? Set(visibleOverviewItems) : []
@@ -342,6 +344,7 @@ public final class AppModel {
       processPage && !livePopover
       ? .seconds(2)
       : liveWindow || livePopover || liveOverview ? .seconds(1) : .seconds(settings.refreshSeconds)
+    if remoteDashboard { demand.interval = min(demand.interval, .seconds(2)) }
     let dashboard = window && tab == .overview
     let recording = settings.historyEnabled
     let alerts = settings.activeAlerts
@@ -350,27 +353,32 @@ public final class AppModel {
     }
     demand.cpu =
       settings.isModuleEnabled(.cpu)
-      && (recording || dashboard || processPage || summary.contains(.cpu) || showing(.cpu, .cpu)
+      && (recording || dashboard || remoteDashboard || processPage || summary.contains(.cpu)
+        || showing(.cpu, .cpu)
         || alerts.contains(.cpuLoad))
     demand.memory =
       settings.isModuleEnabled(.memory)
-      && (recording || dashboard || summary.contains(.memory) || showing(.memory, .memory)
+      && (recording || dashboard || remoteDashboard || summary.contains(.memory)
+        || showing(.memory, .memory)
         || alerts.contains(.memoryPressure))
     demand.network =
       settings.isModuleEnabled(.network)
-      && (recording || dashboard || summary.contains(.network) || showing(.network, .network))
+      && (recording || dashboard || remoteDashboard || summary.contains(.network)
+        || showing(.network, .network))
     demand.networkInterfaceName = settings.networkInterfaceName
     demand.networkConnection =
       demand.network && settings.menuBarLayout == .iconOnly && menu.contains(.network)
     demand.gpu =
-      (window && [.overview, .system].contains(tab)) || summary.contains(.gpu)
+      remoteDashboard || (window && [.overview, .system].contains(tab)) || summary.contains(.gpu)
       || showing(.gpu, .gpu)
     demand.disk =
-      (window && [.overview, .system, .cleaner, .disk].contains(tab)) || summary.contains(.disk)
+      remoteDashboard || (window && [.overview, .system, .cleaner, .disk].contains(tab))
+      || summary.contains(.disk)
       || popover == .disk
     demand.diskDetail = showing(.disk, .disk)
     demand.battery =
-      (window && [.overview, .system, .keepAwake].contains(tab)) || keepAwake.lidClosedActive
+      (remoteDashboard && store.hasBattery)
+      || (window && [.overview, .system, .keepAwake].contains(tab)) || keepAwake.lidClosedActive
       || summary.contains(.battery) || showing(.battery, .battery)
     demand.processes =
       processPage || (window && [.overview, .disk].contains(tab)) || showing(.cpu, .cpu)
@@ -440,6 +448,7 @@ public final class AppModel {
     if demand.batterySafety { demand.battery = true }
     demand.processes =
       processPage
+      || (remoteDashboard && settings.isModuleEnabled(.cpu))
       || (demand.processes
         && (dashboard && (settings.isModuleEnabled(.cpu) || settings.isModuleEnabled(.memory))
           || showing(.cpu, .cpu) || showing(.memory, .memory)
@@ -603,6 +612,7 @@ public final class AppModel {
       network.reconcileTrafficBaseline(rate, previous: store.network)
     }
     store.apply(filtered)
+    dashboard.record(filtered)
     settings.updateTrioFanAvailability(store.fanCount)
     fans.evaluateSafety(temperature: snapshot.sensors?.temperature(.cpu)?.maximum)
     keepAwake.evaluateBattery(snapshot.battery)

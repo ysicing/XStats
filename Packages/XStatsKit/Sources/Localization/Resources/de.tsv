@@ -2983,3 +2983,28 @@ Magpie 网关密钥无权读取此数据。	Dieser Magpie-Gateway-Schlüssel hat
 已保存的代理地址无效，请重新设置。	Die gespeicherte Proxy-Adresse ist ungültig. Richte den Proxy erneut ein.
 退出并重新打开分身后生效。	Beende den Klon und öffne ihn erneut, um die Änderung zu übernehmen.
 网易云音乐	NetEase Cloud Music
+监控大屏	Monitoring-Übersicht
+同一局域网内可免登录查看这台 Mac 的只读监控数据。	Geräte im selben lokalen Netzwerk können die Messwerte dieses Mac ohne Anmeldung einsehen.
+监听端口	Listening-Port
+网页地址	Dashboard-Adresse
+MCP 地址	MCP-Adresse
+允许通过 Tailscale 访问	Tailscale-Zugriff erlauben
+没有可用的 Tailscale 监听地址，请检查连接。	Keine Tailscale-Listenadresse verfügbar. Prüfe die Verbindung.
+输入 1–65535 之间的端口号。	Gib eine Portnummer zwischen 1 und 65535 ein.
+浏览器会阻止访问此端口，请选择其他端口。	Browser blockieren diesen Port. Wähle einen anderen Port.
+显示设置	Anzeigeeinstellungen
+系统资源	Systemressourcen
+1 / 5 / 15 分钟负载	Last über 1 / 5 / 15 Min.
+近 5 分钟	Letzte 5 Minuten
+无法监听此端口，请更换端口或重新开启。	Dieser Port konnte nicht geöffnet werden. Ändere den Port oder aktiviere die Übersicht erneut.
+正在启动监控大屏…	Monitoring-Übersicht wird gestartet…
+等待采样	Warten auf Messwerte
+已暂停	Pausiert
+没有启用的监控指标	Keine Monitoring-Messwerte aktiviert
+连接中断，正在重试	Verbindung unterbrochen. Neuer Versuch…
+CPU 占用最高的进程	Prozesse mit der höchsten CPU-Auslastung
+正在充电	Wird geladen
+电源适配器	Netzteil
+跟随 XStats	Wie XStats
+农历：{}	Mondkalender: {}
+补班	Ersatzarbeitstag

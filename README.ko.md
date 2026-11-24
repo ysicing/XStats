@@ -72,6 +72,8 @@ XStats는 Swift, AppKit, SwiftUI로 만든 무료 오픈소스 네이티브 앱�
 
 주파수, 온도, 소비 전력 등의 수치는 기종과 macOS가 제공하는 경우에 표시됩니다.
 
+실험적 [모니터링 대시보드](docs/DEVELOPMENT.md#监控大屏)로 로컬 네트워크의 브라우저에서 이 Mac의 실시간 지표를 확인할 수 있습니다. 기본값은 꺼짐이며, 켜면 로그인 없는 읽기 전용 페이지와 로컬 MCP 엔드포인트가 제공됩니다. 두 엔드포인트 모두 Tailscale 접근을 선택적으로 허용할 수 있습니다.
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/overview-dark.png">

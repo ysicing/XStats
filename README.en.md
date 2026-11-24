@@ -72,6 +72,8 @@ Enable monitoring and tools as needed, and configure menu bar entries separately
 
 Frequency, temperature and power readings depend on what the Mac model and macOS expose.
 
+The experimental [Monitoring Dashboard](docs/DEVELOPMENT.md#监控大屏) shows this Mac’s live metrics in a browser on the local network. It is off by default and provides a read-only page without sign-in and a local MCP endpoint when enabled. Tailscale access to both endpoints is optional.
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="Assets/readme/overview-dark.png">

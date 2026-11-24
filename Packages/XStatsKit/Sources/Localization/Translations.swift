@@ -15,9 +15,37 @@ extension Translations {
       hardwareDetailsEnglish, aiCleanupEnglish, networkPresentationEnglish, trioEnglish,
       portsEnglish, appServicesEnglish, maintenancePreviewEnglish, commandBarEnglish,
       designAuditEnglish, dnsBenchmarkEnglish, homebrewImpactEnglish, finderDocumentEnglish,
-      dockIconEnglish, launcherEnglish,
+      dockIconEnglish, launcherEnglish, dashboardEnglish,
     ]
   }
+
+  static let dashboardEnglish = #"""
+    监控大屏	Monitoring Dashboard
+    同一局域网内可免登录查看这台 Mac 的只读监控数据。	Devices on the same local network can view this Mac’s read-only metrics without signing in.
+    监听端口	Listening Port
+    网页地址	Dashboard URL
+    MCP 地址	MCP URL
+    允许通过 Tailscale 访问	Allow Tailscale access
+    没有可用的 Tailscale 监听地址，请检查连接。	No Tailscale listening address is available. Check the connection.
+    输入 1–65535 之间的端口号。	Enter a port from 1 to 65535.
+    浏览器会阻止访问此端口，请选择其他端口。	Browsers block this port. Choose another port.
+    显示设置	Display settings
+    系统资源	System resources
+    1 / 5 / 15 分钟负载	1 / 5 / 15 min load
+    近 5 分钟	Last 5 minutes
+    无法监听此端口，请更换端口或重新开启。	Could not listen on this port. Change the port or turn the dashboard off and on.
+    正在启动监控大屏…	Starting monitoring dashboard…
+    等待采样	Waiting for metrics
+    已暂停	Paused
+    没有启用的监控指标	No monitoring metrics enabled
+    连接中断，正在重试	Connection lost. Retrying…
+    CPU 占用最高的进程	Top processes by CPU usage
+    正在充电	Charging
+    电源适配器	Power adapter
+    跟随 XStats	Follow XStats
+    农历：{}	Lunar {}
+    补班	Makeup workday
+    """#
 
   static let launcherEnglish = #"""
     应用目录	Application Folders

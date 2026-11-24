@@ -851,6 +851,15 @@ public final class AppSettings {
   public var agentDataEnabled: Bool {
     didSet { defaults.set(agentDataEnabled, forKey: Keys.agentDataEnabled) }
   }
+  var dashboardEnabled: Bool {
+    didSet { defaults.set(dashboardEnabled, forKey: Keys.dashboardEnabled) }
+  }
+  var dashboardTailscaleEnabled: Bool {
+    didSet { defaults.set(dashboardTailscaleEnabled, forKey: Keys.dashboardTailscaleEnabled) }
+  }
+  var dashboardPort: UInt16 {
+    didSet { defaults.set(Int(dashboardPort), forKey: Keys.dashboardPort) }
+  }
   public var finderDocumentsEnabled: Bool {
     didSet { defaults.set(finderDocumentsEnabled, forKey: "finderDocumentsEnabled") }
   }
@@ -1447,6 +1456,12 @@ public final class AppSettings {
     let isCleanerEnabled = defaults.object(forKey: Keys.cleanerEnabled) as? Bool ?? true
     cleanerEnabled = isCleanerEnabled
     agentDataEnabled = defaults.bool(forKey: Keys.agentDataEnabled)
+    dashboardEnabled = defaults.bool(forKey: Keys.dashboardEnabled)
+    dashboardTailscaleEnabled = defaults.bool(forKey: Keys.dashboardTailscaleEnabled)
+    let savedDashboardPort = UInt16(exactly: defaults.integer(forKey: Keys.dashboardPort))
+    dashboardPort =
+      savedDashboardPort.flatMap { DashboardController.browserBlockedPorts.contains($0) ? nil : $0 }
+      ?? DashboardController.defaultPort
     finderDocumentsEnabled = defaults.bool(forKey: "finderDocumentsEnabled")
     finderDocumentNamingMode =
       defaults.string(forKey: "finderDocumentNamingMode")
@@ -1910,6 +1925,9 @@ public final class AppSettings {
     static let aiUsageEnabled = "aiUsageEnabled"
     static let cleanerEnabled = "cleanerEnabled"
     static let agentDataEnabled = "agentDataEnabled"
+    static let dashboardEnabled = "dashboardEnabled"
+    static let dashboardTailscaleEnabled = "dashboardTailscaleEnabled"
+    static let dashboardPort = "dashboardPort"
     static let commandBarEnabled = "commandBarEnabled"
     static let appClonesEnabled = "appClonesEnabled"
     static let launchpadEnabled = "launchpadEnabled"

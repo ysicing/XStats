@@ -102,7 +102,9 @@ public enum NetworkDetailsReader {
   }
 
   /// 仅在查询窗口打开或刷新时读取，不启动监控、不调用外部服务或 VPN CLI。
-  public static func readLocalInterfaces() -> [LocalNetworkInterface] {
+  public static func readLocalInterfaces(includeLinkLocalIPv4Only: Bool = false)
+    -> [LocalNetworkInterface]
+  {
     let store = SCDynamicStoreCreate(nil, "XStats.LocalInterfaces" as CFString, nil, nil)
     let preferences = SCPreferencesCreate(nil, "XStats.LocalInterfaces" as CFString, nil)
     let services = preferences.flatMap { SCNetworkServiceCopyAll($0) as? [SCNetworkService] } ?? []
@@ -159,7 +161,9 @@ public enum NetworkDetailsReader {
         ?? value($0, "State:/Network/Global/IPv6")?["PrimaryInterface"] as? String
     }
     return localInterfaces(
-      addresses: interfaceAddresses(includeLinkLocal: true), services: metadata, primaryBSD: primary
+      addresses: interfaceAddresses(includeLinkLocal: true), services: metadata,
+      primaryBSD: primary,
+      includeLinkLocalIPv4Only: includeLinkLocalIPv4Only
     )
   }
 
@@ -169,7 +173,8 @@ public enum NetworkDetailsReader {
   }
 
   static func localInterfaces(
-    addresses: [String: Addresses], services: [String: LocalInterfaceService], primaryBSD: String?
+    addresses: [String: Addresses], services: [String: LocalInterfaceService], primaryBSD: String?,
+    includeLinkLocalIPv4Only: Bool = false
   ) -> [LocalNetworkInterface] {
     let interfaces = addresses.compactMap { bsd, addresses -> LocalNetworkInterface? in
       guard addresses.isUp, !addresses.isLoopback,
@@ -180,7 +185,9 @@ public enum NetworkDetailsReader {
       let ipv4 = v4.filter { !isLinkLocalAddress($0) }
       let ipv6 = v6.filter { !isLinkLocalAddress($0) }
       // 无有效地址的接口与系统常见的 link-local-only utun 不占据列表。
-      guard !ipv4.isEmpty || !ipv6.isEmpty else { return nil }
+      guard !ipv4.isEmpty || !ipv6.isEmpty || (includeLinkLocalIPv4Only && !v4.isEmpty) else {
+        return nil
+      }
       let service = services[bsd]
       return LocalNetworkInterface(
         bsdName: bsd, name: service?.name,

@@ -311,6 +311,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.timer.sync()
     restMenuBar.sync()
     observeModel()
+    observeDashboardSettings()
     observeCommandBarSetting()
     observeLaunchpadSettings()
     observeNetworkObservationDemand()
@@ -545,6 +546,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.displays.stop()
     model.audio.stop()
     model.bluetooth.stop()
+    model.dashboard.stop()
     model.connectionMonitor.shutdown()
     model.networkGeography.setDemand(enabled: false)
     model.aiUsage.stop()
@@ -1013,6 +1015,18 @@ public final class AppController: NSObject, NSApplicationDelegate {
       visible: model.portsVisible)
   }
 
+  private func observeDashboardSettings() {
+    let port: UInt16? = withObservationTracking {
+      guard model.settings.dashboardEnabled else { return nil }
+      _ = model.settings.dashboardTailscaleEnabled
+      return model.settings.dashboardPort
+    } onChange: { [weak self] in
+      Task { @MainActor [weak self] in self?.observeDashboardSettings() }
+    }
+    guard !isTerminating else { return }
+    model.dashboard.configure(port: port, settings: model.settings, store: model.store)
+  }
+
   /// 探测目标变化时清空历史重新探测；关闭公网 IP 查询时清除已显示的结果
   private func observeProbeSettings() {
     withObservationTracking {
@@ -1317,6 +1331,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.homebrewServices.setPaused(true)
     model.connectionMonitor.setPaused(true)
     model.ports.setPaused(true)
+    model.dashboard.setPaused(true)
     model.systemCheck.setPaused(true)
     model.cleaner.mole.cancelPreview()
     model.history.flush()
@@ -1347,6 +1362,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     model.homebrewServices.setPaused(false)
     model.connectionMonitor.setPaused(false)
     model.ports.setPaused(false)
+    model.dashboard.setPaused(false)
     model.systemCheck.setPaused(false)
     rest.sync()
     model.timer.resume()

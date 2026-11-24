@@ -276,6 +276,7 @@ struct FeatureSettings: View {
         .dsFont(.xs)
         .foregroundStyle(DS.Palette.textSecondary)
         .fixedSize(horizontal: false, vertical: true)
+      DashboardSettings()
       SettingsGroup {
         GroupRow(showsDivider: false) {
           FinderDocumentSettings()
