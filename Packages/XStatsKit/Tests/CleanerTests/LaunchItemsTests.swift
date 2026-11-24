@@ -20,11 +20,14 @@ import Testing
   }
 
   @Test func parsesLaunchctlOutput() {
-    let list = "PID\tStatus\tLabel\n-\t0\tcom.example.idle\n2879\t0\tcom.example.running\n"
-    let loaded = LaunchItems.parseList(list)
+    let list = "PID\tStatus\tLabel\n-\t78\tcom.example.idle\n2879\t-15\tcom.example.running\n"
+    let status = LaunchItems.parseList(list)
+    let loaded = status.loaded
     #expect(loaded["com.example.running"] == .some(2879))
     #expect(loaded["com.example.idle"] == .some(nil))
     #expect(loaded["com.example.missing"] == nil)
+    #expect(status.exitStatuses == ["com.example.idle": 78, "com.example.running": -15])
+    #expect(LaunchItems.parseList("Warning\n-\t78\tcom.example.idle").loaded.isEmpty)
 
     let disabled = LaunchItems.parseDisabled(
       """
@@ -35,6 +38,60 @@ import Testing
       """)
     #expect(disabled["com.example.on"] == false)
     #expect(disabled["com.example.off"] == true)
+  }
+
+  @Test func parsesSchedulesAndLogsFromDictionaryAndArray() throws {
+    let url = URL(fileURLWithPath: "/tmp/com.example.sync.plist")
+    let item = try #require(
+      LaunchItems.item(
+        from: [
+          "Label": "com.example.sync",
+          "StartInterval": 300,
+          "StartCalendarInterval": [
+            ["Hour": 8, "Minute": 0],
+            ["Weekday": 7, "Hour": 22],
+            ["Month": 14],
+            ["Hour": true],
+          ] as [[String: Any]],
+          "WatchPaths": ["/tmp/incoming"],
+          "StandardOutPath": "/tmp/sync.log",
+          "StandardErrorPath": "relative.log",
+        ], plist: url, scope: .user))
+    #expect(item.details.interval == 300)
+    #expect(item.details.schedules.count == 2)
+    #expect(item.details.schedules.first?.hour == 8 && item.details.schedules.first?.minute == 0)
+    #expect(item.details.schedules.last?.weekday == 7 && item.details.schedules.last?.minute == nil)
+    #expect(item.details.watchedPaths == ["/tmp/incoming"])
+    #expect(item.details.standardOutput == "/tmp/sync.log")
+    #expect(item.details.standardError == nil)
+
+    let daemon = try #require(
+      LaunchItems.item(
+        from: ["Label": "daemon", "StartCalendarInterval": ["Day": 15]],
+        plist: url, scope: .system))
+    #expect(daemon.details.schedules.map(\.day) == [15])
+  }
+
+  @Test func invalidConfigurationsRemainVisibleAndCannotBeEnabled() throws {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).plist")
+    defer { try? FileManager.default.removeItem(at: url) }
+    #expect(LaunchItems.scanItem(at: url, scope: .user).configurationIssue == .unreadable)
+    try Data("invalid plist".utf8).write(to: url)
+    let damaged = LaunchItems.scanItem(at: url, scope: .user)
+    #expect(damaged.configurationIssue == .invalidPlist)
+    #expect(damaged.label == url.lastPathComponent && damaged.scope == .user)
+    let refused = LaunchItems.setEnabled(true, item: damaged) { _ in
+      Issue.record("Invalid configuration reached launchctl")
+      return (0, "")
+    }
+    #expect(refused != nil)
+
+    let missingLabel = try PropertyListSerialization.data(
+      fromPropertyList: ["RunAtLoad": true], format: .binary, options: 0)
+    try missingLabel.write(to: url)
+    #expect(LaunchItems.scanItem(at: url, scope: .user).configurationIssue == .missingLabel)
+    try Data(count: 1_048_577).write(to: url)
+    #expect(LaunchItems.scanItem(at: url, scope: .user).configurationIssue == .tooLarge)
   }
 
   @Test func refusesNonUserItems() {
@@ -284,11 +341,12 @@ import Testing
       runAtLoad: true, keepAlive: false, disabledInPlist: false)
     let status = LaunchStatus(
       loaded: ["shared": 42], disabled: ["shared": true],
-      systemDisabled: ["shared": false])
+      systemDisabled: ["shared": false], exitStatuses: ["shared": 78])
     #expect(status.isDisabled(agent))
     #expect(!status.isDisabled(daemon))
     #expect(status.pid(agent) == 42 && status.isLoaded(agent))
     #expect(status.pid(daemon) == nil && !status.isLoaded(daemon))
+    #expect(status.lastExitStatus(agent) == 78 && status.lastExitStatus(daemon) == nil)
   }
 
 }

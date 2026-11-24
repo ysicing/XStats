@@ -40,7 +40,29 @@ public struct LaunchItem: Sendable, Identifiable, Hashable {
   public let keepAlive: Bool
   /// 在 plist 里被标记为 Disabled
   public let disabledInPlist: Bool
+  public fileprivate(set) var details = Details()
+  public fileprivate(set) var configurationIssue: ConfigurationIssue?
   fileprivate var configuration: Data?
+
+  public struct Details: Sendable, Hashable {
+    public fileprivate(set) var interval: Int?
+    public fileprivate(set) var schedules: [Schedule] = []
+    public fileprivate(set) var watchedPaths: [String] = []
+    public fileprivate(set) var standardOutput: String?
+    public fileprivate(set) var standardError: String?
+  }
+
+  public struct Schedule: Sendable, Hashable {
+    public let month: Int?
+    public let day: Int?
+    public let weekday: Int?
+    public let hour: Int?
+    public let minute: Int?
+  }
+
+  public enum ConfigurationIssue: Error, Hashable, Sendable {
+    case unreadable, tooLarge, invalidPlist, missingLabel
+  }
 
   /// 构造展示数据，不读取文件；启停操作须使用扫描得到的配置快照。
   public init(
@@ -68,14 +90,16 @@ public struct LaunchStatus: Sendable, Equatable {
   public var loaded: [String: Int?] = [:]
   public var disabled: [String: Bool] = [:]
   public var systemDisabled: [String: Bool] = [:]
+  public var exitStatuses: [String: Int] = [:]
 
   public init(
     loaded: [String: Int?] = [:], disabled: [String: Bool] = [:],
-    systemDisabled: [String: Bool] = [:]
+    systemDisabled: [String: Bool] = [:], exitStatuses: [String: Int] = [:]
   ) {
     self.loaded = loaded
     self.disabled = disabled
     self.systemDisabled = systemDisabled
+    self.exitStatuses = exitStatuses
   }
 
   public func isDisabled(_ item: LaunchItem) -> Bool {
@@ -90,6 +114,11 @@ public struct LaunchStatus: Sendable, Equatable {
   public func isLoaded(_ item: LaunchItem) -> Bool {
     item.scope != .system && loaded[item.label] != nil
   }
+
+  public func lastExitStatus(_ item: LaunchItem) -> Int? {
+    guard item.configurationIssue == nil, isLoaded(item) else { return nil }
+    return exitStatuses[item.label]
+  }
 }
 
 public enum LaunchItems {
@@ -101,14 +130,25 @@ public enum LaunchItems {
         (try? FileManager.default.contentsOfDirectory(
           at: directory, includingPropertiesForKeys: nil)) ?? []
       return files.filter { $0.pathExtension == "plist" }.compactMap { url in
-        guard !Task.isCancelled, let data = try? Data(contentsOf: url),
-          let dictionary = try? PropertyListSerialization.propertyList(from: data, format: nil)
-            as? [String: Any]
-        else { return nil }
-        return item(from: dictionary, plist: url, scope: scope)
+        guard !Task.isCancelled else { return nil }
+        return scanItem(at: url, scope: scope)
       }
     }
     .sorted { $0.label.localizedStandardCompare($1.label) == .orderedAscending }
+  }
+
+  static func scanItem(at url: URL, scope: LaunchItem.Scope) -> LaunchItem {
+    do {
+      let dictionary = try readConfiguration(at: url)
+      if let item = item(from: dictionary, plist: url, scope: scope) { return item }
+      throw LaunchItem.ConfigurationIssue.missingLabel
+    } catch {
+      var item = LaunchItem(
+        label: url.lastPathComponent, plist: url, scope: scope, program: nil,
+        runAtLoad: false, keepAlive: false, disabledInPlist: false)
+      item.configurationIssue = error as? LaunchItem.ConfigurationIssue ?? .unreadable
+      return item
+    }
   }
 
   static func item(from plist: [String: Any], plist url: URL, scope: LaunchItem.Scope)
@@ -124,19 +164,68 @@ public enum LaunchItems {
       label: label, plist: url, scope: scope, program: program,
       runAtLoad: plist["RunAtLoad"] as? Bool ?? false, keepAlive: keepAlive,
       disabledInPlist: plist["Disabled"] as? Bool ?? false)
+    let calendar = plist["StartCalendarInterval"]
+    let schedules =
+      (calendar as? [[String: Any]]) ?? (calendar as? [String: Any]).map { [$0] } ?? []
+    item.details = LaunchItem.Details(
+      interval: integer(plist["StartInterval"], in: 1...Int.max),
+      schedules: schedules.compactMap(schedule),
+      watchedPaths: (plist["WatchPaths"] as? [String] ?? []).filter { !$0.isEmpty },
+      standardOutput: logPath(plist["StandardOutPath"]),
+      standardError: logPath(plist["StandardErrorPath"]))
     item.configuration = try? PropertyListSerialization.data(
       fromPropertyList: plist, format: .binary, options: 0)
     return item
   }
 
-  private static func configuration(at url: URL) -> [String: Any]? {
-    var information = stat()
-    guard url.path.withCString({ lstat($0, &information) }) == 0,
-      information.st_mode & S_IFMT == S_IFREG, information.st_size <= 1_048_576,
-      let data = try? Data(contentsOf: url)
+  private static func logPath(_ value: Any?) -> String? {
+    guard let path = value as? String, path.hasPrefix("/"), !path.utf8.contains(0) else {
+      return nil
+    }
+    return path.split(separator: "/").filter { $0 != "." }.elementsEqual(["dev", "null"])
+      ? nil : path
+  }
+
+  private static func integer(_ value: Any?, in range: ClosedRange<Int>) -> Int? {
+    guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+      let integer = Int(number.stringValue), range.contains(integer)
     else { return nil }
-    return try? PropertyListSerialization.propertyList(from: data, format: nil)
-      as? [String: Any]
+    return integer
+  }
+
+  private static func schedule(_ values: [String: Any]) -> LaunchItem.Schedule? {
+    let month = integer(values["Month"], in: 1...12)
+    let day = integer(values["Day"], in: 1...31)
+    let weekday = integer(values["Weekday"], in: 0...7)
+    let hour = integer(values["Hour"], in: 0...23)
+    let minute = integer(values["Minute"], in: 0...59)
+    guard values.count == [month, day, weekday, hour, minute].compactMap({ $0 }).count else {
+      return nil
+    }
+    return .init(month: month, day: day, weekday: weekday, hour: hour, minute: minute)
+  }
+
+  private static func readConfiguration(at url: URL, followSymlinks: Bool = true) throws
+    -> [String: Any]
+  {
+    let limit = 1_048_576
+    let flags = O_RDONLY | O_NONBLOCK | O_CLOEXEC | (followSymlinks ? 0 : O_NOFOLLOW)
+    let descriptor = url.path.withCString { open($0, flags) }
+    guard descriptor >= 0 else { throw LaunchItem.ConfigurationIssue.unreadable }
+    let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+    defer { try? handle.close() }
+    var information = stat()
+    guard fstat(descriptor, &information) == 0, information.st_mode & S_IFMT == S_IFREG else {
+      throw LaunchItem.ConfigurationIssue.unreadable
+    }
+    guard information.st_size <= limit else { throw LaunchItem.ConfigurationIssue.tooLarge }
+    let data = try handle.read(upToCount: limit + 1) ?? Data()
+    guard data.count <= limit else { throw LaunchItem.ConfigurationIssue.tooLarge }
+    guard
+      let dictionary = try? PropertyListSerialization.propertyList(from: data, format: nil)
+        as? [String: Any]
+    else { throw LaunchItem.ConfigurationIssue.invalidPlist }
+    return dictionary
   }
 
   private static func configurationsMatch(_ expected: Any, _ current: Any) -> Bool {
@@ -170,7 +259,9 @@ public enum LaunchItems {
     var status = LaunchStatus()
     if scopes.contains(.user) || scopes.contains(.allUsers) {
       guard !Task.isCancelled else { return status }
-      status.loaded = parseList(run(["list"]))
+      let listed = parseList(run(["list"]))
+      status.loaded = listed.loaded
+      status.exitStatuses = listed.exitStatuses
       guard !Task.isCancelled else { return status }
       status.disabled = parseDisabled(run(["print-disabled", "gui/\(getuid())"]))
     }
@@ -183,12 +274,20 @@ public enum LaunchItems {
   }
 
   /// `launchctl list`：PID、状态、标签，PID 为“-”表示已加载但没有在运行
-  static func parseList(_ output: String) -> [String: Int?] {
-    var result: [String: Int?] = [:]
-    for line in output.split(separator: "\n").dropFirst() {
+  static func parseList(_ output: String) -> LaunchStatus {
+    var result = LaunchStatus()
+    let lines = output.split(separator: "\n")
+    guard lines.first?.split(separator: "\t") == ["PID", "Status", "Label"] else {
+      return result
+    }
+    for line in lines.dropFirst() {
       let columns = line.split(separator: "\t", omittingEmptySubsequences: false)
-      guard columns.count >= 3 else { continue }
-      result[String(columns[2])] = Int(columns[0])
+      guard columns.count == 3, !columns[2].isEmpty else { continue }
+      let pid = Int(columns[0])
+      guard pid != nil || columns[0] == "-" else { continue }
+      let label = String(columns[2])
+      result.loaded[label] = .some(pid)
+      result.exitStatuses[label] = Int(columns[1])
     }
     return result
   }
@@ -218,7 +317,7 @@ public enum LaunchItems {
     runCommand: ([String]) -> (status: Int32, output: String)
   ) -> String? {
     guard item.scope == .user else { return tr("所有用户与系统级的启动项需要管理员权限，请在系统设置的登录项中管理") }
-    guard let current = configuration(at: item.plist),
+    guard let current = try? readConfiguration(at: item.plist, followSymlinks: false),
       let configuration = item.configuration,
       let expected = try? PropertyListSerialization.propertyList(from: configuration, format: nil)
         as? [String: Any],
@@ -241,7 +340,7 @@ public enum LaunchItems {
       status.output.split(separator: "\n").first?.split(separator: "\t") == [
         "PID", "Status", "Label",
       ],
-      (parseList(status.output)[item.label] != nil) == enabled
+      (parseList(status.output).loaded[item.label] != nil) == enabled
     {
       return nil
     }

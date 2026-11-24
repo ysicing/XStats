@@ -199,6 +199,27 @@ extension Translations {
     服务	Services
     搜索软件包	Search packages
     搜索启动项	Search startup items
+    显示详情	Show Details
+    在访达中显示配置	Show Configuration in Finder
+    文件尚未生成	File not created yet
+    日志文件不可用	Log file unavailable
+    标准输出与错误日志	Combined output and error log
+    无法读取配置文件	Could not read the configuration
+    配置文件超过 1 MiB	Configuration exceeds 1 MiB
+    配置文件不是有效的 plist 字典	Configuration is not a valid plist dictionary
+    配置缺少有效的 Label	Configuration has no valid Label
+    每 {} 运行	Run every {}
+    每天 {} 运行	Run daily at {}
+    每分钟运行	Run every minute
+    日历计划	Calendar schedule
+    月份 {}	Month {}
+    日期 {}	Day {}
+    小时 {}	Hour {}
+    分钟 {}	Minute {}
+    路径变化时运行	Run when paths change
+    上次退出状态	Last exit status
+    标准输出日志	Standard output log
+    标准错误日志	Standard error log
     搜索服务	Search services
     1 项 · 可直接停用	1 item · can be turned off here
     1 项 · 需要管理员权限，只读	1 item · needs admin, read-only

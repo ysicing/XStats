@@ -2954,3 +2954,24 @@ UTC 时间	Heure UTC
 Magpie 网关密钥无权读取此数据。	Cette clé de passerelle Magpie ne permet pas de lire ces données.
 无法访问 Magpie 钥匙串项目。	Impossible d’accéder à l’élément Magpie dans le trousseau.
 请输入有效的 HTTP 或 HTTPS 网关地址。	Saisissez une adresse de passerelle HTTP ou HTTPS valide.
+显示详情	Afficher les détails
+在访达中显示配置	Afficher la configuration dans le Finder
+文件尚未生成	Fichier pas encore créé
+日志文件不可用	Fichier journal indisponible
+标准输出与错误日志	Journal combiné de sortie et d’erreurs
+无法读取配置文件	Impossible de lire la configuration
+配置文件超过 1 MiB	La configuration dépasse 1 Mio
+配置文件不是有效的 plist 字典	La configuration n’est pas un dictionnaire plist valide
+配置缺少有效的 Label	La configuration ne contient pas de Label valide
+每 {} 运行	Exécuter toutes les {}
+每天 {} 运行	Exécuter chaque jour à {}
+每分钟运行	Exécuter chaque minute
+日历计划	Planification calendaire
+月份 {}	Mois {}
+日期 {}	Jour {}
+小时 {}	Heure {}
+分钟 {}	Minute {}
+路径变化时运行	Exécuter si les chemins changent
+上次退出状态	Dernier statut de sortie
+标准输出日志	Journal de la sortie standard
+标准错误日志	Journal de l’erreur standard

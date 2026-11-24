@@ -3,6 +3,21 @@ import Testing
 
 // 不切换全局语言：其他测试套件并行运行，依赖中文原文
 @Suite struct LocalizationTests {
+  @Test func startupDiagnosticsHaveExplicitTranslations() throws {
+    for language in AppLanguage.allCases where language != .system && language != .chinese {
+      let table = try #require(Translations.catalog(for: language))
+      for source in [
+        "显示详情", "在访达中显示配置", "文件尚未生成", "日志文件不可用", "标准输出与错误日志",
+        "无法读取配置文件", "配置文件超过 1 MiB", "配置文件不是有效的 plist 字典",
+        "配置缺少有效的 Label", "每 5 min 运行", "每天 8:00 运行", "每分钟运行", "日历计划",
+        "月份 2", "日期 10", "小时 8", "分钟 0", "路径变化时运行", "上次退出状态", "标准输出日志",
+        "标准错误日志",
+      ] {
+        #expect(table.translate(source)?.isEmpty == false, "\(language): \(source)")
+      }
+    }
+  }
+
   @Test func finderDocumentsHaveExplicitTranslationsInEveryCatalog() throws {
     let keys = Translations(tables: [Translations.finderDocumentEnglish]).sourceKeys
     for language in AppLanguage.allCases where language != .system && language != .chinese {

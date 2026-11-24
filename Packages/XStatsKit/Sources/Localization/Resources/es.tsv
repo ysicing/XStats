@@ -2954,3 +2954,24 @@ UTC 时间	Hora UTC
 Magpie 网关密钥无权读取此数据。	Esta clave de la puerta de enlace de Magpie no tiene permiso para leer estos datos.
 无法访问 Magpie 钥匙串项目。	No se puede acceder al elemento de Magpie en el llavero.
 请输入有效的 HTTP 或 HTTPS 网关地址。	Introduce una dirección HTTP o HTTPS válida para la puerta de enlace.
+显示详情	Mostrar detalles
+在访达中显示配置	Mostrar la configuración en Finder
+文件尚未生成	El archivo aún no se ha creado
+日志文件不可用	Archivo de registro no disponible
+标准输出与错误日志	Registro combinado de salida y errores
+无法读取配置文件	No se pudo leer la configuración
+配置文件超过 1 MiB	La configuración supera 1 MiB
+配置文件不是有效的 plist 字典	La configuración no es un diccionario plist válido
+配置缺少有效的 Label	Falta un Label válido en la configuración
+每 {} 运行	Ejecutar cada {}
+每天 {} 运行	Ejecutar a diario a las {}
+每分钟运行	Ejecutar cada minuto
+日历计划	Programación de calendario
+月份 {}	Mes {}
+日期 {}	Día {}
+小时 {}	Hora {}
+分钟 {}	Minuto {}
+路径变化时运行	Ejecutar si cambian las rutas
+上次退出状态	Último estado de salida
+标准输出日志	Registro de salida estándar
+标准错误日志	Registro de error estándar

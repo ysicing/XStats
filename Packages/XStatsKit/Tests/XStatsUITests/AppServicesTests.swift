@@ -8,6 +8,76 @@ import Testing
 
 @MainActor
 struct AppServicesTests {
+  @Test func startupLogDestinationsOnlyOfferUsableFiles() throws {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("StartupLogTests-\(UUID())")
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let configuration = directory.appendingPathComponent("example.plist")
+    let log = directory.appendingPathComponent("startup.log")
+    let discarded = try #require(
+      LaunchItems.item(
+        from: [
+          "Label": "example", "StandardOutPath": "/dev/null", "StandardErrorPath": "/dev/./null",
+        ],
+        plist: configuration, scope: .user))
+    #expect(StartupLogFile.configured(in: discarded.details).isEmpty)
+    #expect(!StartupItemDetails.hasDiagnostics(discarded, exitStatus: 0))
+    #expect(StartupItemDetails.hasDiagnostics(discarded, exitStatus: 78))
+
+    let combined = try #require(
+      LaunchItems.item(
+        from: ["Label": "example", "StandardOutPath": log.path, "StandardErrorPath": log.path],
+        plist: configuration, scope: .user))
+    let files = StartupLogFile.configured(in: combined.details)
+    #expect(files == [StartupLogFile(path: log.path, stream: .combined)])
+    #expect(StartupLogFile.availability(at: log.path) == .missing)
+    #expect(StartupLogFile.availability(at: directory.path) == .unavailable)
+    #expect(StartupLogFile.availability(at: "/dev/null") == .unavailable)
+    try Data().write(to: log)
+    #expect(StartupLogFile.availability(at: log.path) == .file)
+    try FileManager.default.removeItem(at: log)
+    #expect(StartupLogFile.availability(at: log.path) == .missing)
+  }
+
+  @Test(arguments: [LayoutDirection.leftToRight, .rightToLeft])
+  func startupDetailsFitCompactRows(_ direction: LayoutDirection) throws {
+    let item = try #require(
+      LaunchItems.item(
+        from: [
+          "Label": "com.example.backup",
+          "StartInterval": 300,
+          "StartCalendarInterval": ["Hour": 8, "Minute": 0],
+          "WatchPaths": ["/Users/Example/Documents/Team/Incoming/Archive/Ready"],
+          "StandardOutPath": "/Users/Example/Library/Logs/Backup/standard-output.log",
+          "StandardErrorPath": "/Users/Example/Library/Logs/Backup/standard-error.log",
+        ], plist: URL(fileURLWithPath: "/tmp/com.example.backup.plist"), scope: .user))
+    let width: CGFloat = 340
+    let host = NSHostingView(
+      rootView: StartupItemDetails(item: item, exitStatus: 78)
+        .environment(\.layoutDirection, direction)
+        .frame(width: width)
+        .background(DS.Palette.background))
+    let size = host.fittingSize
+    #expect(size.width == width)
+    #expect(size.height > 120 && size.height < 420)
+    if let directory = ProcessInfo.processInfo.environment["XSTATS_STARTUP_DETAILS_PREVIEW_DIR"] {
+      let frame = NSRect(origin: .zero, size: size)
+      let window = NSWindow(
+        contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
+      window.isReleasedWhenClosed = false
+      defer { window.close() }
+      window.contentView = host
+      host.appearance = NSAppearance(named: .aqua)
+      host.layoutSubtreeIfNeeded()
+      let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+      host.cacheDisplay(in: host.bounds, to: bitmap)
+      let image = try #require(bitmap.representation(using: .png, properties: [:]))
+      try image.write(
+        to: URL(fileURLWithPath: directory).appendingPathComponent("startup-\(direction).png"))
+    }
+  }
+
   @Test func appClonesRequireOptInAndRiskAcknowledgment() throws {
     let suite = "AppServicesTests.cloneRisk.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
