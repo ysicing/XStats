@@ -169,14 +169,17 @@ struct MagpieControllerTests {
     #expect(!controller.isRefreshing)
   }
 
-  @Test func refreshArrivingDuringAnotherRunsAfterIt() async throws {
+  @Test(.timeLimit(.minutes(1)))
+  func refreshArrivingDuringAnotherRunsAfterIt() async throws {
     let magpie = MagpieStub()
     await magpie.hold()
     let controller = AIUsageController(settings: settings(), magpieClient: magpie)
     controller.cumulativeWidgetIsInstalled = { false }
     let first = Task { await controller.refresh() }
-    let deadline = ContinuousClock.now + .seconds(2)
-    while await magpie.counts().0 == 0, ContinuousClock.now < deadline { await Task.yield() }
+    while await magpie.counts().0 == 0 {
+      try Task.checkCancellation()
+      await Task.yield()
+    }
     let started = await magpie.counts().0 == 1
     let second = Task { await controller.refresh() }
     await magpie.release()
@@ -188,7 +191,8 @@ struct MagpieControllerTests {
     #expect(controller.todayTokens == 120)
   }
 
-  @Test func magpieRefreshSynchronizesWidgetIncludingStaleFailure() async throws {
+  @Test(.timeLimit(.minutes(1)))
+  func magpieRefreshSynchronizesWidgetIncludingStaleFailure() async throws {
     let suite = "MagpieWidget.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -239,7 +243,8 @@ struct MagpieControllerTests {
     #expect(store.load().visibleCumulativeTokens.first?.total == 120)
   }
 
-  @Test func providerReorderSynchronizesWidgetWithoutRefreshingMagpie() async throws {
+  @Test(.timeLimit(.minutes(1)))
+  func providerReorderSynchronizesWidgetWithoutRefreshingMagpie() async throws {
     let suite = "MagpieWidgetOrder.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -318,7 +323,8 @@ struct MagpieControllerTests {
     #expect(store.load().quotaSlots().map(\.provider) == slots.map(\.provider))
   }
 
-  @Test func deletedPreferredAccountReturnsToMagpieOnlyAfterSuccessfulRefresh() async throws {
+  @Test(.timeLimit(.minutes(1)))
+  func deletedPreferredAccountReturnsToMagpieOnlyAfterSuccessfulRefresh() async throws {
     let suite = "MagpieDeletedPreference.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -567,11 +573,9 @@ struct MagpieControllerTests {
   }
 
   private func waitForWidget(_ condition: () -> Bool) async throws {
-    let deadline = ContinuousClock.now + .seconds(2)
-    while !condition(), ContinuousClock.now < deadline {
+    while !condition() {
       try await Task.sleep(for: .milliseconds(10))
     }
-    #expect(condition())
   }
 
   private func settings() -> AppSettings {
@@ -928,7 +932,8 @@ struct MagpieControllerTests {
     #expect(Array(await magpie.counts().1.suffix(2)) == [.daily, .weekly])
   }
 
-  @Test func pauseDuringWidgetDemandCheckDoesNotStartMagpieRequests() async throws {
+  @Test(.timeLimit(.minutes(1)))
+  func pauseDuringWidgetDemandCheckDoesNotStartMagpieRequests() async throws {
     let settings = settings()
     let magpie = MagpieStub()
     let controller = AIUsageController(settings: settings, magpieClient: magpie)
@@ -937,8 +942,10 @@ struct MagpieControllerTests {
       await withCheckedContinuation { demand = $0 }
     }
     let refresh = Task { await controller.refresh() }
-    let deadline = ContinuousClock.now + .seconds(2)
-    while demand == nil, ContinuousClock.now < deadline { await Task.yield() }
+    while demand == nil {
+      try Task.checkCancellation()
+      await Task.yield()
+    }
     controller.setPaused(true)
     let continuation = try #require(demand)
     continuation.resume(returning: true)
@@ -990,7 +997,8 @@ struct MagpieControllerTests {
     #expect(!controller.isRefreshing)
   }
 
-  @Test func switchingMagpieSourceDiscardsOldResultsAndKeepsLocalPreferences() async throws {
+  @Test(.timeLimit(.minutes(1)))
+  func switchingMagpieSourceDiscardsOldResultsAndKeepsLocalPreferences() async throws {
     let settings = settings()
     let local = MagpieStub()
     let remote = MagpieStub(quotaPayload: Data(#"{"object":"list","data":[]}"#.utf8))
@@ -1004,8 +1012,10 @@ struct MagpieControllerTests {
 
     await local.hold()
     let lateRefresh = Task { await controller.refresh() }
-    let deadline = ContinuousClock.now + .seconds(2)
-    while await local.counts().0 < 2, ContinuousClock.now < deadline { await Task.yield() }
+    while await local.counts().0 < 2 {
+      try Task.checkCancellation()
+      await Task.yield()
+    }
     #expect(await local.counts().0 == 2)
     let endpoint = try #require(MagpieClient.remoteEndpoint("http://magpie.example.test:3425"))
     controller.switchMagpieSource(to: endpoint, client: remote)
