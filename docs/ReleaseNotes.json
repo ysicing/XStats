@@ -1,19 +1,19 @@
 {
-  "version": "1.6.5",
+  "version": "1.6.6",
   "sourceNotes": [
-    "新增默认关闭的实验性应用分身，支持微信、QQ、飞书、Telegram 和企业微信",
-    "命令栏与启动台自动收录已登记的应用分身，可按分身名或原应用名搜索",
-    "修复应用分身创建进度、名称和启动台布局",
-    "修复部分设备无法读取 GPU 功耗的问题",
-    "清理空间前核验大文件身份，避免误移走被替换的文件"
+    "实验性应用分身扩展至浏览器、编辑器、AI 客户端及影音应用，支持为每个分身单独配置代理",
+    "AI 用量支持连接远端 Magpie，并按可用性切换本机数据源",
+    "启动项新增运行详情与日志查看，便于排查后台项目",
+    "加强应用分身来源校验",
+    "区分远端 Magpie 的认证与钥匙串错误，提供对应提示"
   ],
   "translations": {
     "en": [
-      "Adds experimental app cloning, off by default, for WeChat, QQ, Lark, Telegram, and WeCom. Each clone has separate data and can be launched and managed independently.",
-      "The command bar and Launchpad automatically list registered app clones, searchable by clone or original app name.",
-      "Fixes clone names, creation progress, and Launchpad layout, and removes leftover build files when deleting a clone.",
-      "Fixes missing GPU power readings on some devices by falling back when the dedicated energy channel is unavailable.",
-      "Rechecks a large file's identity before moving it to the Trash, preventing an unintended move if the file was replaced."
+      "Expands experimental app cloning to browsers, editors, AI clients, and media apps, with a separate proxy setting for each clone. Proxy support depends on the app; authenticated proxies are not supported.",
+      "AI usage can connect to a remote Magpie service and select available local data sources.",
+      "Adds runtime details and log viewing for startup items to help troubleshoot background services.",
+      "Strengthens clone source validation, checks whether profile data is in use before updating or deleting a clone, and prevents concurrent builds from removing each other's files.",
+      "Distinguishes remote Magpie authentication errors from Keychain errors and shows the corresponding message."
     ]
   }
 }
