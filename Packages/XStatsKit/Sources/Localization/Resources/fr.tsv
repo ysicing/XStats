@@ -717,9 +717,10 @@ Telegram（原生 Swift）	Telegram (Swift natif)
 正在移除	Suppression
 找不到受支持的原应用	Aucune app d’origine compatible trouvée
 请先退出分身	Quittez d’abord le clone
+另一个分身正在构建，请稍后重试。	Un autre clone est en cours de préparation. Réessayez plus tard.
 分身名称过长，请缩短后重试。	Le nom du clone est trop long. Raccourcissez-le et réessayez.
 分身操作失败。请检查 Xcode 命令行工具。	L’opération a échoué. Vérifiez les outils de ligne de commande Xcode.
-分身将重新签名并移除原沙盒。应用仍可能访问当前用户的资料。	Le clone sera signé à nouveau sans le bac à sable d’origine. L’app pourra toujours accéder aux données de l’utilisateur actuel.
+部分分身会重新签名并移除原沙盒。分身应用仍可能访问当前用户的资料。	Certains clones sont signés à nouveau sans leur bac à sable d’origine. Les apps clonées peuvent toujours accéder aux données de l’utilisateur actuel.
 仅移除应用	Supprimer uniquement l’app
 连同资料移到废纸篓	Placer l’app et ses données dans la Corbeille
 仅移除应用会保留分身资料，也可以将应用和资料一起移到废纸篓。	Supprimer uniquement l’app conserve les données du clone. Vous pouvez aussi placer l’app et ses données dans la Corbeille.
@@ -2975,3 +2976,10 @@ Magpie 网关密钥无权读取此数据。	Cette clé de passerelle Magpie ne p
 上次退出状态	Dernier statut de sortie
 标准输出日志	Journal de la sortie standard
 标准错误日志	Journal de l’erreur standard
+代理设置	Réglages du proxy
+代理地址	Adresse du proxy
+请输入 HTTP、HTTPS 或 SOCKS5 代理地址和端口。	Saisissez une adresse de proxy HTTP, HTTPS ou SOCKS5 et son port.
+请更新分身后再配置代理。	Mettez le clone à jour avant de configurer son proxy.
+已保存的代理地址无效，请重新设置。	L’adresse de proxy enregistrée est invalide. Configurez-la à nouveau.
+退出并重新打开分身后生效。	Quittez puis rouvrez le clone pour appliquer la modification.
+网易云音乐	NetEase Cloud Music

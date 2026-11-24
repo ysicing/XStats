@@ -24,6 +24,8 @@ enum AppCloneBuilder {
       !executableName.isEmpty, executableName != ".", executableName != "..",
       !executableName.contains("/")
     else { throw AppCloneStore.Failure.invalidSource }
+    // Finder 元数据会使严格签名校验失败，先清理暂存副本，再校验原始签名。
+    try await AppCloneStore.run("/usr/bin/xattr", ["-crs", candidate.path], stage: stage)
     try AppCloneSourceSignature.validate(
       candidate, identifier: sourceIdentifier, application: clone.application)
 
@@ -51,14 +53,42 @@ enum AppCloneBuilder {
     let library = frameworks.appending(path: libraryName)
     guard !files.fileExists(atPath: library.path) else { throw AppCloneStore.Failure.invalidSource }
     let configuration = stage.appending(path: "profile.h")
+    let applicationEnvironment: [String: String] =
+      switch clone.application {
+      case .claude: ["CLAUDE_CONFIG_DIR": "Claude"]
+      case .codex, .chatGPT: ["CODEX_HOME": "Codex"]
+      case .workBuddy, .workBuddyAI:
+        ["WORKBUDDY_CONFIG_DIR": "Config", "WORKBUDDY_USER_DATA_DIR": "UserData"]
+      case .gemini, .antigravity, .antigravityIDE:
+        ["GEMINI_HOME": "Gemini", "GEMINI_CONFIG_DIR": "Gemini", "ANTIGRAVITY_HOME": "Gemini"]
+      default: [:]
+      }
+    let environmentAssignments = applicationEnvironment.sorted(by: { $0.key < $1.key }).map {
+      "  setenv(\"\($0.key)\", \(cString(profile.appending(path: $0.value).path)), 1);"
+    }.joined(separator: "\n")
+    let userData: URL? =
+      switch clone.application {
+      case .chrome, .edge, .arc: profile
+      case .claude, .antigravity, .antigravityIDE: profile.appending(path: "UserData")
+      default: nil
+      }
     let header = """
+      #include <stdlib.h>
       #define CLONE_HOME \(cString(profile.appending(path: "Home").path))
       #define CLONE_TMP \(cString(profile.appending(path: "Tmp").path))
       #define CLONE_PROFILE \(cString(profile.path))
       #define CLONE_NAME \(cString(clone.engineName))
       #define CLONE_LIBRARY "\(libraryName)"
+      #define CLONE_USER_DATA \(userData.map { cString($0.path) } ?? "NULL")
+      #define CLONE_CHROMIUM_PROXY \(clone.application.usesChromiumProxyArgument ? 1 : 0)
+      #define CLONE_EDITOR_PROFILE \(clone.application == .antigravityIDE ? 1 : 0)
+      #define CLONE_EDGE \(clone.application == .edge ? 1 : 0)
+      #define CLONE_EXTENSIONS \(cString("--extensions-dir=\(profile.appending(path: "Extensions").path)"))
+      static inline void configure_application_environment(void) {
+      \(environmentAssignments)
+      }
       """
-    try Data(header.utf8).write(to: configuration)
+    try Data((BrowserCloneProxy.launcherHeader + "\n" + header).utf8).write(to: configuration)
     let runtime = stage.appending(path: "CloneRuntime.m")
     try Data(runtimeSource.utf8).write(to: runtime)
     let compiler = [
@@ -72,7 +102,9 @@ enum AppCloneBuilder {
     let mainProgram = macOS.appending(path: clone.engineName)
     try files.moveItem(at: executable, to: mainProgram)
     let attached =
-      if clone.application == .lark { false } else {
+      if clone.application == .lark || userData != nil || !applicationEnvironment.isEmpty {
+        false
+      } else {
         try MachOCloneLoadCommand.attach(libraryName, to: mainProgram)
       }
     let loaderDirectory = frameworks.appending(path: "ld")
@@ -88,12 +120,15 @@ enum AppCloneBuilder {
       metadata["CFBundleExecutable"] = clone.engineName
     } else {
       let launcher = macOS.appending(path: "\(clone.engineName)-Launcher")
-      let launcherSourceURL = stage.appending(path: "CloneLauncher.c")
+      let launcherSourceURL = stage.appending(path: "CloneLauncher.m")
       try Data(launcherSource.utf8).write(to: launcherSourceURL)
       try await AppCloneStore.run(
-        "/usr/bin/xcrun", compiler + [launcherSourceURL.path, "-o", launcher.path],
+        "/usr/bin/xcrun",
+        compiler + ["-framework", "Foundation", launcherSourceURL.path, "-o", launcher.path],
         stage: stage)
-      try await sign(mainProgram, entitlements: originalEntitlements, stage: stage)
+      try await sign(
+        mainProgram, entitlements: originalEntitlements, application: clone.application,
+        stage: stage)
       metadata["CFBundleExecutable"] = launcher.lastPathComponent
     }
     try files.createSymbolicLink(
@@ -101,6 +136,7 @@ enum AppCloneBuilder {
     metadata["CFBundleIdentifier"] = clone.bundleID
     metadata["CFBundleName"] = clone.name
     metadata["CFBundleDisplayName"] = clone.name
+    metadata.merge(BrowserCloneProxy.bundleMetadata) { _, value in value }
     metadata.removeValue(forKey: "CFBundleURLTypes")
     metadata.removeValue(forKey: "CFBundleDocumentTypes")
     metadata.removeValue(forKey: "LSHasLocalizedDisplayName")
@@ -137,13 +173,18 @@ enum AppCloneBuilder {
     }
     for binary in code + [library] {
       try Task.checkCancellation()
-      try await sign(binary, entitlements: nil, stage: stage)
+      try await sign(binary, entitlements: nil, application: clone.application, stage: stage)
     }
     for bundle in nested.sorted(by: { $0.pathComponents.count > $1.pathComponents.count }) {
       try Task.checkCancellation()
-      try await sign(bundle, entitlements: nestedEntitlements[bundle], stage: stage)
+      try await sign(
+        bundle, entitlements: nestedEntitlements[bundle], application: clone.application,
+        stage: stage)
     }
-    try await sign(candidate, entitlements: attached ? originalEntitlements : nil, stage: stage)
+    try await sign(
+      candidate, entitlements: attached ? originalEntitlements : nil,
+      application: clone.application,
+      stage: stage)
     try await AppCloneStore.run(
       signer, ["--verify", "--deep", "--strict", candidate.path], stage: stage)
   }
@@ -170,7 +211,10 @@ enum AppCloneBuilder {
       try Task.checkCancellation()
       let values = try entry.resourceValues(forKeys: keys)
       guard values.isSymbolicLink != true else { continue }
-      if values.isDirectory == true, codeBundles.contains(entry.pathExtension) {
+      if values.isDirectory == true,
+        codeBundles.contains(entry.pathExtension)
+          || (entry.pathExtension == "bundle" && Bundle(url: entry)?.executableURL != nil)
+      {
         nested.append(entry)
       } else if entries.level > 1, values.isRegularFile == true,
         entry.lastPathComponent == "Info.plist"
@@ -207,8 +251,12 @@ enum AppCloneBuilder {
     return output
   }
 
-  private static func sign(_ url: URL, entitlements: URL?, stage: URL) async throws {
+  private static func sign(
+    _ url: URL, entitlements: URL?, application: CloneApplication, stage: URL
+  ) async throws {
     var arguments = ["--force", "--sign", "-"]
+    // Edge 的 Aperitif 辅助进程会继承同团队动态库校验，阻止它加载分身中重签的库。
+    if application == .edge { arguments += ["--options", "0x2"] }
     if let entitlements { arguments += ["--entitlements", entitlements.path] }
     try await AppCloneStore.run(signer, arguments + [url.path], stage: stage)
   }
@@ -240,16 +288,49 @@ enum AppCloneBuilder {
 
   private static let runtimeSource = #"""
     #import <Foundation/Foundation.h>
+    #include <limits.h>
     #include <pwd.h>
     #include <unistd.h>
     #include <stdlib.h>
     #include <string.h>
 
+    #if CLONE_EDITOR_PROFILE
+    static const char *editorAlias;
+
+    static void remove_editor_alias(void) {
+        if (!editorAlias) return;
+        NSString *path = [NSString stringWithUTF8String:editorAlias];
+        NSString *directory = path.stringByDeletingLastPathComponent;
+        if (![directory hasPrefix:@"/tmp/xstats-editor."] ||
+            ![directory.stringByDeletingLastPathComponent isEqualToString:@"/tmp"] ||
+            ![path.lastPathComponent isEqualToString:@"profile"]) return;
+        char target[PATH_MAX];
+        ssize_t count = readlink(editorAlias, target, sizeof(target));
+        if (count != strlen(CLONE_USER_DATA) || memcmp(target, CLONE_USER_DATA, count) != 0) return;
+        if (unlink(editorAlias) == 0) rmdir(directory.fileSystemRepresentation);
+    }
+    #endif
+
     __attribute__((constructor)) static void configure_profile(void) {
         setenv("HOME", CLONE_HOME, 1);
         setenv("CFFIXED_USER_HOME", CLONE_HOME, 1);
         setenv("TMPDIR", CLONE_TMP, 1);
+        configure_application_environment();
         unsetenv("DYLD_INSERT_LIBRARIES");
+        @autoreleasepool {
+            NSString *endpoint = cloneProxyEndpoint(NSBundle.mainBundle);
+            if (!endpoint) _exit(1);
+            if (endpoint.length) {
+                NSDictionary<NSString *, NSString *> *settings = cloneProxyEnvironment(endpoint);
+                for (NSString *name in settings) setenv(name.UTF8String, settings[name].UTF8String, 1);
+            }
+        }
+    #if CLONE_EDITOR_PROFILE
+        const char *alias = getenv("XSTATS_EDITOR_ALIAS");
+        if (alias) editorAlias = strdup(alias);
+        unsetenv("XSTATS_EDITOR_ALIAS");
+        atexit(remove_editor_alias);
+    #endif
     }
 
     static NSString *clone_home(void) { return @CLONE_HOME; }
@@ -327,11 +408,51 @@ enum AppCloneBuilder {
         setenv("HOME", CLONE_HOME, 1);
         setenv("CFFIXED_USER_HOME", CLONE_HOME, 1);
         setenv("TMPDIR", CLONE_TMP, 1);
+        configure_application_environment();
         setenv("DYLD_INSERT_LIBRARIES", library, 1);
-        argv[0] = program;
-        execv(program, argv);
-        perror("execv");
-        return 1;
+        @autoreleasepool {
+            const char *userData = CLONE_USER_DATA;
+            NSString *endpoint = cloneProxyEndpoint(NSBundle.mainBundle);
+            if (!endpoint) return 1;
+            NSString *proxyArgument = CLONE_CHROMIUM_PROXY && endpoint.length
+                ? [@"--proxy-server=" stringByAppendingString:endpoint] : nil;
+            char **arguments = calloc((size_t)argc + 5, sizeof(*arguments));
+            if (!arguments) return 1;
+            size_t count = 0;
+            arguments[count++] = program;
+    #if CLONE_EDITOR_PROFILE
+            char temporaryDirectory[] = "/tmp/xstats-editor.XXXXXXXX";
+            NSString *profile = [NSString stringWithUTF8String:userData];
+            if (![NSFileManager.defaultManager createDirectoryAtPath:profile
+                    withIntermediateDirectories:YES attributes:nil error:NULL] ||
+                !mkdtemp(temporaryDirectory)) return 1;
+            char alias[sizeof(temporaryDirectory) + sizeof("/profile")];
+            snprintf(alias, sizeof(alias), "%s/profile", temporaryDirectory);
+            if (symlink(userData, alias) != 0) {
+                rmdir(temporaryDirectory);
+                return 1;
+            }
+            setenv("XSTATS_EDITOR_ALIAS", alias, 1);
+            userData = alias;
+            arguments[count++] = CLONE_EXTENSIONS;
+            arguments[count++] = "--new-window";
+    #endif
+    #if CLONE_EDGE
+            arguments[count++] = "--disable-edgeupdater";
+    #endif
+            NSString *userDataArgument = userData
+                ? [@"--user-data-dir=" stringByAppendingString:[NSString stringWithUTF8String:userData]] : nil;
+            if (userDataArgument) arguments[count++] = (char *)userDataArgument.UTF8String;
+            if (proxyArgument) arguments[count++] = (char *)proxyArgument.UTF8String;
+            for (int index = 1; index < argc; ++index) arguments[count++] = argv[index];
+            execv(program, arguments);
+    #if CLONE_EDITOR_PROFILE
+            unlink(alias);
+            rmdir(temporaryDirectory);
+    #endif
+            perror("execv");
+            return 1;
+        }
     }
     """#
 }

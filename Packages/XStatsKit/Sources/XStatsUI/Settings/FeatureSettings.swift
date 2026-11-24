@@ -300,7 +300,7 @@ struct FeatureSettings: View {
               settings.appClonesEnabled = true
             }
           } message: {
-            Text(tr("分身将重新签名并移除原沙盒。应用仍可能访问当前用户的资料。"))
+            Text(tr("部分分身会重新签名并移除原沙盒。分身应用仍可能访问当前用户的资料。"))
           }
         }
         GroupRow {

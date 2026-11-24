@@ -2054,10 +2054,17 @@ extension Translations {
     新建分身	New Clone
     飞书	Feishu
     企业微信	WeCom
+    网易云音乐	NetEase Cloud Music
     Telegram（原生 Swift）	Telegram (Native Swift)
     分身名称	Clone Name
     未运行	Not Running
     更新分身	Update Clone
+    代理设置	Proxy Settings
+    代理地址	Proxy Address
+    请输入 HTTP、HTTPS 或 SOCKS5 代理地址和端口。	Enter an HTTP, HTTPS, or SOCKS5 proxy address and port.
+    请更新分身后再配置代理。	Update the clone before configuring its proxy.
+    已保存的代理地址无效，请重新设置。	The saved proxy address is invalid. Configure it again.
+    退出并重新打开分身后生效。	Quit and reopen the clone to apply the change.
     显示分身资料	Show Clone Data
     分身操作	Clone Actions
     {} 个分身	{} clones
@@ -2070,9 +2077,10 @@ extension Translations {
     找不到受支持的原应用	No supported source app found
     无法验证原应用的发布者或签名。	The source app’s publisher or signature could not be verified.
     请先退出分身	Quit the clone first
+    另一个分身正在构建，请稍后重试。	Another clone is being built. Try again later.
     分身名称过长，请缩短后重试。	The clone name is too long. Shorten it and try again.
     分身操作失败。请检查 Xcode 命令行工具。	The clone operation failed. Check the Xcode Command Line Tools.
-    分身将重新签名并移除原沙盒。应用仍可能访问当前用户的资料。	The clone will be re-signed without the original sandbox. It may still access the current user’s data.
+    部分分身会重新签名并移除原沙盒。分身应用仍可能访问当前用户的资料。	Some clones are re-signed without their original sandbox. Cloned apps may still access the current user’s data.
     仅移除应用	Remove App Only
     连同资料移到废纸篓	Move App and Data to Trash
     仅移除应用会保留分身资料，也可以将应用和资料一起移到废纸篓。	Removing only the app keeps the clone’s data. You can also move both to the Trash.

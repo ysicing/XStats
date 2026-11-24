@@ -14,6 +14,27 @@ extension CloneApplication {
     case .telegram: tr("Telegram（原生 Swift）")
     case .telegramDesktop: "Telegram Desktop"
     case .weCom: tr("企业微信")
+    case .chrome: "Google Chrome"
+    case .edge: "Microsoft Edge"
+    case .brave: "Brave Browser"
+    case .arc: "Arc"
+    case .firefox: "Firefox"
+    case .torBrowser: "Tor Browser"
+    case .visualStudioCode: "Visual Studio Code"
+    case .cursor: "Cursor"
+    case .zed: "Zed"
+    case .claude: "Claude"
+    case .codex: "Codex"
+    case .chatGPT: "ChatGPT"
+    case .workBuddy: "WorkBuddy"
+    case .workBuddyAI: "WorkBuddy AI"
+    case .gemini: "Gemini"
+    case .antigravity: "Antigravity"
+    case .antigravityIDE: "Antigravity IDE"
+    case .bilibili: tr("哔哩哔哩")
+    case .douyin: tr("抖音")
+    case .neteaseMusic: tr("网易云音乐")
+    case .steam: "Steam"
     }
   }
 
@@ -108,12 +129,20 @@ final class AppCloneController {
     build(clone, updating: true)
   }
 
+  func browserProxy(for clone: AppClone) async throws -> String? {
+    try await store.browserProxy(for: clone)
+  }
+
+  func setBrowserProxy(_ endpoint: String?, for clone: AppClone) async throws {
+    try await store.setBrowserProxy(endpoint, for: clone)
+  }
+
   private func build(_ clone: AppClone, updating: Bool) {
     perform(updating ? .updating(clone.id) : .creating) {
       guard let source = clone.application.installedURL else {
         throw AppCloneStore.Failure.invalidSource
       }
-      try self.ensureStopped(clone)
+      if updating { try await self.ensureStopped(clone) }
       defer { NotificationCenter.default.post(name: .launcherApplicationsChanged, object: nil) }
       try await self.store.build(clone, source: source, updating: updating) {
         try await self.ensureStopped(clone)
@@ -144,7 +173,7 @@ final class AppCloneController {
 
   func moveToTrash(_ clone: AppClone, includingData: Bool) {
     perform(.removing(clone.id)) {
-      try self.ensureStopped(clone)
+      try await self.ensureStopped(clone)
       if includingData {
         try await self.store.moveToTrashIncludingData(clone)
       } else {
@@ -157,7 +186,15 @@ final class AppCloneController {
     }
   }
 
-  private func ensureStopped(_ clone: AppClone) throws {
+  private func ensureStopped(_ clone: AppClone) async throws {
+    refreshRunning()
+    guard !runningIDs.contains(clone.bundleID) else { throw AppCloneStore.Failure.running }
+    let sourcePIDs = NSRunningApplication.runningApplications(
+      withBundleIdentifier: clone.application.rawValue
+    ).map(\.processIdentifier)
+    if await store.profileIsInUse(clone, sourcePIDs: sourcePIDs) {
+      throw AppCloneStore.Failure.running
+    }
     refreshRunning()
     guard !runningIDs.contains(clone.bundleID) else { throw AppCloneStore.Failure.running }
   }
@@ -187,6 +224,8 @@ final class AppCloneController {
       error = tr("无法验证原应用的发布者或签名。")
     case AppCloneStore.Failure.running:
       error = tr("请先退出分身")
+    case AppCloneStore.Failure.buildInProgress:
+      error = tr("另一个分身正在构建，请稍后重试。")
     case AppCloneStore.Failure.registrationTooLarge:
       error = tr("分身名称过长，请缩短后重试。")
     default:

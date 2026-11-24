@@ -11,6 +11,7 @@ struct AppClonesPage: View {
   let search: String
   @Binding var showsNewClone: Bool
   @State private var removing: AppClone?
+  @State private var proxyClone: AppClone?
 
   private var controller: AppCloneController { model.appClones }
 
@@ -70,6 +71,8 @@ struct AppClonesPage: View {
               Menu {
                 Button(tr("更新分身")) { controller.update(clone) }
                   .disabled(controller.isWorking)
+                Button(tr("代理设置")) { proxyClone = clone }
+                  .disabled(controller.isWorking)
                 Button(tr("在 Finder 中显示")) { controller.reveal(clone) }
                 Button(tr("显示分身资料")) { controller.reveal(clone, data: true) }
                 Divider()
@@ -110,6 +113,9 @@ struct AppClonesPage: View {
     .sheet(isPresented: $showsNewClone) {
       AppCloneCreationSheet(controller: controller)
     }
+    .sheet(item: $proxyClone) { clone in
+      AppCloneProxySheet(clone: clone, controller: controller)
+    }
     .confirmationDialog(
       removing.map { tr("将“\($0.name)”移到废纸篓？") } ?? tr("移到废纸篓"),
       isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
@@ -124,6 +130,83 @@ struct AppClonesPage: View {
       }
     } message: { _ in
       Text(tr("仅移除应用会保留分身资料，也可以将应用和资料一起移到废纸篓。"))
+    }
+  }
+}
+
+private struct AppCloneProxySheet: View {
+  @Environment(\.dismiss) private var dismiss
+  let clone: AppClone
+  let controller: AppCloneController
+  @State private var custom = false
+  @State private var endpoint = ""
+  @State private var ready = false
+  @State private var saving = false
+  @State private var error: String?
+
+  var body: some View {
+    let address = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+    let valid = BrowserCloneProxy.accepts(address)
+    VStack(alignment: .leading, spacing: DS.Space.s4) {
+      Text(tr("代理设置")).font(.headline)
+      LabeledContent(tr("分身名称"), value: clone.name)
+      if let error {
+        InfoBanner(icon: "exclamationmark.triangle", text: error, tone: .error)
+      }
+      Picker(tr("代理"), selection: $custom) {
+        Text(tr("跟随系统")).tag(false)
+        Text(tr("自定义")).tag(true)
+      }
+      .disabled(!ready || saving)
+      if custom {
+        TextField(tr("代理地址"), text: $endpoint, prompt: Text("socks5://127.0.0.1:1080"))
+          .disabled(saving)
+        if !address.isEmpty && !valid {
+          Text(tr("请输入 HTTP、HTTPS 或 SOCKS5 代理地址和端口。"))
+            .foregroundStyle(.secondary)
+        }
+      }
+      if ready && controller.runningIDs.contains(clone.bundleID) {
+        Text(tr("退出并重新打开分身后生效。"))
+          .foregroundStyle(.secondary)
+      }
+      HStack {
+        Spacer()
+        Button(tr("取消"), role: .cancel) { dismiss() }
+          .disabled(saving)
+        Button(tr("保存")) {
+          saving = true
+          Task {
+            defer { saving = false }
+            do {
+              try await controller.setBrowserProxy(custom ? address : nil, for: clone)
+              dismiss()
+            } catch {
+              self.error = error.localizedDescription
+            }
+          }
+        }
+        .keyboardShortcut(.defaultAction)
+        .disabled(!ready || saving || (custom && !valid))
+      }
+    }
+    .padding(DS.Space.s6)
+    .frame(width: 470)
+    .task {
+      do {
+        if let saved = try await controller.browserProxy(for: clone) {
+          endpoint = saved
+          custom = true
+        }
+        ready = true
+      } catch AppCloneStore.Failure.proxyRequiresUpdate {
+        error = tr("请更新分身后再配置代理。")
+      } catch AppCloneStore.Failure.invalidProxy {
+        error = tr("已保存的代理地址无效，请重新设置。")
+        ready = true
+      } catch {
+        self.error = error.localizedDescription
+      }
     }
   }
 }

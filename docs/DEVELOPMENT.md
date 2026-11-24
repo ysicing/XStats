@@ -381,11 +381,17 @@ Homebrew 更新和卸载的命令正常退出后，复用已有的按需清单�
 
 定向验证：`swift test --package-path Packages/XStatsKit --filter 'AppStoreUpdatesTests|ApplicationManagementTests|AppManagementControllerTests'`。可选实机只读检查：设置 `XSTATS_APP_MANAGEMENT_RESOURCE_REPORT=<输出路径>`，筛选 `AppManagementControllerTests/nativeInventoryStopsWhenClosed`，验证关闭后的遍历退出与 5 秒内无新增读取；不执行软件包更新或卸载。原生布局截图：`XStats --snapshot <目录> --app-management-only --language zh-Hans`，可切换 `en` 与 `ar`，只使用演示数据，不读取真实应用或执行 brew 写操作。
 
-**应用分身**是默认关闭的实验性功能。在“设置 → 功能 → 实验性功能”开启后，才会在“应用管理”中显示“应用分身”。首次开启须确认风险，开关与确认状态保存在本机。关闭后隐藏入口，已创建的分身及资料保留。支持识别微信、QQ、飞书、Telegram 原生版、Telegram Desktop 和企业微信。XStats 使用系统工具复制和签名应用，并使用 Xcode 命令行工具编译分身需要的启动代码。分身使用空白资料目录，不复制原应用偏好或链接钥匙串及 SSH 目录。分身经 ad-hoc 重签名，原沙盒会被移除，独立资料目录不构成安全隔离。各应用能否登录、接收通知和稳定双开取决于实际版本。
+**应用分身**是默认关闭的实验性功能。在“设置 → 功能 → 实验性功能”开启后，才会在“应用管理”中显示“应用分身”。首次开启须确认风险，开关与确认状态保存在本机。关闭后隐藏入口，已创建的分身及资料保留。硬克隆由 XStats 复制应用并用 ad-hoc 签名重签，原沙盒会被移除。构建分身需要 Xcode 命令行工具。分身使用空白资料目录，不复制原应用偏好或链接钥匙串及 SSH 目录。独立资料目录不构成安全隔离。各应用能否登录、接收通知和稳定双开取决于实际版本。
 
-应用分身的实现参考了 [ATBClone](https://github.com/aitobox/ATBClone) 的硬克隆方案和应用适配规则。XStats 自行完成应用复制、分身适配和签名，使用时无需安装 ATBClone。
+已接入应用的软／硬克隆方式与 [ATBClone](https://github.com/aitobox/ATBClone) 内置规则一致，无需安装 ATBClone。Brave Browser、Firefox、Tor Browser、VS Code、Cursor 和 Zed 使用软克隆，启动已安装的原版应用并传入独立资料目录。Google Chrome、Microsoft Edge、Arc、Antigravity IDE 和其他已接入应用使用硬克隆。VS Code、Cursor 和 Antigravity IDE 使用独立扩展目录，并通过私有临时短路径访问分身资料，避免超过 Unix socket 的路径长度限制。
 
 开启应用分身后，命令栏和启动台自动收录分身目录中已登记的应用，可按分身名或原应用名搜索，无需配置自定义目录。关闭功能时自动收录的分身暂时隐藏，启动台保留已有布局。
+
+所有已接入的应用可在对应分身的「代理设置」中选择跟随系统或设置 HTTP、HTTPS、SOCKS5 地址。完全退出并重新打开分身后，启动代码设置 `HTTP_PROXY`、`HTTPS_PROXY`、`NO_PROXY` 及其小写变量。Chrome、Edge、Brave 和 Arc 同时使用 Chromium 的 `--proxy-server`。环境变量能否生效由应用的网络组件决定。XStats 支持无认证代理。
+
+原版应用升级后，硬克隆从「更新分身」重建应用包。软克隆在下次启动时使用已升级的原版，「更新分身」重建启动器。旧分身按同一入口迁移到当前克隆方式，沿用原来的分身资料和已保存的代理地址。
+
+软克隆在生成启动器及每次启动时校验原版可执行代码的 Bundle ID 和固定发布团队。更新和移除前按资料路径检查实际运行实例，即使启动器已经退出，也会阻止操作仍在使用资料的软克隆。分身目录同一时间只允许一个构建，避免多个 XStats 进程同时清理构建中的暂存文件。
 
 同一应用可以新建多个分身，例如 QQ 1、QQ 2、QQ 3。分身保存在 `~/Library/Application Support/XStats/AppClones/`，每个分身有独立的 `Data`。创建和更新会在改写临时副本前校验原始签名、Bundle ID 和受信发布团队。从对应行的菜单更新或移到废纸篓。更新沿用该分身的标识和资料路径，候选包完成签名验证后才替换旧包。「仅移除应用」将选中分身的 `.app` 移到废纸篓并保留资料。「连同资料移到废纸篓」移动选中分身的整个目录（包含 `.app`、`Data` 和 `clone.json`），可从废纸篓恢复。关闭页面后没有轮询任务。实机验收应在独立 macOS 用户环境逐项验证启动、原版并行、不同账号登录、重启恢复和通知。
 
