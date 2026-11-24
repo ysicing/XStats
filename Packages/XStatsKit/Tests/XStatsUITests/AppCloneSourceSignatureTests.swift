@@ -7,6 +7,36 @@ import Testing
 @testable import XStatsUI
 
 struct AppCloneSourceSignatureTests {
+  @Test func stagingCopyPreservesExtendedAttributeSignatures() async throws {
+    let files = FileManager.default
+    let stage = files.temporaryDirectory.appending(path: UUID().uuidString)
+    try files.createDirectory(at: stage, withIntermediateDirectories: false)
+    defer { try? files.removeItem(at: stage) }
+    let source = stage.appending(path: "Source.app")
+    let candidate = stage.appending(path: "Clone.app")
+    try makeBundle(at: source, identifier: CloneApplication.weChat.rawValue)
+    let component = source.appending(path: "Contents/Frameworks/Signed.json")
+    try files.createDirectory(
+      at: component.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("{}".utf8).write(to: component)
+    try await AppCloneStore.run("/usr/bin/codesign", ["--sign", "-", component.path], stage: stage)
+    try await AppCloneStore.run(
+      "/usr/bin/codesign", ["--force", "--sign", "-", source.path], stage: stage)
+    try await AppCloneStore.run(
+      "/usr/bin/xattr",
+      ["-wx", "com.apple.FinderInfo", "01" + String(repeating: "00", count: 31), component.path],
+      stage: stage)
+
+    try await AppCloneBuilder.copySource(source, to: candidate, stage: stage)
+
+    try await AppCloneStore.run(
+      "/usr/bin/codesign", ["--verify", "--deep", "--strict", candidate.path], stage: stage)
+    try await AppCloneStore.run(
+      "/usr/bin/codesign",
+      ["--verify", "--strict", candidate.appending(path: "Contents/Frameworks/Signed.json").path],
+      stage: stage)
+  }
+
   @Test func concurrentBuildPreservesTheActiveStage() async throws {
     let files = FileManager.default
     let scratch = files.temporaryDirectory.appending(path: UUID().uuidString)

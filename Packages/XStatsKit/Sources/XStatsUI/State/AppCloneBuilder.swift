@@ -12,8 +12,7 @@ enum AppCloneBuilder {
   ) async throws {
     let files = FileManager.default
     try Task.checkCancellation()
-    try await AppCloneStore.run(
-      "/usr/bin/ditto", ["--norsrc", "--noextattr", source.path, candidate.path], stage: stage)
+    try await copySource(source, to: candidate, stage: stage)
     let contents = candidate.appending(path: "Contents")
     let info = contents.appending(path: "Info.plist")
     try rejectSymlinks([contents, info])
@@ -24,8 +23,6 @@ enum AppCloneBuilder {
       !executableName.isEmpty, executableName != ".", executableName != "..",
       !executableName.contains("/")
     else { throw AppCloneStore.Failure.invalidSource }
-    // Finder 元数据会使严格签名校验失败，先清理暂存副本，再校验原始签名。
-    try await AppCloneStore.run("/usr/bin/xattr", ["-crs", candidate.path], stage: stage)
     try AppCloneSourceSignature.validate(
       candidate, identifier: sourceIdentifier, application: clone.application)
 
@@ -187,6 +184,16 @@ enum AppCloneBuilder {
       stage: stage)
     try await AppCloneStore.run(
       signer, ["--verify", "--deep", "--strict", candidate.path], stage: stage)
+  }
+
+  static func copySource(_ source: URL, to candidate: URL, stage: URL) async throws {
+    try await AppCloneStore.run(
+      "/usr/bin/ditto", ["--noqtn", source.path, candidate.path], stage: stage)
+    // 微信等应用将部分嵌套代码的签名保存在扩展属性中，只清理严格验签禁止的两种元数据。
+    for attribute in ["com.apple.FinderInfo", "com.apple.ResourceFork"] {
+      try await AppCloneStore.run(
+        "/usr/bin/xattr", ["-drs", attribute, candidate.path], stage: stage)
+    }
   }
 
   private static func nestedCode(
