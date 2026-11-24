@@ -577,14 +577,13 @@ struct LaunchpadTests {
     #expect(abs(resumed.translation) <= resumed.bounds.width)
     let interruptedPage = controller.page
     panel.sendEvent(try swipeEvent(phase: .cancelled, delta: 0, timestamp: 1.04))
-    try await Task.sleep(for: .milliseconds(700))
+    try await waitForSwipeToSettle(in: content)
     #expect(controller.page == interruptedPage)
-    #expect(descendant(LaunchpadPagePreview.self, in: content) == nil)
     panel.sendEvent(try swipeEvent(phase: .began, delta: -20, timestamp: 2))
     panel.sendEvent(try swipeEvent(phase: .changed, delta: -300, timestamp: 2.01))
     panel.sendEvent(try swipeEvent(phase: .ended, delta: 0, timestamp: 2.02))
-    try await Task.sleep(for: .milliseconds(700))
-    #expect(controller.page == interruptedPage + 1)
+    try await waitForSwipeToSettle(in: content)
+    try #require(controller.page == interruptedPage + 1)
     panel.sendEvent(try swipeEvent(phase: .began, delta: -20, timestamp: 3))
     weak var releasedPreview = descendant(LaunchpadPagePreview.self, in: content)
     #expect(releasedPreview?.strip.sublayers?.count == 3)
@@ -632,9 +631,8 @@ struct LaunchpadTests {
     }
     panel.sendEvent(try swipeEvent(phase: .changed, delta: direction * 300, timestamp: 1.01))
     panel.sendEvent(try swipeEvent(phase: .ended, delta: 0, timestamp: 1.02))
-    try await Task.sleep(for: .milliseconds(700))
+    try await waitForSwipeToSettle(in: content)
     #expect(controller.page == 1 - startingPage)
-    #expect(descendant(LaunchpadPagePreview.self, in: content) == nil)
     #expect(content.convert(grid.bounds, from: grid).maxY == top)
   }
 
@@ -784,6 +782,19 @@ struct LaunchpadTests {
     let result = try #require(NSEvent(cgEvent: event))
     try #require(result.phase == phase && result.hasPreciseScrollingDeltas)
     return result
+  }
+
+  private func waitForSwipeToSettle(
+    in content: NSView, sourceLocation: SourceLocation = #_sourceLocation
+  ) async throws {
+    let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+    while descendant(LaunchpadPagePreview.self, in: content) != nil, ContinuousClock.now < deadline
+    {
+      try await Task.sleep(for: .milliseconds(20))
+    }
+    try #require(
+      descendant(LaunchpadPagePreview.self, in: content) == nil,
+      sourceLocation: sourceLocation)
   }
 
   private func waitForCatalog(_ controller: LaunchpadWindowController, count: Int) async throws {

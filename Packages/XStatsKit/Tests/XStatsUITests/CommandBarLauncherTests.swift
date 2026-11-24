@@ -144,7 +144,7 @@ struct CommandBarLauncherTests {
     controller.show(commands: [fresh])
     try await Task.sleep(for: .milliseconds(150))
     let table = try #require(descendant(NSTableView.self, in: controller.panel?.contentView))
-    #expect(table.numberOfRows == 1)
+    try #require(table.numberOfRows == 1)
     let cell = try #require(
       table.view(atColumn: 0, row: 0, makeIfNecessary: true) as? NSTableCellView)
     #expect(cell.textField?.stringValue == "fresh")
@@ -154,22 +154,24 @@ struct CommandBarLauncherTests {
     _ = NSApplication.shared
     let controller = CommandBarWindowController()
     defer { controller.dismiss() }
-    let base = fixture(id: "test")
-    let added = fixture(id: "extra")
+    let base = fixture(id: "base test")
+    let added = fixture(id: "test extra")
     controller.show(commands: [base], applicationLoader: { [added] })
     let field = try #require(descendant(NSSearchField.self, in: controller.panel?.contentView))
     field.stringValue = "test"
     controller.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
-    try await Task.sleep(for: .milliseconds(150))
     let table = try #require(descendant(NSTableView.self, in: controller.panel?.contentView))
-    #expect(table.numberOfRows == 1)
+    try #require(table.numberOfRows == 1)
+    #expect(table.selectedRow == 0)
+    try await waitForRows(2, in: table)
     #expect(field.stringValue == "test")
+    #expect(table.selectedRow == 1)
     field.stringValue = "extra"
     controller.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
-    #expect(table.numberOfRows == 1)
+    try #require(table.numberOfRows == 1)
     let cell = try #require(
       table.view(atColumn: 0, row: 0, makeIfNecessary: true) as? NSTableCellView)
-    #expect(cell.textField?.stringValue == "extra")
+    #expect(cell.textField?.stringValue == added.title)
   }
 
   @Test func liveApplicationScanTimingWhenRequested() async throws {
@@ -246,8 +248,9 @@ struct CommandBarLauncherTests {
       _ = controller.control(
         field, textView: editor, doCommandBy: #selector(NSResponder.moveDown(_:)))
     }
-    try await Task.sleep(for: .milliseconds(150))
     let table = try #require(descendant(NSTableView.self, in: controller.panel?.contentView))
+    try await waitForRows(3, in: table)
+    try #require((0..<table.numberOfRows).contains(table.selectedRow))
     let cell = try #require(
       table.view(atColumn: 0, row: table.selectedRow, makeIfNecessary: true) as? NSTableCellView)
     #expect(cell.textField?.stringValue == (navigate ? "second" : "favorite"))
@@ -315,6 +318,16 @@ struct CommandBarLauncherTests {
             "launcher-\(language.rawValue)-\(appearance.rawValue).png"))
       }
     }
+  }
+
+  private func waitForRows(
+    _ count: Int, in table: NSTableView, sourceLocation: SourceLocation = #_sourceLocation
+  ) async throws {
+    let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+    while table.numberOfRows != count, ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(20))
+    }
+    try #require(table.numberOfRows == count, sourceLocation: sourceLocation)
   }
 
   private func fixture(id: String) -> AppCommand {
