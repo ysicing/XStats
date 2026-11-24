@@ -162,6 +162,7 @@ public struct MagpieUsageBucket: Decodable, Equatable, Sendable {
 
 public enum MagpieFailure: Error, Sendable, Equatable {
   case unavailable, invalidResponse, responseTooLarge, authenticationRequired, forbidden
+  case keychainUnavailable
 }
 
 public protocol MagpieFetching: Sendable {
@@ -203,9 +204,12 @@ public struct MagpieClient: MagpieFetching, Sendable {
   }
 
   public init(remoteURL: URL, gatewayKey: String) throws {
-    guard let endpoint = Self.remoteEndpoint(remoteURL.absoluteString),
-      !gatewayKey.isEmpty, gatewayKey.utf8.allSatisfy({ (33...126).contains($0) })
-    else { throw MagpieFailure.invalidResponse }
+    guard let endpoint = Self.remoteEndpoint(remoteURL.absoluteString) else {
+      throw MagpieFailure.invalidResponse
+    }
+    guard !gatewayKey.isEmpty, gatewayKey.utf8.allSatisfy({ (33...126).contains($0) }) else {
+      throw MagpieFailure.authenticationRequired
+    }
     self.init(validatedURL: endpoint, gatewayKey: gatewayKey)
   }
 

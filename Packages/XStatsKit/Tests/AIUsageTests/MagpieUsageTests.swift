@@ -203,6 +203,21 @@ struct MagpieUsageTests {
       local.request(path: "v1/magpie/quotas").value(forHTTPHeaderField: "Authorization") == nil)
   }
 
+  @Test(arguments: ["", "test gateway-key", "test-gateway-key\n"])
+  func invalidRemoteGatewayKeyRequiresAuthentication(_ gatewayKey: String) throws {
+    let endpoint = try #require(URL(string: "https://magpie.example.test"))
+    #expect(throws: MagpieFailure.authenticationRequired) {
+      try MagpieClient(remoteURL: endpoint, gatewayKey: gatewayKey)
+    }
+  }
+
+  @Test func invalidRemoteAddressIsAnInvalidResponse() throws {
+    let endpoint = try #require(URL(string: "ftp://magpie.example.test"))
+    #expect(throws: MagpieFailure.invalidResponse) {
+      try MagpieClient(remoteURL: endpoint, gatewayKey: "test-gateway-key")
+    }
+  }
+
   @Test(arguments: [
     "magpie.example.test", "ftp://magpie.example.test", "http://",
     "http://user@magpie.example.test", "https://magpie.example.test/?key=abc",

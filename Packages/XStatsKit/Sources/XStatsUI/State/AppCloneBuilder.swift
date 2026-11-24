@@ -289,6 +289,7 @@ enum AppCloneBuilder {
   private static let runtimeSource = #"""
     #import <Foundation/Foundation.h>
     #include <limits.h>
+    #include <os/log.h>
     #include <pwd.h>
     #include <unistd.h>
     #include <stdlib.h>
@@ -319,7 +320,11 @@ enum AppCloneBuilder {
         unsetenv("DYLD_INSERT_LIBRARIES");
         @autoreleasepool {
             NSString *endpoint = cloneProxyEndpoint(NSBundle.mainBundle);
-            if (!endpoint) _exit(1);
+            if (!endpoint) {
+                os_log_error(os_log_create("work.12306.xstats", "AppClone"),
+                    "Invalid clone proxy configuration. Refusing to launch.");
+                _exit(1);
+            }
             if (endpoint.length) {
                 NSDictionary<NSString *, NSString *> *settings = cloneProxyEnvironment(endpoint);
                 for (NSString *name in settings) setenv(name.UTF8String, settings[name].UTF8String, 1);
@@ -394,6 +399,7 @@ enum AppCloneBuilder {
     #include <libgen.h>
     #include <limits.h>
     #include <mach-o/dyld.h>
+    #include <os/log.h>
     #include <stdio.h>
     #include <stdlib.h>
     #include <unistd.h>
@@ -413,7 +419,11 @@ enum AppCloneBuilder {
         @autoreleasepool {
             const char *userData = CLONE_USER_DATA;
             NSString *endpoint = cloneProxyEndpoint(NSBundle.mainBundle);
-            if (!endpoint) return 1;
+            if (!endpoint) {
+                os_log_error(os_log_create("work.12306.xstats", "AppClone"),
+                    "Invalid clone proxy configuration. Refusing to launch.");
+                return 1;
+            }
             NSString *proxyArgument = CLONE_CHROMIUM_PROXY && endpoint.length
                 ? [@"--proxy-server=" stringByAppendingString:endpoint] : nil;
             char **arguments = calloc((size_t)argc + 5, sizeof(*arguments));

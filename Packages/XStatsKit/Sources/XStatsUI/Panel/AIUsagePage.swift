@@ -188,6 +188,7 @@ extension MagpieFailure {
     switch self {
     case .unavailable: tr("无法连接 Magpie，请确认它已运行。")
     case .authenticationRequired: tr("请检查 Magpie 网关密钥。")
+    case .keychainUnavailable: tr("无法访问 Magpie 钥匙串项目。")
     case .forbidden: tr("Magpie 网关密钥无权读取此数据。")
     case .invalidResponse, .responseTooLarge: tr("Magpie 数据无法读取，请检查版本或数据大小。")
     }
@@ -717,19 +718,24 @@ private struct MagpieSourceSettings: View {
     }
   }
 
-  private func configuredClient() throws -> (MagpieClient, String) {
+  private func configuredClient() throws -> (client: MagpieClient, enteredGatewayKey: String) {
     guard let endpoint = MagpieClient.remoteEndpoint(address) else {
       throw ConfigurationError.invalidAddress
     }
-    let credential = key.isEmpty ? try MagpieInstallation.gatewayKey(for: endpoint) : key
-    return (try MagpieClient(remoteURL: endpoint, gatewayKey: credential), credential)
+    let enteredGatewayKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
+    let gatewayKey =
+      enteredGatewayKey.isEmpty
+      ? try MagpieInstallation.gatewayKey(for: endpoint) : enteredGatewayKey
+    return (try MagpieClient(remoteURL: endpoint, gatewayKey: gatewayKey), enteredGatewayKey)
   }
 
   private func save() {
     do {
       if remote {
-        let (client, credential) = try configuredClient()
-        if !key.isEmpty { try MagpieInstallation.saveGatewayKey(credential, for: client.baseURL) }
+        let (client, enteredGatewayKey) = try configuredClient()
+        if !enteredGatewayKey.isEmpty {
+          try MagpieInstallation.saveGatewayKey(enteredGatewayKey, for: client.baseURL)
+        }
         model.aiUsage.switchMagpieSource(to: client.baseURL, client: client)
         key = ""
       } else if localAvailable == true {
@@ -763,8 +769,10 @@ private struct MagpieSourceSettings: View {
   private func errorMessage(_ error: any Error) -> String {
     switch error {
     case ConfigurationError.invalidAddress: tr("请输入有效的 HTTP 或 HTTPS 网关地址。")
-    case MagpieInstallation.GatewayKeyError.keychain: tr("无法访问 Magpie 钥匙串项目。")
-    case MagpieInstallation.GatewayKeyError.missingKey: tr("请检查 Magpie 网关密钥。")
+    case MagpieInstallation.GatewayKeyError.keychain:
+      MagpieFailure.keychainUnavailable.connectionMessage
+    case MagpieInstallation.GatewayKeyError.missingKey:
+      MagpieFailure.authenticationRequired.connectionMessage
     case let failure as MagpieFailure: failure.connectionMessage
     default: MagpieFailure.unavailable.connectionMessage
     }

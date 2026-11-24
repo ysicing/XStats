@@ -173,10 +173,15 @@ public final class AIUsageController {
       }
       if let remoteMagpieClient { await refreshMagpie(remoteMagpieClient) }
     } catch {
-      magpieQuotaFailure = .authenticationRequired
+      let failure: MagpieFailure =
+        switch error {
+        case MagpieInstallation.GatewayKeyError.keychain: .keychainUnavailable
+        default: .authenticationRequired
+        }
+      magpieQuotaFailure = failure
       if settings.aiUsageShowsLocalUsage {
-        magpieUsageFailures[.daily] = .authenticationRequired
-        magpieUsageFailures[magpiePeriod] = .authenticationRequired
+        magpieUsageFailures[.daily] = failure
+        magpieUsageFailures[magpiePeriod] = failure
       }
       lastAttemptAt = now()
     }
