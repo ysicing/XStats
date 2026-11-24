@@ -1,19 +1,15 @@
 {
-  "version": "1.6.6",
+  "version": "1.6.7",
   "sourceNotes": [
-    "实验性应用分身扩展至浏览器、编辑器、AI 客户端及影音应用，支持为每个分身单独配置代理",
-    "AI 用量支持连接远端 Magpie，并按可用性切换本机数据源",
-    "启动项新增运行详情与日志查看，便于排查后台项目",
-    "加强应用分身来源校验",
-    "区分远端 Magpie 的认证与钥匙串错误，提供对应提示"
+    "新增默认关闭的实验性监控大屏，支持在局域网浏览器查看实时指标，并提供只读 MCP 入口",
+    "大屏支持多语言、明暗切换，以及农历、节气、节假日与调休提示",
+    "修复部分应用分身更新后因扩展属性丢失导致签名校验失败的问题"
   ],
   "translations": {
     "en": [
-      "Expands experimental app cloning to browsers, editors, AI clients, and media apps, with a separate proxy setting for each clone. Proxy support depends on the app; authenticated proxies are not supported.",
-      "AI usage can connect to a remote Magpie service and select available local data sources.",
-      "Adds runtime details and log viewing for startup items to help troubleshoot background services.",
-      "Strengthens clone source validation, checks whether profile data is in use before updating or deleting a clone, and prevents concurrent builds from removing each other's files.",
-      "Distinguishes remote Magpie authentication errors from Keychain errors and shows the corresponding message."
+      "Adds an experimental monitoring dashboard, off by default, for live metrics in a local-network browser and a read-only MCP endpoint. Tailscale access to both endpoints is optional.",
+      "The dashboard supports multiple languages, light and dark appearance, and lunar dates, solar terms, holidays, and adjusted working days.",
+      "Fixes signature validation failures after updating some app clones caused by losing extended attributes."
     ]
   }
 }

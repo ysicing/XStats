@@ -232,7 +232,7 @@ AI 用量可自动连接本机 Magpie，也可手动配置远端 Magpie。Token 
 <!-- changelog:start -->
 <!-- 由 scripts/sync_changelog.py 从 CHANGELOG.md 生成，请勿手改。 -->
 
-最新版本 **1.6.6**（2026-11-24） · [完整更新日志](CHANGELOG.md)
+最新版本 **1.6.7**（2026-11-24） · [完整更新日志](CHANGELOG.md)
 
 <!-- changelog:end -->
 
