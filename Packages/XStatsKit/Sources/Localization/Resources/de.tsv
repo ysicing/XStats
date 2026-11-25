@@ -826,6 +826,12 @@ Telegram（原生 Swift）	Telegram (nativ, Swift)
 显示项目	Elemente
 暂时没有拿到评分，稍后会再试	Noch keine Bewertung verfügbar; später wird erneut versucht
 更新内容	Neuerungen
+仅显示最近 {} 个版本	Nur die letzten {} Versionen werden angezeigt
+新增功能	Neue Funktionen
+功能改进	Verbesserungen
+问题修复	Fehlerbehebungen
+已废弃	Veraltet
+已移除	Entfernt
 更省电，负责后台和轻量任务	Sparsamer; übernimmt leichte Aufgaben und Hintergrundarbeit
 替换应用失败：{}	App konnte nicht ersetzt werden: {}
 最低 {} · 最高 {} · 目标 {} RPM	Min. {} · Max. {} · Ziel {} U/min

@@ -16,10 +16,74 @@ import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
-from sparkle_appcast import NOTE_LANGUAGES, ROOT, SPARKLE, XML_LANG, XSTATS, load_localized_notes, load_manifest, make_feed, verify_feed
+from sparkle_appcast import NOTE_LANGUAGES, ROOT, SPARKLE, XML_LANG, XSTATS, load_localized_notes, load_manifest, make_feed, release_history, verify_feed
 
 
 class SparkleAppcastTests(unittest.TestCase):
+    def test_signed_history_keeps_categories_source_order_and_target_boundary(self):
+        changelog = """## 未发布
+### 新增
+- pending
+## 0.5.10 · 2026-01-10
+### 新增
+- future
+## 0.5.6 · 2026-01-06
+### 修复
+- fix & <escape>
+### 已废弃
+- old feature
+- another feature
+## 0.5.4 · 2026-01-04
+### 移除
+- former option
+"""
+        notes = ["fix & <escape>", "old feature", "another feature"]
+        localized = {"zh-Hans": notes, "en": ["fix", "first", "second"]}
+        with patch("sparkle_appcast.archived_translations", return_value={"former option": "removed"}):
+            history = release_history(changelog, "0.5.6", localized)
+        releases = json.loads(history["history"])
+        self.assertEqual([release["version"] for release in releases], ["0.5.6", "0.5.4"])
+        self.assertEqual([entry["category"] for entry in releases[0]["entries"]], ["fixed", "deprecated", "deprecated"])
+        self.assertEqual([entry["en"] for entry in releases[0]["entries"]], ["fix", "first", "second"])
+        self.assertEqual(releases[1]["entries"], [{"category": "removed", "zh": "former option", "en": "removed"}])
+        feed = {"version": "0.5.6", "build": "6", "minimumSystem": "14.0", "notes": notes,
+                "url": "https://example.test/update.zip", "size": 42}
+        signature = base64.b64encode(b"s" * 64).decode()
+        with tempfile.TemporaryDirectory() as directory, patch("sparkle_appcast.run_tool"):
+            xml = Path(directory) / "update.xml"
+            xml.write_bytes(make_feed(feed, signature, localized, history))
+            verify_feed(feed, xml, Path("archive"), Path("tools"), "test", localized, history)
+            xml.write_bytes(make_feed(feed, signature, localized, {"history": "[]"}))
+            with self.assertRaisesRegex(ValueError, "更新历史"):
+                verify_feed(feed, xml, Path("archive"), Path("tools"), "test", localized, history)
+
+    def test_history_caps_versions_before_loading_translations(self):
+        changelog = "\n".join(
+            f"## 0.5.{patch_version} · 2026-01-06\n### 新增\n- first\n- second\n"
+            for patch_version in range(1, 13)
+        )
+        localized = {"zh-Hans": ["first", "second"], "en": ["one", "two"]}
+        with patch("sparkle_appcast.archived_translations", return_value={}) as translate:
+            at_limit = release_history(changelog, "0.5.10", localized)
+            self.assertNotIn("newest-omitted-version", at_limit)
+            translate.reset_mock()
+            history = release_history(changelog, "0.5.11", localized)
+        releases = json.loads(history["history"])
+        self.assertEqual([release["version"] for release in releases], [f"0.5.{n}" for n in range(11, 1, -1)])
+        self.assertTrue(all([entry["zh"] for entry in release["entries"]] == ["first", "second"] for release in releases))
+        self.assertEqual(history["newest-omitted-version"], "0.5.1")
+        self.assertEqual([call.args[0] for call in translate.call_args_list], [f"0.5.{n}" for n in range(10, 1, -1)])
+        feed = {"version": "0.5.11", "build": "11", "minimumSystem": "14.0", "notes": localized["zh-Hans"],
+                "url": "https://example.test/update.zip", "size": 42}
+        signature = base64.b64encode(b"s" * 64).decode()
+        with tempfile.TemporaryDirectory() as directory, patch("sparkle_appcast.run_tool"):
+            xml = Path(directory) / "update.xml"
+            xml.write_bytes(make_feed(feed, signature, localized, history))
+            verify_feed(feed, xml, Path("archive"), Path("tools"), "test", localized, history)
+            xml.write_bytes(make_feed(feed, signature, localized, {**history, "newest-omitted-version": "0.5.2"}))
+            with self.assertRaisesRegex(ValueError, "更新历史"):
+                verify_feed(feed, xml, Path("archive"), Path("tools"), "test", localized, history)
+
     def test_main_archive_does_not_require_network_extension(self):
         with tempfile.TemporaryDirectory() as directory:
             archive = Path(directory) / "main.zip"

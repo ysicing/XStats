@@ -2,6 +2,27 @@ import Foundation
 
 /// 更新 API 返回的版本清单；发版时由 scripts/appcast.py 生成并由 scripts/publish_release.sh 提交
 public struct UpdateRelease: Codable, Sendable, Equatable {
+  public enum NoteCategory: String, Codable, Sendable, CaseIterable {
+    case added, improved, fixed, deprecated, removed
+  }
+
+  public struct HistoryVersion: Codable, Sendable, Equatable {
+    public struct Entry: Codable, Sendable, Equatable {
+      let category: NoteCategory
+      let zh: String
+      let en: String?
+    }
+    let version: String
+    let entries: [Entry]
+  }
+
+  public struct NoteGroup: Sendable {
+    public let category: NoteCategory
+    public let items: [(version: String, text: String)]
+  }
+
+  public let history: [HistoryVersion]?
+  public let newestOmittedVersion: String?
   /// 包内网络扩展独立版本；只从已签名更新清单读取。
   public struct NetworkExtension: Codable, Sendable, Equatable {
     public let version: String
@@ -33,7 +54,8 @@ public struct UpdateRelease: Codable, Sendable, Equatable {
   public init(
     version: String, build: String, date: String, minimumSystem: String, url: URL, sha256: String,
     size: Int64, dmg: URL?, notes: [String], changelog: URL?, intel: UpdateAsset? = nil,
-    englishNotes: [String]? = nil, networkExtension: NetworkExtension? = nil
+    englishNotes: [String]? = nil, networkExtension: NetworkExtension? = nil,
+    history: [HistoryVersion]? = nil, newestOmittedVersion: String? = nil
   ) {
     self.version = version
     self.build = build
@@ -45,6 +67,8 @@ public struct UpdateRelease: Codable, Sendable, Equatable {
     self.dmg = dmg
     self.notes = notes
     self.englishNotes = englishNotes
+    self.history = history
+    self.newestOmittedVersion = newestOmittedVersion
     self.changelog = changelog
     self.intel = intel
     self.networkExtension = networkExtension
@@ -55,6 +79,34 @@ public struct UpdateRelease: Codable, Sendable, Equatable {
     if languageCode == "zh" || languageCode.hasPrefix("zh-") { return notes }
     guard let englishNotes, !englishNotes.isEmpty else { return notes }
     return englishNotes
+  }
+
+  public func historyLimit(since current: String) -> Int? {
+    guard let newestOmittedVersion, UpdateFeed.isNewer(newestOmittedVersion, than: current) else {
+      return nil
+    }
+    return history?.count
+  }
+
+  /// 只有实际跨过多个发布版本时才合并；单版本或旧清单仍显示原发布摘要。
+  public func noteGroups(since current: String, languageCode: String) -> [NoteGroup] {
+    guard let history else { return [] }
+    let releases = history.filter {
+      !$0.entries.isEmpty && UpdateFeed.isNewer($0.version, than: current)
+        && !UpdateFeed.isNewer($0.version, than: version)
+    }.sorted { UpdateFeed.isNewer($0.version, than: $1.version) }
+    guard releases.count > 1, releases.first?.version == version else { return [] }
+    let chinese = languageCode == "zh" || languageCode.hasPrefix("zh-")
+    var items: [NoteCategory: [(version: String, text: String)]] = [:]
+    for release in releases {
+      for entry in release.entries {
+        items[entry.category, default: []].append(
+          (release.version, chinese ? entry.zh : entry.en ?? entry.zh))
+      }
+    }
+    return NoteCategory.allCases.compactMap { category in
+      items[category].map { NoteGroup(category: category, items: $0) }
+    }
   }
 }
 
@@ -181,7 +233,8 @@ public enum UpdateFeed {
         version: release.version, build: release.build, date: release.date,
         minimumSystem: release.minimumSystem, url: intel.url, sha256: intel.sha256,
         size: intel.size, dmg: intel.dmg, notes: release.notes, changelog: release.changelog,
-        intel: intel, englishNotes: release.englishNotes)
+        intel: intel, englishNotes: release.englishNotes, history: release.history,
+        newestOmittedVersion: release.newestOmittedVersion)
     }
   }
 

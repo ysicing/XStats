@@ -281,13 +281,17 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
       .components(separatedBy: "\n").filter {
         !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       }
+    let history = (properties["xstats:history"] as? String).flatMap {
+      try? JSONDecoder().decode([UpdateRelease.HistoryVersion].self, from: Data($0.utf8))
+    }
     return UpdateRelease(
       version: item.displayVersionString, build: item.versionString,
       date: properties["xstats:date"] as? String ?? "",
       minimumSystem: item.minimumSystemVersion ?? "14.0", url: url,
       sha256: properties["xstats:sha256"] as? String ?? "", size: Int64(item.contentLength),
       dmg: dmg, notes: notes, changelog: item.fullReleaseNotesURL,
-      englishNotes: englishNotes, networkExtension: networkExtension)
+      englishNotes: englishNotes, networkExtension: networkExtension, history: history,
+      newestOmittedVersion: properties["xstats:newest-omitted-version"] as? String)
   }
 
   @objc(updaterWillRelaunchApplication:)

@@ -784,6 +784,8 @@ xcrun notarytool store-credentials XStats --apple-id you@example.com --team-id Y
 发版前将 `CHANGELOG.md` 顶部的 `## 未发布` 替换为 `## X.Y.Z · YYYY-MM-DD`，
 同步 `docs/ReleaseNotes.json` 的中英文摘要，并把四个 README 中“开发中”“即将随 X.Y 发布”等预发布说明改为已发布状态。
 公开版本取自 CHANGELOG，构建号由脚本递增；`project.yml` 的版本字段由脚本更新。
+主程序签名 XML 从 `CHANGELOG.md` 保留含目标版本在内最近 10 个版本的分类条目，并记录被省略的最新版本，以便客户端判断是否提示查看完整日志。
+构建和发布核验使用相同的历史 `vX.Y.Z` 标签读取已发布英文摘要，缺少译文的历史条目显示中文原文。
 
 源码改动先提交并推送；构建前只保留允许的版本元数据改动。完整发布命令：
 

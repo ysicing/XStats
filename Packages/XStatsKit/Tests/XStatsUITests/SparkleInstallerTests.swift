@@ -380,6 +380,53 @@ struct SparkleInstallerTests {
     #expect(candidate.notes(for: "unsupported") == ["English-first", "English-second"])
   }
 
+  @Test func crossVersionNotesUseTheInstalledRangeAndStableCategoryOrder() throws {
+    var fields = try item(release()).propertiesDictionary
+    fields["sparkle:shortVersionString"] = "0.5.10"
+    fields["xstats:history"] = """
+      [
+        {"version":"0.5.4","entries":[{"category":"added","zh":"四"}]},
+        {"version":"0.5.3","entries":[{"category":"improved","zh":"installed"}]},
+        {"version":"0.5.11","entries":[{"category":"improved","zh":"future"}]},
+        {"version":"0.5.10","entries":[{"category":"fixed","zh":"修复","en":"fix"},
+          {"category":"added","zh":"甲","en":"first"},{"category":"added","zh":"乙","en":"second"}]}
+      ]
+      """
+    let candidate = try SparkleInstaller.release(from: #require(SUAppcastItem(dictionary: fields)))
+    #expect(candidate.historyLimit(since: "0.5.2") == nil)
+    let groups = candidate.noteGroups(since: "0.5.3", languageCode: "de")
+    #expect(groups.map(\.category) == [.added, .fixed])
+    let first = try #require(groups.first)
+    #expect(first.items.map(\.version) == ["0.5.10", "0.5.10", "0.5.4"])
+    #expect(first.items.map(\.text) == ["first", "second", "四"])
+    #expect(
+      candidate.noteGroups(since: "0.5.3", languageCode: "zh-Hant").first?.items.map(\.text) == [
+        "甲", "乙", "四",
+      ])
+    #expect(candidate.noteGroups(since: "0.5.4", languageCode: "en").isEmpty)
+    #expect(candidate.noteGroups(since: "0.5.10", languageCode: "en").isEmpty)
+    fields["xstats:history"] = "invalid"
+    let fallback = try SparkleInstaller.release(from: #require(SUAppcastItem(dictionary: fields)))
+    #expect(fallback.history == nil)
+    #expect(fallback.notes == ["test", "second line"])
+  }
+
+  @Test func historyLimitIsShownOnlyWhenTheUpgradeIncludesAnOmittedVersion() throws {
+    var fields = try item(release()).propertiesDictionary
+    fields["sparkle:shortVersionString"] = "0.5.15"
+    fields["xstats:newest-omitted-version"] = "0.5.5"
+    fields["xstats:history"] =
+      "["
+      + (6...15).map { patch in
+        #"{"version":"0.5.\#(patch)","entries":[{"category":"added","zh":"新增"}]}"#
+      }.joined(separator: ",") + "]"
+    let candidate = try SparkleInstaller.release(from: #require(SUAppcastItem(dictionary: fields)))
+    #expect(candidate.historyLimit(since: "0.5.4") == 10)
+    #expect(candidate.historyLimit(since: "0.5.5") == nil)
+    #expect(candidate.historyLimit(since: "0.5.6") == nil)
+    #expect(candidate.noteGroups(since: "0.5.4", languageCode: "zh").first?.items.count == 10)
+  }
+
   @Test func backgroundDismissesWithoutDownloadingAndMigratesLegacySkipThroughSparkle() throws {
     var found: [String] = []
     var phases: [UpdateController.Phase] = []

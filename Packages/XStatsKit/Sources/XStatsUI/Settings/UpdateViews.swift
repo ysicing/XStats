@@ -10,23 +10,22 @@ import Updates
 
 /// 新版本信息：版本号、日期、体积与更新摘要，升级提示窗口与“关于”页共用
 struct ReleaseSummary: View {
-  @Environment(AppModel.self) private var model
   let release: UpdateRelease
   let currentVersion: String
+  let language: AppLanguage
   /// 升级提示窗口里限制摘要区高度，超出时滚动；关于页里完整展开
-  var notesHeight: CGFloat?
+  var limitsNotesHeight = false
   var showsHeader = true
 
   var body: some View {
     VStack(alignment: .leading, spacing: DS.Space.s3) {
       if showsHeader { header }
 
-      Text(tr("更新内容")).dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textSecondary)
       notes
     }
     .environment(
       \.layoutDirection,
-      model.settings.language.resolved.isRightToLeft ? .rightToLeft : .leftToRight)
+      language.isRightToLeft ? .rightToLeft : .leftToRight)
   }
 
   private var header: some View {
@@ -50,43 +49,97 @@ struct ReleaseSummary: View {
 
   @ViewBuilder
   private var notes: some View {
-    let list = VStack(alignment: .leading, spacing: DS.Space.s2) {
-      MainActorForEach(
-        Array(release.notes(for: model.settings.language.resolved.languageCode).enumerated()),
-        id: \.offset
-      ) { _, note in
-        HStack(alignment: .firstTextBaseline, spacing: DS.Space.s2) {
-          Circle().fill(DS.Palette.primary).frame(
-            width: DS.Space.s1 + DS.Space.s1 / 2, height: DS.Space.s1 + DS.Space.s1 / 2
-          )
-          .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + DS.Space.s1 }
-          Text(note).dsFont(.sm).foregroundStyle(DS.Palette.textPrimary)
-            .fixedSize(horizontal: false, vertical: true)
+    let groups = release.noteGroups(since: currentVersion, languageCode: language.languageCode)
+    let limit = groups.isEmpty ? nil : release.historyLimit(since: currentVersion)
+    if groups.isEmpty {
+      Text(tr("更新内容")).dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textSecondary)
+    }
+    if let limit {
+      let count = limit.formatted(.number.locale(L10n.locale(for: language)))
+      let message = Text(L10n.translate("仅显示最近 \(count) 个版本", language: language))
+        .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: DS.Space.s2) {
+          message
+          if let url = release.changelog { changelogLink(url) }
         }
-        // 更新摘要只使用中英文，在阿拉伯语界面中也沿用从左到右的阅读方向。
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .environment(\.layoutDirection, .leftToRight)
+        VStack(alignment: .leading, spacing: DS.Space.s1) {
+          message
+          if let url = release.changelog { changelogLink(url) }
+        }
       }
-      if let changelog = release.changelog {
-        Button {
-          NSWorkspace.shared.open(changelog)
-        } label: {
-          Text(tr("查看完整更新日志")).dsFont(.sm, weight: .medium).foregroundStyle(DS.Palette.primary)
+    }
+    let list = VStack(alignment: .leading, spacing: DS.Space.s2) {
+      if groups.isEmpty {
+        MainActorForEach(
+          Array(release.notes(for: language.languageCode).enumerated()), id: \.offset
+        ) { _, note in
+          noteRow(note)
         }
-        .buttonStyle(.plain)
+      } else {
+        MainActorForEach(groups, id: \.category) { group in
+          VStack(alignment: .leading, spacing: DS.Space.s1) {
+            Text(group.category.title(in: language)).dsFont(.sm, weight: .semibold)
+            MainActorForEach(Array(group.items.enumerated()), id: \.offset) { _, item in
+              noteRow(item.text, version: item.version)
+            }
+          }
+        }
+      }
+      if limit == nil, let url = release.changelog {
+        changelogLink(url)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
 
-    if let notesHeight {
+    if limitsNotesHeight {
       ViewThatFits(in: .vertical) {
         list.padding(DS.Space.s3)
         ScrollView { list.padding(DS.Space.s3).overlayScrollers() }
       }
-      .frame(maxHeight: notesHeight)
+      .frame(
+        maxHeight: groups.isEmpty ? DS.Size.updateNotesHeight : DS.Size.groupedUpdateNotesHeight
+      )
       .background(DS.Palette.surface, in: RoundedRectangle(cornerRadius: DS.Radius.md))
     } else {
       list
+    }
+  }
+
+  private func changelogLink(_ url: URL) -> some View {
+    Button {
+      NSWorkspace.shared.open(url)
+    } label: {
+      Text(L10n.translate("查看完整更新日志", language: language))
+        .dsFont(.sm, weight: .medium).foregroundStyle(DS.Palette.primary)
+    }
+    .buttonStyle(.plain)
+  }
+
+  private func noteRow(_ note: String, version: String? = nil) -> some View {
+    HStack(alignment: .firstTextBaseline, spacing: DS.Space.s2) {
+      Circle().fill(DS.Palette.primary).frame(
+        width: DS.Space.s1 + DS.Space.s1 / 2, height: DS.Space.s1 + DS.Space.s1 / 2
+      )
+      .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + DS.Space.s1 }
+      let body = Text(verbatim: note).dsFont(.sm).foregroundColor(DS.Palette.textPrimary)
+      let suffix = Text(verbatim: version.map { "  \($0)" } ?? "")
+        .dsFont(.xs).foregroundColor(DS.Palette.textSecondary)
+      Text("\(body)\(suffix)").fixedSize(horizontal: false, vertical: true)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .environment(\.layoutDirection, .leftToRight)
+  }
+}
+
+extension UpdateRelease.NoteCategory {
+  fileprivate func title(in language: AppLanguage) -> String {
+    switch self {
+    case .added: L10n.translate("新增功能", language: language)
+    case .improved: L10n.translate("功能改进", language: language)
+    case .fixed: L10n.translate("问题修复", language: language)
+    case .deprecated: L10n.translate("已废弃", language: language)
+    case .removed: L10n.translate("已移除", language: language)
     }
   }
 }
@@ -139,7 +192,8 @@ struct UpdatePromptView: View {
       if let release = updates.release {
         ReleaseSummary(
           release: release, currentVersion: updates.currentVersion,
-          notesHeight: DS.Size.updateNotesHeight)
+          language: model.settings.language.resolved,
+          limitsNotesHeight: true)
       }
       UpdateProgress()
       HStack(spacing: DS.Space.s2) {
@@ -222,7 +276,8 @@ struct UpdateSettings: View {
         GroupRow {
           VStack(alignment: .leading, spacing: DS.Space.s3) {
             ReleaseSummary(
-              release: release, currentVersion: updates.currentVersion, showsHeader: false)
+              release: release, currentVersion: updates.currentVersion,
+              language: settings.language.resolved, showsHeader: false)
             UpdateProgress()
             HStack {
               Spacer()

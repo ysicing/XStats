@@ -20,6 +20,7 @@ XSTATS = "https://github.com/ysicing/xstats/appcast"
 XML_LANG = "{http://www.w3.org/XML/1998/namespace}lang"
 # 更新摘要只提供中英文；所有中文语言使用简体中文，其余语言使用英文。
 NOTE_LANGUAGES = ("en", "zh-Hans")
+HISTORY_VERSION_LIMIT = 10
 ET.register_namespace("sparkle", SPARKLE)
 ET.register_namespace("xstats", XSTATS)
 ROOT = Path(__file__).resolve().parent.parent
@@ -115,7 +116,59 @@ def load_localized_notes(feed: dict, path: Path = ROOT / "docs/ReleaseNotes.json
     return {"zh-Hans": feed["notes"], **translations}
 
 
-def make_feed(feed: dict, signature: str, localized_notes: dict[str, list[str]] | None = None) -> bytes:
+def archived_translations(version: str) -> dict[str, str]:
+    # 旧版本的摘要曾放在仓库根目录；更早的发布只有中文。
+    for path in ("docs/ReleaseNotes.json", "ReleaseNotes.json"):
+        result = subprocess.run(["git", "show", f"v{version}:{path}"], cwd=ROOT, capture_output=True)
+        if result.returncode == 0:
+            source = json.loads(result.stdout)
+            if source["version"] == version:
+                return dict(zip(source["sourceNotes"], source["translations"]["en"], strict=True))
+    return {}
+
+
+def release_history(changelog: str, target: str, localized: dict[str, list[str]]) -> dict[str, str]:
+    from appcast import summarize
+    from sync_changelog import parse
+
+    categories = {"新增": "added", "改进": "improved", "修复": "fixed", "废弃": "deprecated", "移除": "removed",
+                  "新增功能": "added", "功能改进": "improved", "问题修复": "fixed", "已废弃": "deprecated", "已移除": "removed"}
+    target_parts = tuple(map(int, target.split(".")))
+    releases = []
+    for release in parse(changelog):
+        if release["version"]:
+            parts = tuple(map(int, release["version"].split(".")))
+            if parts <= target_parts:
+                releases.append((parts, release))
+    releases.sort(key=lambda pair: pair[0], reverse=True)
+    if not releases or releases[0][1]["version"] != target:
+        raise ValueError(f"更新历史缺少目标版本 {target}")
+    history = []
+    for _, release in releases[:HISTORY_VERSION_LIMIT]:
+        version = release["version"]
+        translated = (dict(zip(localized["zh-Hans"], localized["en"], strict=True)) if version == target
+                      else archived_translations(version))
+        entries = []
+        for day in release["days"]:
+            for group in day["groups"]:
+                category = categories.get(group["kind"])
+                if category is None:
+                    raise ValueError(f"{version} 的更新分类无法识别：{group['kind']}")
+                for item in group["items"]:
+                    summary = summarize(item)
+                    entry = {"category": category, "zh": summary}
+                    if summary in translated:
+                        entry["en"] = translated[summary]
+                    entries.append(entry)
+        history.append({"version": version, "entries": entries})
+    fields = {"history": json.dumps(history, ensure_ascii=False, separators=(",", ":"))}
+    if len(releases) > HISTORY_VERSION_LIMIT:
+        fields["newest-omitted-version"] = releases[HISTORY_VERSION_LIMIT][1]["version"]
+    return fields
+
+
+def make_feed(feed: dict, signature: str, localized_notes: dict[str, list[str]] | None = None,
+              history: dict[str, str] | None = None) -> bytes:
     if len(base64.b64decode(signature, validate=True)) != 64:
         raise ValueError("无效的 Ed25519 更新包签名")
     rss = ET.Element("rss", {"version": "2.0"})
@@ -138,6 +191,8 @@ def make_feed(feed: dict, signature: str, localized_notes: dict[str, list[str]] 
         ET.SubElement(item, "description", {XML_LANG: language, f"{{{SPARKLE}}}format": "plain-text"}).text = text
         # Sparkle 只留下系统偏好对应的 description；保留各语言原文供应用内即时切换。
         ET.SubElement(item, f"{{{XSTATS}}}notes-{language}").text = text
+    for field, value in (history or {}).items():
+        ET.SubElement(item, f"{{{XSTATS}}}{field}").text = value
     for field in ("date", "dmg", "sha256"):
         if feed.get(field):
             ET.SubElement(item, f"{{{XSTATS}}}{field}").text = feed[field]
@@ -157,13 +212,19 @@ def make_feed(feed: dict, signature: str, localized_notes: dict[str, list[str]] 
     return data
 
 
-def verify_feed(feed: dict, xml: Path, archive: Path, tools: Path, account: str, localized_notes: dict[str, list[str]] | None = None) -> None:
+def verify_feed(feed: dict, xml: Path, archive: Path, tools: Path, account: str,
+                localized_notes: dict[str, list[str]] | None = None,
+                history: dict[str, str] | None = None) -> None:
     if xml.stat().st_size > 256 * 1024:
         raise ValueError("签名后的 Sparkle XML 超过后端读取上限 256 KiB")
     items = ET.parse(xml).getroot().findall("channel/item")
     if len(items) != 1:
         raise ValueError("Sparkle XML 必须只包含一个版本条目")
     item = items[0]
+    for field in ("history", "newest-omitted-version"):
+        value = (history or {}).get(field)
+        if [node.text for node in item.findall(f"{{{XSTATS}}}{field}")] != ([] if value is None else [value]):
+            raise ValueError("Sparkle XML 的跨版本更新历史与发布来源不一致")
     if item.findtext(f"{{{SPARKLE}}}hardwareRequirements") != "arm64":
         raise ValueError("Sparkle XML 的架构必须为 arm64")
     for field, element in (("build", "version"), ("version", "shortVersionString"), ("minimumSystem", "minimumSystemVersion")):
@@ -217,12 +278,15 @@ def main() -> None:
         raise ValueError("签名账户的公钥与应用 SUPublicEDKey 不一致")
     feed = load_manifest(arguments.manifest, arguments.archive)
     localized_notes = load_localized_notes(feed, arguments.notes_file)
+    history = None
+    if feed.get("bundleIdentifier", "work.12306.xstats.app") == "work.12306.xstats.app":
+        history = release_history((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), feed["version"], localized_notes)
     xml = arguments.output or arguments.archive.with_suffix(".xml")
     if not arguments.verify:
         signature = run_tool(tools / "sign_update", "--account", account, "-p", str(arguments.archive))
-        xml.write_bytes(make_feed(feed, signature, localized_notes))
+        xml.write_bytes(make_feed(feed, signature, localized_notes, history))
         run_tool(tools / "sign_update", "--account", account, str(xml))
-    verify_feed(feed, xml, arguments.archive, tools, account, localized_notes)
+    verify_feed(feed, xml, arguments.archive, tools, account, localized_notes, history)
     print(f"Sparkle 更新源已核验：{xml.name}")
 
 

@@ -18,7 +18,7 @@ Write a short, user-facing summary for the next macOS app release. `CHANGELOG.md
 
 ## Write the summary
 
-- Summarize externally visible outcomes, not implementation steps or every commit. Group by `### 新增`, `### 改进`, `### 修复`, and `### 移除` as applicable; omit empty groups. Use `移除` only for an actual removed capability, not a renamed or temporarily unavailable one.
+- Summarize externally visible outcomes. Use `### 新增`, `### 改进`, `### 修复`, `### 废弃`, and `### 移除` for nonempty categories. Use `废弃` for a capability still available but discouraged and `移除` when it has been removed.
 - Keep each item concise and factual. Merge related commits into one benefit or behavior change; retain important compatibility, data-handling, and user-action changes. Exclude internal-only refactors, CI, build, and release mechanics unless they directly affect users.
 - Draft under `## 未发布` during development. For an authorized release with a determined version, make the first `##` heading `## X.Y.Z · YYYY-MM-DD` and keep older versions unchanged. Do not leave `## 未发布` above the formal heading: release scripts parse the first level-two heading as the version.
 - For a new release, update `docs/ReleaseNotes.json` with the same version and generated Chinese `sourceNotes`, then write matching English summaries in `translations.en`. Both Chinese app languages show the Chinese source; all other languages show English. Translate only the current release; keep the same item order and count, and do not use live machine translation in the client. Verify wording against the Chinese source.

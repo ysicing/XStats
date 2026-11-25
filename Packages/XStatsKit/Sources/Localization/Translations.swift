@@ -1473,6 +1473,12 @@ extension Translations {
     显示项目	Items
     暂时没有拿到评分，稍后会再试	No score yet; it will try again later
     更新内容	What's New
+    仅显示最近 {} 个版本	Showing only the latest {} releases
+    新增功能	New Features
+    功能改进	Improvements
+    问题修复	Bug Fixes
+    已废弃	Deprecated
+    已移除	Removed
     更省电，负责后台和轻量任务	More efficient; handles background and light work
     替换应用失败：{}	Failed to replace the app: {}
     最低 {} · 最高 {} · 目标 {} RPM	Min {} · Max {} · Target {} RPM

@@ -209,6 +209,7 @@ extension DS {
     /// 升级提示窗口
     static let updateWindowWidth: CGFloat = 480
     static let updateNotesHeight: CGFloat = 192
+    static let groupedUpdateNotesHeight: CGFloat = 320
     static let valueColumn: CGFloat = 64
     static let labelColumn: CGFloat = 48
   }

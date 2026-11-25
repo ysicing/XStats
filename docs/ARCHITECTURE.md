@@ -436,6 +436,16 @@ English summaries are validated against release sources. Local release gates cov
 full tests, source provenance, signing, notarization, Gatekeeper, public hashes and
 update endpoints. GitHub Actions is asynchronous and is not a release gate.
 
+The main app's signed XML also carries grouped entries from the latest ten
+releases in `CHANGELOG.md`, including the offered version. The generator matches
+summaries to the current English translations and to translations in previous
+release tags. Entries without a published translation use Chinese. For upgrades
+spanning multiple releases the prompt and About page filter out the installed
+version, group changes by type and show newer releases first. A signed version
+boundary lets both views show a notice and a link above the list only when the
+upgrade spans omitted releases.
+Single-release upgrades and older feeds use the ordinary release summary.
+
 Update requests include the product version and hashed installation identifier.
 Existing random identities remain stable; new ones hash the local serial or use a
 saved random fallback. Raw serials are not sent and identifiers are excluded from

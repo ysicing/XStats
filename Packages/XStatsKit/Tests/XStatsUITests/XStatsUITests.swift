@@ -16,6 +16,45 @@ private func isolatedDefaults() -> UserDefaults {
 
 @MainActor
 @Suite struct UpdatePromptLayoutTests {
+  @Test func groupedHistoryWrapsAndKeepsThePromptBounded() throws {
+    let source = """
+      {"version":"0.5.6","build":"6","date":"2026-01-06","minimumSystem":"14.0",
+       "url":"https://example.test/update.zip","sha256":"\(String(repeating: "a", count: 64))",
+       "size":100,"notes":["latest"],"newestOmittedVersion":"0.5.3",
+       "changelog":"https://example.test/changelog","history":[
+       {"version":"0.5.6","entries":[{"category":"added","zh":"支持在菜单栏查看实时网速。","en":"Show live network speed in the menu bar."},
+        {"category":"fixed","zh":"修复唤醒后网速偶尔显示为零的问题。","en":"Restore the network speed indicator when waking the computer from sleep."}]},
+       {"version":"0.5.5","entries":[{"category":"improved","zh":"提高网络详情页的刷新速度。","en":"Refresh the network details page more quickly."}]},
+       {"version":"0.5.4","entries":[{"category":"added","zh":"新增电量历史记录。","en":"Record battery charge history."},
+        {"category":"deprecated","zh":"旧版导出格式已废弃。","en":"Deprecate the legacy export format."},
+        {"category":"removed","zh":"移除旧版导入工具。","en":"Remove the legacy import tool."}]}]}
+      """
+    let release = try #require(UpdateFeed.parse(Data(source.utf8)))
+    for language in [AppLanguage.chinese, .german, .arabic] {
+      let summary = ReleaseSummary(
+        release: release, currentVersion: "0.5.3", language: language, showsHeader: false)
+      let expanded = ImageRenderer(content: summary.frame(width: 230))
+      let image = try #require(expanded.cgImage)
+      #expect(image.width == 230)
+      #expect(image.height > 200)
+
+      var prompt = summary
+      prompt.limitsNotesHeight = true
+      let host = NSHostingView(rootView: prompt.frame(width: 230))
+      #expect(host.fittingSize.height <= DS.Size.groupedUpdateNotesHeight)
+      if image.height > Int(DS.Size.groupedUpdateNotesHeight) {
+        #expect(host.fittingSize.height == DS.Size.groupedUpdateNotesHeight)
+      }
+
+      let truncated = ReleaseSummary(
+        release: release, currentVersion: "0.5.2", language: language, limitsNotesHeight: true,
+        showsHeader: false)
+      let truncatedHost = NSHostingView(rootView: truncated.frame(width: 230))
+      #expect(truncatedHost.fittingSize.height > host.fittingSize.height)
+      #expect(truncatedHost.fittingSize.height <= DS.Size.groupedUpdateNotesHeight + 70)
+    }
+  }
+
   @Test func releaseSummaryDoesNotLeaveAnEmptyHeaderRow() {
     let model = AppModel(
       settings: AppSettings(defaults: isolatedDefaults()), historyURL: nil,
