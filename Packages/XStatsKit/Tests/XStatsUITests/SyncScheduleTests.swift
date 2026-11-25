@@ -246,6 +246,36 @@ struct SyncScheduleTests {
     #expect(secondSettings.appearance == .light)
   }
 
+  @Test func resumingWithinTheIntervalWaitsInsteadOfSyncingAgain() async throws {
+    let suite = "ActivitySyncResumeTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let repository = ScheduleRepository()
+    let controller = ActivitySyncController(
+      store: ActivityStore(url: nil), deviceID: UUID(), defaults: defaults,
+      repository: repository)
+    defer { controller.setSession(available: false, recordsActivity: false) }
+    controller.setIntervalMinutes(10)
+    controller.setEnabled(true)
+    controller.setSession(available: true, recordsActivity: true)
+    try #require(controller.syncMode == .automatic)
+    try await waitUntilIdle(controller)
+    let accesses = await repository.accessCount
+    #expect(accesses > 0)
+
+    // 锁屏或休眠后恢复：未到间隔时不立即同步。
+    controller.setSession(available: false, recordsActivity: true)
+    controller.setSession(available: true, recordsActivity: true)
+    #expect(controller.syncMode == nil)
+    #expect(await repository.accessCount == accesses)
+
+    // 重新开启同步仍立即执行一轮。
+    controller.setEnabled(false)
+    controller.setEnabled(true)
+    #expect(controller.syncMode == .automatic)
+    try await waitUntilIdle(controller)
+  }
+
   @Test func manualOnlySyncRespectsTheToggleAndSessionBeforePublishing() async throws {
     let suite = "ActivitySyncManualScheduleTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))

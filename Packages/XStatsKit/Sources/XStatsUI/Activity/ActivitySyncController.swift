@@ -57,6 +57,11 @@ final class ActivitySyncController {
   @ObservationIgnored private var worker: Task<Void, Never>?
   @ObservationIgnored private var requestedSync = false
   @ObservationIgnored private var retrying = false
+  /// 上一轮自动同步结束的时间；唤醒或解锁后据此只等待剩余间隔，不立即重新同步。
+  /// ContinuousClock 在系统睡眠期间继续计时，长时间睡眠后会按到期处理。
+  @ObservationIgnored private var lastFinished: ContinuousClock.Instant?
+  /// 连续失败轮数；断网或服务不可用时按指数放宽间隔，最长 60 分钟。
+  @ObservationIgnored private var failureStreak = 0
   private let logger = Logger(subsystem: "work.12306.xstats", category: "ActivitySync")
 
   init(
@@ -96,9 +101,11 @@ final class ActivitySyncController {
 
   func setSession(available: Bool, recordsActivity: Bool) {
     guard sessionAvailable != available || self.recordsActivity != recordsActivity else { return }
+    // 仅会话可用性变化（锁屏、休眠、唤醒）时保留上次完成时间，恢复后只等待剩余间隔。
+    let sessionOnly = self.recordsActivity == recordsActivity
     sessionAvailable = available
     self.recordsActivity = recordsActivity
-    restart()
+    restart(keepingSchedule: sessionOnly)
     if available, enabled, preferences == nil, preferenceStore != nil,
       SyncPreferences.hasSavedState(scope, deviceID: deviceID, defaults: defaults)
     {
@@ -207,7 +214,7 @@ final class ActivitySyncController {
     if worker == nil {
       if requestedSync {
         requestedSync = false
-        startSync(.manual)
+        startSync(.manual, activity: .automatic)
       } else {
         schedule()
       }
@@ -216,13 +223,14 @@ final class ActivitySyncController {
 
   private func synchronize(
     _ engine: ActivitySyncEngine, repository: any ActivitySyncRepository,
-    mode: ActivitySyncMode, ticket: UUID
+    mode: ActivitySyncMode, activity: ActivitySyncMode, ticket: UUID
   ) async throws {
     var activityDate: Date?
     var activityFailure: (any Error)?
     if recordsActivity {
       do {
-        try await engine.run(store: store, device: deviceID, repository: repository, mode: mode)
+        try await engine.run(
+          store: store, device: deviceID, repository: repository, mode: activity)
         activityDate = Date()
       } catch { activityFailure = error }
     }
@@ -302,7 +310,10 @@ final class ActivitySyncController {
     worker?.cancel()
   }
 
-  private func startSync(_ mode: ActivitySyncMode) {
+  /// activity 默认跟随 mode；设置交换请求只需立即发布设置，活动数据按自动模式增量处理，
+  /// 避免一次设置变更遍历全部历史月份。
+  private func startSync(_ mode: ActivitySyncMode, activity: ActivitySyncMode? = nil) {
+    let activityMode = activity ?? mode
     guard active, worker == nil, !changingKey,
       mode == .manual || intervalMinutes > 0
     else { return }
@@ -329,7 +340,8 @@ final class ActivitySyncController {
           self.engine = engine
         }
         if let repository {
-          try await synchronize(engine, repository: repository, mode: mode, ticket: ticket)
+          try await synchronize(
+            engine, repository: repository, mode: mode, activity: activityMode, ticket: ticket)
         } else {
           switch selected {
           case .iCloud, .googleDrive:
@@ -339,7 +351,8 @@ final class ActivitySyncController {
               throw ActivitySyncFailure.folderUnavailable
             }
             let refreshed = try await ActivitySyncFolder.withFolder(bookmark) { folder in
-              try await self.synchronize(engine, repository: folder, mode: mode, ticket: ticket)
+              try await self.synchronize(
+                engine, repository: folder, mode: mode, activity: activityMode, ticket: ticket)
             }
             if ticket == generation, let refreshed {
               defaults.set(refreshed, forKey: "activity.sync.bookmark")
@@ -354,7 +367,7 @@ final class ActivitySyncController {
             try await synchronize(
               engine,
               repository: ActivitySyncWebDAV(configuration: config, password: secret), mode: mode,
-              ticket: ticket)
+              activity: activityMode, ticket: ticket)
           }
         }
       } catch is ActivityKeys.Failure {
@@ -376,15 +389,23 @@ final class ActivitySyncController {
       worker = nil
       syncMode = nil
       guard ticket == generation else {
-        let next: ActivitySyncMode = requestedSync ? .manual : .automatic
-        requestedSync = false
-        startSync(next)
+        if requestedSync {
+          requestedSync = false
+          startSync(.manual, activity: .automatic)
+        } else if lastFinished == nil {
+          startSync(.automatic)
+        } else {
+          schedule()
+        }
         return
       }
       if Task.isCancelled {
         schedule()
         return
       }
+      lastFinished = .now
+      // 等待 iCloud 下载属于正常进度，按原间隔重试，不计入退避。
+      if case .text = errorMessage { failureStreak += 1 } else { failureStreak = 0 }
       if retrying != (errorMessage != nil) {
         if errorMessage == nil {
           logger.info("Activity synchronization recovered")
@@ -442,7 +463,13 @@ final class ActivitySyncController {
     if previousDestination != destinationID { Task { await preparePreferences() } }
   }
 
-  private func restart() {
+  /// keepingSchedule 仅用于会话恢复：未到间隔时只排定剩余时间。其他调用（开关、目标或密钥变化）
+  /// 清除上次完成时间并立即同步。
+  private func restart(keepingSchedule: Bool = false) {
+    if !keepingSchedule {
+      lastFinished = nil
+      failureStreak = 0
+    }
     generation = UUID()
     preferences?.discardPrepared()
     timer?.cancel()
@@ -451,7 +478,8 @@ final class ActivitySyncController {
     requestedSync = false
     retrying = false
     lastMessage = nil
-    if worker == nil { startSync(.automatic) }
+    guard worker == nil else { return }
+    if lastFinished == nil { startSync(.automatic) } else { schedule() }
   }
 
   private func schedule() {
@@ -460,9 +488,16 @@ final class ActivitySyncController {
       timer = nil
       return
     }
-    let seconds = intervalMinutes * 60
+    let base = intervalMinutes * 60
+    // 首次失败按原间隔重试，之后每次翻倍；间隔本身超过 60 分钟时不再放宽。
+    let backoff = min(base << min(max(failureStreak - 1, 0), 4), max(base, 3_600))
+    let interval = Duration.seconds(backoff)
+    let elapsed = lastFinished.map { $0.duration(to: .now) } ?? .zero
+    let delay = max(.zero, interval - elapsed)
+    // 分钟级同步无需精确到秒，放宽容差便于系统合并唤醒。
+    let tolerance = Duration.seconds(intervalMinutes * 6)
     timer = Task { [weak self] in
-      do { try await Task.sleep(for: .seconds(seconds), tolerance: .seconds(5)) } catch { return }
+      do { try await Task.sleep(for: delay, tolerance: tolerance) } catch { return }
       self?.startSync(.automatic)
     }
   }

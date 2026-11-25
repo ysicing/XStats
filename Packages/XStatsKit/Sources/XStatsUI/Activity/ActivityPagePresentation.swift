@@ -265,7 +265,12 @@ private struct ActivityPageAppRow: View {
     .contentShape(Rectangle())
     .accessibilityElement(children: .combine)
     .task(id: app.id) {
-      let path = NSWorkspace.shared.urlForApplication(withBundleIdentifier: app.id)?.path
+      // LaunchServices 查询可能阻塞，放到后台；切换日期或展开全部时会一次查询多行。
+      let id = app.id
+      let path = await Task.detached(priority: .utility) {
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: id)?.path
+      }.value
+      guard !Task.isCancelled else { return }
       icon = path.map { AppIconCache.shared.image(bundlePath: $0) }
     }
   }

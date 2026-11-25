@@ -50,8 +50,10 @@ struct ActivityPage: View {
     let includesLocal = device == .all || device == .local
     let isCurrent = interval != nil && interval == current
     let tracksLocalChanges = includesLocal && isCurrent
-    let recordingRevision = tracksLocalChanges ? controller.revision : 0
     let isVisible = model.isMainWindowVisible
+    // 窗口关闭后页面仍挂载；不可见时不读取 revision，避免每次切换应用都重算 body。
+    // -1 表示未跟踪，重新可见时由 visibleRequest 触发加载，无需再额外刷新一次。
+    let recordingRevision = isVisible && tracksLocalChanges ? controller.revision : -1
     let liveDay =
       isVisible && tracksLocalChanges && period == .day && controller.enabled
         && selectedApp == nil ? interval : nil
@@ -141,8 +143,8 @@ struct ActivityPage: View {
       refreshPending = false
       refresh &+= 1
     }
-    .onChange(of: recordingRevision) {
-      if isVisible { refreshPending = true }
+    .onChange(of: recordingRevision) { previous, _ in
+      if isVisible, previous >= 0 { refreshPending = true }
     }
     .task(id: liveDay) {
       guard let liveDay else { return }
@@ -306,7 +308,6 @@ struct ActivityPage: View {
         report = try await makeReport(
           selection.interval, period: .day, controller: controller, calendar: calendar,
           deviceID: deviceID, now: now)
-        summaries = [:]
       } else {
         var intervals: [DateInterval] = []
         var cursor = selection.interval.start
@@ -348,7 +349,10 @@ struct ActivityPage: View {
             }
           }
           ordered = daily
-          if await controller.store.reportRevisions(in: intervals) != revisions {
+          // 只有复用的缓存可能与新读取的日期不一致；今天等未复用日期本就是最新读取。
+          let latest = await controller.store.reportRevisions(in: intervals)
+          if reusable.indices.contains(where: { reusable[$0] != nil && latest[$0] != revisions[$0] }
+          ) {
             ordered = try await loadDays(
               intervals, selection: selection, controller: controller, calendar: calendar,
               deviceID: deviceID, now: now)
@@ -364,19 +368,15 @@ struct ActivityPage: View {
           work.cancel()
         }
         try Task.checkCancellation()
-        summaries =
-          cacheable
-          ? Dictionary(
-            uniqueKeysWithValues: intervals.indices.compactMap { index in
-              let interval = intervals[index]
-              guard interval.end <= cacheThrough else { return nil }
-              return (
-                interval,
-                DailySummary(
-                  calendar: calendar, device: selection.device, revision: revisions[index],
-                  report: ordered[index])
-              )
-            }) : [:]
+        if cacheable {
+          // 保留其他选区的日汇总，月→日→月、周↔月往返时可复用；revision 校验保证不会读到旧数据。
+          if summaries.count > 93 { summaries.removeAll(keepingCapacity: true) }
+          for index in intervals.indices where intervals[index].end <= cacheThrough {
+            summaries[intervals[index]] = DailySummary(
+              calendar: calendar, device: selection.device, revision: revisions[index],
+              report: ordered[index])
+          }
+        }
       }
       try Task.checkCancellation()
       guard model.isMainWindowVisible else { return }

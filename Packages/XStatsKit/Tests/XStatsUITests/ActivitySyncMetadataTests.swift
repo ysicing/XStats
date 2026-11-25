@@ -90,6 +90,42 @@ struct ActivitySyncMetadataTests {
     try await firstEngine.run(store: ActivityStore(url: nil), device: first, repository: repository)
   }
 
+  @Test func unchangedMetadataVersionsAreNotDownloadedAgain() async throws {
+    let repository = VersionedMetadataRepository()
+    let first = UUID()
+    let second = UUID()
+    let firstEngine = ActivitySyncEngine(key: key)
+    let secondEngine = ActivitySyncEngine(key: key)
+    let firstData = Data("first computer metadata".utf8)
+    let secondData = Data("second computer metadata".utf8)
+    let revised = Data("revised second computer metadata".utf8)
+    try await secondEngine.exchangeMetadata(device: second, repository: repository) { _ in
+      secondData
+    }
+    try await firstEngine.exchangeMetadata(device: first, repository: repository) { _ in
+      firstData
+    }
+
+    await repository.resetMetadataReads()
+    let skipped = try await firstEngine.exchangeMetadata(device: first, repository: repository) {
+      snapshot in
+      #expect(snapshot == [first: firstData, second: secondData])
+      return nil
+    }
+    #expect(skipped == nil)
+    #expect(await repository.metadataReads == 0)
+
+    try await secondEngine.exchangeMetadata(device: second, repository: repository) { _ in
+      revised
+    }
+    await repository.resetMetadataReads()
+    try await firstEngine.exchangeMetadata(device: first, repository: repository) { snapshot in
+      #expect(snapshot == [first: firstData, second: revised])
+      return nil
+    }
+    #expect(await repository.metadataReads == 1)
+  }
+
   @Test func rejectsMissingOrForeignMarkerAndMetadataMovedToAnotherDevice() async throws {
     let base = try temporaryFolder()
     defer { try? FileManager.default.removeItem(at: base) }
@@ -217,6 +253,49 @@ struct ActivitySyncMetadataTests {
       .appendingPathComponent("ActivitySyncMetadata-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
     return url
+  }
+}
+
+/// 模拟带强 ETag 的远端：每次写入都会产生新版本。
+private actor VersionedMetadataRepository: ActivitySyncRepository {
+  private var files: [[String]: (data: Data, version: Int)] = [:]
+  private var nextVersion = 0
+  private(set) var metadataReads = 0
+
+  func resetMetadataReads() { metadataReads = 0 }
+
+  func list(_ directory: [String]) -> Set<String> {
+    listActivityObjects(directory).names
+  }
+
+  func listActivityObjects(_ directory: [String]) -> ActivitySyncListing {
+    var listing = ActivitySyncListing()
+    for (path, file) in files where path.count > directory.count && path.starts(with: directory) {
+      let name = path[directory.count]
+      listing.names.insert(name)
+      if path.count == directory.count + 1 { listing.versions[name] = "\"\(file.version)\"" }
+    }
+    return listing
+  }
+
+  func read(_ path: [String]) -> Data? {
+    if ActivitySyncRemotePath.validMetadataObject(path) { metadataReads += 1 }
+    return files[path]?.data
+  }
+
+  func create(_ data: Data, at path: [String]) -> Bool {
+    guard files[path] == nil else { return false }
+    store(data, at: path)
+    return true
+  }
+
+  func replaceMetadata(_ data: Data, at path: [String]) {
+    store(data, at: path)
+  }
+
+  private func store(_ data: Data, at path: [String]) {
+    nextVersion += 1
+    files[path] = (data, nextVersion)
   }
 }
 

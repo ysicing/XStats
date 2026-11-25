@@ -277,6 +277,19 @@ struct ActivityStoreTests {
     }
   }
 
+  @Test func localDaysIncludeDaysInsertedAfterTheFirstListing() async throws {
+    let store = ActivityStore(url: nil)
+    let deviceID = UUID()
+    try await store.insert([session(deviceID: deviceID, start: 10, end: 20)])
+    #expect(try await store.localDays(deviceID: deviceID) == ["2001-01-01"])
+
+    try await store.insert([
+      session(deviceID: deviceID, start: 2 * 86_400, end: 2 * 86_400 + 10),
+      session(start: 86_400, end: 86_410),
+    ])
+    #expect(try await store.localDays(deviceID: deviceID) == ["2001-01-01", "2001-01-03"])
+  }
+
   @Test func dayExportUsesUTCStartAndFiltersByDevice() async throws {
     let store = ActivityStore(url: nil)
     let deviceID = UUID()

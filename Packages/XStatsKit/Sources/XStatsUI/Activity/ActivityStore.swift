@@ -85,6 +85,9 @@ actor ActivityStore {
   private var revision: UInt64 = 0
   private var revisionFloor: UInt64 = 0
   private var dayRevisions: [Int: UInt64] = [:]
+  /// 同步每轮都要列出本机有记录的日期。记录只增不删，首次全量读取后由 insert 增量补充，
+  /// 避免每轮按历史天数逐天解密。
+  private var localDayCache: (device: UUID, days: Set<Int>)?
 
   init(url: URL?, keyProvider: (@Sendable () throws -> SymmetricKey)? = nil) {
     self.url = url
@@ -122,6 +125,7 @@ actor ActivityStore {
     let encoder = JSONEncoder()
     var daysChanged = Set<Int>()
     var allDaysChanged = false
+    var insertedLocalDays = Set<Int>()
     try execute("BEGIN IMMEDIATE", on: handle)
     do {
       let insertRecord = """
@@ -156,6 +160,9 @@ actor ActivityStore {
                 try verifyExisting(session, on: handle, keys: keys, indexes: indexes)
               }
               continue
+            }
+            if session.deviceID == localDayCache?.device {
+              insertedLocalDays.insert(Self.dayIndex(session.start))
             }
             if session.deviceName != nil,
               latestNamed[session.deviceID].map({ $0.end < session.end }) ?? true
@@ -204,6 +211,7 @@ actor ActivityStore {
       throw error
     }
     if receipt != nil { receiptsAvailable = true }
+    localDayCache?.days.formUnion(insertedLocalDays)
     guard allDaysChanged || !daysChanged.isEmpty else { return false }
     revision &+= 1
     if allDaysChanged || dayRevisions.count + daysChanged.count > Self.maximumQueryDays {
@@ -332,6 +340,12 @@ actor ActivityStore {
   }
 
   func localDays(deviceID: UUID) throws -> [String] {
+    let format = { (day: Int) in
+      Date(timeIntervalSinceReferenceDate: Double(day) * Self.secondsPerDay).formatted(Self.utc)
+    }
+    if let cached = localDayCache, cached.device == deviceID {
+      return cached.days.sorted().map(format)
+    }
     guard let (handle, keys) = try open() else { return [] }
     let sql = """
       WITH RECURSIVE days(token) AS (
@@ -347,14 +361,13 @@ actor ActivityStore {
       )
       """
     let decoder = JSONDecoder()
-    var days: [String] = []
+    var days = Set<Int>()
     try scan(sql, on: handle, bind: { try bind(keys.device(deviceID), at: 1, in: $0) }) { query in
       let session = try decodeSession(query, keys: keys, decoder: decoder)
-      let day = Self.dayIndex(session.start)
-      days.append(
-        Date(timeIntervalSinceReferenceDate: Double(day) * Self.secondsPerDay).formatted(Self.utc))
+      days.insert(Self.dayIndex(session.start))
     }
-    return days.sorted()
+    localDayCache = (deviceID, days)
+    return days.sorted().map(format)
   }
 
   func unpublishedSessions(
@@ -667,6 +680,9 @@ actor ActivityStore {
         }
         try execute("PRAGMA journal_mode=WAL", on: handle)
       }
+      // WAL 下 NORMAL 只在断电时可能丢失最后几次提交，不会损坏数据库；避免每次切换应用都 fsync。
+      // 该设置按连接生效，每次打开都要执行。
+      try execute("PRAGMA synchronous=NORMAL", on: handle)
       receiptsAvailable = try hasReceiptTable(on: handle)
       db = handle
       keys = unlocked

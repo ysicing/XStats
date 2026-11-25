@@ -114,6 +114,9 @@ actor ActivitySyncEngine {
   private var cursors: [String: String] = [:]
   private var importedRecords = false
   private(set) var continuationDay: String?
+  /// 按强 ETag 缓存已验证的设置元数据，空闲轮次无需重新下载并解密所有设备的文档。
+  /// 只用于发布前的读取；发布后的回读校验始终读取远端。数据集变化时清空。
+  private var metadataCache: [String: (version: String, device: UUID, data: Data)] = [:]
 
   init(key: SymmetricKey, sharedKeys: ActivitySharedKeys? = nil) {
     self.key = key
@@ -224,7 +227,7 @@ actor ActivitySyncEngine {
     try await authenticateDataset(repository: repository)
     let verifiedMarker = publishedMarker
     try Task.checkCancellation()
-    let snapshot = try await readMetadata(repository: repository)
+    let snapshot = try await readMetadata(repository: repository, cached: true)
     let updated = try await transform(snapshot)
     try Task.checkCancellation()
     guard let updated else { return nil }
@@ -244,30 +247,47 @@ actor ActivitySyncEngine {
     guard publishedMarker == verifiedMarker else {
       throw ActivitySyncFailure.authenticationFailed
     }
-    let verified = try await readMetadata(repository: repository)
+    let verified = try await readMetadata(repository: repository, cached: false)
     guard verified[device] == updated else { throw ActivitySyncFailure.authenticationFailed }
     return verified
   }
 
-  private func readMetadata(repository: any ActivitySyncRepository) async throws -> [UUID: Data] {
+  private func readMetadata(
+    repository: any ActivitySyncRepository, cached: Bool
+  ) async throws -> [UUID: Data] {
     let directory = [ActivitySyncRemotePath.metadata]
-    let entries = try await repository.list(directory)
-    guard entries.count <= ActivitySyncRemotePath.maximumMetadataEntries else {
+    let listing = try await repository.listActivityObjects(directory)
+    guard listing.names.count <= ActivitySyncRemotePath.maximumMetadataEntries else {
       throw ActivitySyncFailure.limit
     }
     var snapshot: [UUID: Data] = [:]
-    for name in entries {
+    var refreshed: [String: (version: String, device: UUID, data: Data)] = [:]
+    for name in listing.names {
       try Task.checkCancellation()
       let path = directory + [name]
-      guard ActivitySyncRemotePath.validMetadataObject(path),
-        let ciphertext = try await repository.read(path)
-      else { throw ActivitySyncFailure.invalidListing }
-      let metadata = try cipher.openMetadata(ciphertext, at: path)
-      guard snapshot.updateValue(metadata.data, forKey: metadata.device) == nil else {
+      guard ActivitySyncRemotePath.validMetadataObject(path) else {
         throw ActivitySyncFailure.invalidListing
       }
+      let version = listing.versions[name]
+      let device: UUID
+      let data: Data
+      if cached, let version, let entry = metadataCache[name], entry.version == version {
+        (device, data) = (entry.device, entry.data)
+      } else {
+        guard let ciphertext = try await repository.read(path) else {
+          throw ActivitySyncFailure.invalidListing
+        }
+        let metadata = try cipher.openMetadata(ciphertext, at: path)
+        (device, data) = (metadata.device, metadata.data)
+      }
+      guard snapshot.updateValue(data, forKey: device) == nil else {
+        throw ActivitySyncFailure.invalidListing
+      }
+      if let version { refreshed[name] = (version, device, data) }
     }
     try Task.checkCancellation()
+    // 只保留当前列表中的条目，数量受 maximumMetadataEntries 约束。
+    metadataCache = refreshed
     return snapshot
   }
 
@@ -329,6 +349,7 @@ actor ActivitySyncEngine {
       }
     }
     guard let identifier else { throw ActivitySyncFailure.authenticationFailed }
+    metadataCache.removeAll()
     publishedMarker = bytes
     datasetIdentifier = identifier
     authenticatedDataset = true
