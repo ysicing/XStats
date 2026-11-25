@@ -66,6 +66,7 @@ public final class SyncPreferences {
   public let deviceID: UUID
   public private(set) var devices: [Device] = []
   public private(set) var isEnabled = false
+  public private(set) var selectedFields: Set<Field> = []
   public private(set) var lastSettingsSyncAt: Date?
   public private(set) var firstChoice: FirstChoice?
   public private(set) var conflicts: [Choice] = []
@@ -77,7 +78,7 @@ public final class SyncPreferences {
   @ObservationIgnored private let settings: AppSettings
   @ObservationIgnored private let defaults: UserDefaults
   @ObservationIgnored private let deviceName: String?
-  @ObservationIgnored private var selectedID: String?
+  private(set) var selectedID: String?
   @ObservationIgnored private var destination: Destination?
   @ObservationIgnored private var state = LocalState()
   @ObservationIgnored private var firstSnapshots: [Field: PreferenceSnapshot]?
@@ -135,12 +136,18 @@ public final class SyncPreferences {
       restored = LocalState()
     }
     let saved = restored
-    restored.enabled = defaults.object(forKey: intentKey(id)) as? Bool ?? restored.enabled
-    if !restored.enabled || defaults.bool(forKey: intentKey(id) + ".revoked") {
+    let changedBeforeUnlock = defaults.bool(forKey: intentKey(id) + ".revoked")
+    // 已保存的勾选范围以加密状态为准；仅在解锁前显式切换整组时采用调度开关。
+    if changedBeforeUnlock || restored.selection == nil {
+      restored.enabled = defaults.object(forKey: intentKey(id)) as? Bool ?? restored.enabled
+    }
+    if changedBeforeUnlock, restored.enabled { restored.selection = Set(Field.allCases) }
+    if !restored.enabled || changedBeforeUnlock {
       restored.stopSettingsSync()
     }
     if let parked = restored.parked {
-      for field in Field.allCases where parked[field] != localValue(field) {
+      for (field, value) in parked
+      where restored.fields.contains(field) && value != localValue(field) {
         restored.review.insert(field)
       }
       restored.parked = nil
@@ -152,6 +159,7 @@ public final class SyncPreferences {
     selectedID = id
     destination = next
     install(restored)
+    defaults.set(restored.enabled, forKey: intentKey(id))
     defaults.removeObject(forKey: intentKey(id) + ".revoked")
   }
 
@@ -169,23 +177,42 @@ public final class SyncPreferences {
   public func setEnabled(_ enabled: Bool) throws {
     guard let selectedID else { throw Failure.noDestination }
     guard enabled != isEnabled else { return }
+    if destination != nil {
+      try setSelectedFields(enabled ? Set(Field.allCases) : [])
+      return
+    }
     var next = state
     next.enabled = enabled
-    next.pending?.cancelled = true
-    if !enabled {
-      next.stopSettingsSync()
-    }
-    if destination != nil {
-      try save(next)
-    } else {
-      if !enabled { defaults.set(true, forKey: intentKey(selectedID) + ".revoked") }
-      install(next)
-    }
+    defaults.set(true, forKey: intentKey(selectedID) + ".revoked")
+    install(next)
     defaults.set(enabled, forKey: intentKey(selectedID))
-    if !enabled {
-      prepared = nil
-      clearChoices()
+    onNeedsSync?()
+  }
+
+  public func setSelectedFields(_ fields: Set<Field>) throws {
+    guard let selectedID, destination != nil else { throw Failure.noDestination }
+    guard fields != selectedFields else { return }
+    let removed = selectedFields.subtracting(fields)
+    let added = fields.subtracting(selectedFields)
+    var next = state
+    next.enabled = !fields.isEmpty
+    next.selection = fields
+    next.joining = state.awaitingConfirmation.intersection(fields).union(added)
+    next.initialized = next.joining?.isEmpty == true && next.enabled
+    if !removed.isEmpty, var pending = next.pending {
+      pending.revokedFields = (pending.revokedFields ?? []).union(removed)
+      next.pending = pending
     }
+    next.review.subtract(removed)
+    for field in removed {
+      next.edits[field] = nil
+      next.application[field] = nil
+    }
+    if fields.isEmpty { next.stopSettingsSync() }
+    try save(next)
+    defaults.set(next.enabled, forKey: intentKey(selectedID))
+    prepared = nil
+    clearChoices()
     onNeedsSync?()
   }
 
@@ -220,7 +247,9 @@ public final class SyncPreferences {
     onNeedsSync?()
   }
 
-  public func cancelFirst() throws { try setEnabled(false) }
+  public func cancelFirst() throws {
+    try setSelectedFields(selectedFields.subtracting(state.awaitingConfirmation))
+  }
 
   /// 传输失败时撤销内存中的完成权限。下一次全读仍可核实上次写入是否到达。
   public func discardPrepared() { prepared = nil }
@@ -229,8 +258,9 @@ public final class SyncPreferences {
     if state.pending != nil || !state.application.isEmpty {
       var next = state
       next.pending?.cancelled = true
-      if let pending = next.pending, next.initialized {
-        for (field, action) in pending.actions {
+      if let pending = next.pending {
+        for (field, action) in pending.actions
+        where next.fields.contains(field) && !next.awaitingConfirmation.contains(field) {
           if action.explicit || action.value != localValue(field) { next.review.insert(field) }
         }
       }
@@ -244,7 +274,7 @@ public final class SyncPreferences {
 
   /// 捕获两次交换之间改回原值的编辑，由现有频率或手动同步调度交换。
   func recordLocalChange(_ field: Field) {
-    guard isEnabled, !applyingRemote, destination != nil else { return }
+    guard selectedFields.contains(field), !applyingRemote, destination != nil else { return }
     var next = state
     next.edits[field] = UUID()
     do { try save(next) } catch {
@@ -266,7 +296,8 @@ public final class SyncPreferences {
     let own = records[deviceID]
     let snapshots = snapshots(in: records)
     // 偏好输入未变化时保留已确认的写入，活动回执可随下一轮更新。
-    if let pending = state.pending, !pending.cancelled, pending.inputs == snapshots,
+    if let pending = state.pending, !pending.cancelled, pending.revokedFields == nil,
+      pending.inputs == snapshots,
       pending.actions.values.contains(where: \.explicit) || activitySyncedAt == nil
         || (try? JSONDecoder().decode(Document.self, from: pending.bytes))?.device
           .lastActivitySyncAt
@@ -284,12 +315,13 @@ public final class SyncPreferences {
     var targets: [Field: String] = [:]
     var writes: Set<Field> = []
     var explicit: Set<Field> = []
-    var initial = false
-    if isEnabled, !state.initialized {
+    let joining = state.awaitingConfirmation
+    var initial: Set<Field> = []
+    if !joining.isEmpty {
       updateFirstChoice(snapshots)
       if firstChoice == nil || firstSelections != nil {
-        initial = true
-        for field in Field.allCases {
+        initial = joining
+        for field in joining {
           guard let snapshot = snapshots[field], field.accepts(snapshot.local) else { continue }
           let value: String?
           if let choice = firstChoice?.fields.first(where: { $0.field == field }) {
@@ -306,9 +338,10 @@ public final class SyncPreferences {
           }
         }
       }
-    } else if isEnabled {
+    }
+    if isEnabled {
       updateConflicts(snapshots)
-      for field in Field.allCases {
+      for field in selectedFields.subtracting(joining) {
         guard let snapshot = snapshots[field], field.accepts(snapshot.local) else { continue }
         if let conflict = conflicts.first(where: { $0.field == field }) {
           guard let selection = resolutions[field],
@@ -349,10 +382,11 @@ public final class SyncPreferences {
 
     // 设备槽位只宣告上一轮已认证的时间；本轮准备时间随计划持久化，回读成功才生效。
     let completeRound =
-      initial
-      || (isEnabled && state.initialized && conflicts.allSatisfy { explicit.contains($0.field) })
+      isEnabled && conflicts.allSatisfy { explicit.contains($0.field) }
+      && joining == initial
     let publishes =
-      completeRound || !writes.isEmpty || !targets.isEmpty || own?.device != metadata
+      completeRound || !initial.isEmpty || !writes.isEmpty || !targets.isEmpty
+      || own?.device != metadata
     var projected = records
     if publishes { projected[deviceID] = outbound }
     let expected = self.snapshots(in: projected)
@@ -366,7 +400,9 @@ public final class SyncPreferences {
       guard bytes.count <= ActivitySyncRemotePath.maximumMetadataBytes - ActivitySyncCipher.overhead
       else { throw Failure.invalidDocument }
       next.pending = Pending(
-        bytes: bytes, actions: actions, initial: initial ? expected : nil, inputs: snapshots,
+        bytes: bytes, actions: actions,
+        initial: initial.isEmpty ? nil : expected.filter { initial.contains($0.key) },
+        inputs: snapshots,
         round: completeRound ? Round(preparedAt: now, expected: expected) : nil)
       try save(next)
       prepared = bytes
@@ -392,15 +428,19 @@ public final class SyncPreferences {
     next.ownDigest = Data(SHA256.hash(data: pending.bytes))
     next.devices = deviceList(records)
     let current = snapshots(in: records)
-    let initial =
-      pending.initial != nil && pending.initial == current && !pending.cancelled
-      && isEnabled
-    let mayApply = isEnabled && !pending.cancelled && (pending.initial == nil || initial)
+    let revoked = pending.revokedFields ?? []
+    let initial = pending.initial?.filter { !revoked.contains($0.key) }
+    let joining = initial.map { Set($0.keys) } ?? []
+    let mayApply = isEnabled && !pending.cancelled
+    let joined =
+      mayApply && !joining.isEmpty && initial == current.filter { joining.contains($0.key) }
     var accepted: [Field: Action] = [:]
-    for (field, action) in pending.actions {
-      if mayApply, action.snapshot == current[field] {
+    for (field, action) in pending.actions
+    where selectedFields.contains(field) && !revoked.contains(field) {
+      let mayApplyField = mayApply && (!joining.contains(field) || joined)
+      if mayApplyField, action.snapshot == current[field] {
         accepted[field] = action
-      } else if mayApply, !action.explicit, let snapshot = current[field],
+      } else if mayApplyField, !action.explicit, let snapshot = current[field],
         snapshot.local == action.value, snapshot.edit == action.snapshot.edit,
         let published = action.snapshot.heads[deviceID],
         records[deviceID]?.fields[field] == published,
@@ -414,19 +454,25 @@ public final class SyncPreferences {
         next.review.insert(field)
       }
     }
-    if pending.cancelled, pending.initial != nil {
+    if let initial = pending.initial, pending.cancelled || !revoked.isEmpty {
       var firstReview = next.firstReview ?? [:]
-      for (field, action) in pending.actions where action.explicit {
+      for (field, action) in pending.actions
+      where action.explicit && initial[field] != nil
+        && (pending.cancelled || revoked.contains(field))
+      {
         guard let inputs = pending.inputs?[field] else { continue }
         firstReview[field, default: [:]].merge(inputs.heads) { _, version in version }
       }
       if !firstReview.isEmpty { next.firstReview = firstReview }
     }
-    if initial {
-      next.initialized = true
-      next.firstReview = nil
+    if joined {
+      next.joining = state.awaitingConfirmation.subtracting(joining)
+      next.initialized = next.joining?.isEmpty == true
+      for field in joining { next.firstReview?[field] = nil }
     }
-    if mayApply, let round = pending.round, round.expected == current {
+    if mayApply, revoked.isEmpty, joining.isEmpty || joined, let round = pending.round,
+      round.expected == current
+    {
       next.lastSettingsSyncAt = round.preparedAt
     }
     next.application = accepted
@@ -434,14 +480,13 @@ public final class SyncPreferences {
     try save(next)
     if firstReviewChanged { firstSnapshots = nil }
     if mayApply { try finishApplication(in: records) }
-    if initial {
+    if joined {
       firstChoice = nil
       firstSnapshots = nil
       firstSelections = nil
     }
-    if isEnabled, state.initialized {
+    if isEnabled {
       updateConflicts(snapshots(in: records))
-    } else if isEnabled {
       updateFirstChoice(snapshots(in: records))
     }
   }
@@ -452,7 +497,7 @@ public final class SyncPreferences {
     defer { applyingRemote = false }
     var next = state
     let current = snapshots(in: records)
-    for field in Field.allCases {
+    for field in selectedFields {
       guard let action = state.application[field] else { continue }
       guard current[field]?.heads == action.snapshot.heads,
         state.edits[field] == action.snapshot.edit,
@@ -471,11 +516,13 @@ public final class SyncPreferences {
   }
 
   private func updateFirstChoice(_ snapshots: [Field: PreferenceSnapshot]) {
-    guard firstSnapshots != snapshots else { return }
-    firstSnapshots = snapshots
+    let joining = state.awaitingConfirmation
+    let inputs = snapshots.filter { joining.contains($0.key) }
+    guard firstSnapshots != inputs else { return }
+    firstSnapshots = inputs
     firstSelections = nil
     let fields = Field.allCases.compactMap { field -> Choice? in
-      guard let snapshot = snapshots[field], field.accepts(snapshot.local) else { return nil }
+      guard let snapshot = inputs[field], field.accepts(snapshot.local) else { return nil }
       if var previous = state.firstReview?[field] {
         // 已到达的本机版本可能覆盖了用户取消前看到的候选。
         previous.merge(snapshot.heads) { _, version in version }
@@ -494,8 +541,11 @@ public final class SyncPreferences {
 
   private func updateConflicts(_ snapshots: [Field: PreferenceSnapshot]) {
     let previous = conflicts
+    let enrolled = selectedFields.subtracting(state.awaitingConfirmation)
     conflicts = Field.allCases.compactMap { field in
-      guard let snapshot = snapshots[field], field.accepts(snapshot.local) else {
+      guard enrolled.contains(field), let snapshot = snapshots[field],
+        field.accepts(snapshot.local)
+      else {
         resolutions[field] = nil
         return nil
       }
@@ -538,7 +588,7 @@ public final class SyncPreferences {
 
   private func snapshots(in records: [UUID: Document]) -> [Field: PreferenceSnapshot] {
     var result: [Field: PreferenceSnapshot] = [:]
-    for field in Field.allCases {
+    for field in selectedFields {
       var versions = state.baseline[field]?.heads ?? [:]
       for (author, document) in records {
         guard let version = document.fields[field] else { continue }
@@ -626,10 +676,11 @@ public final class SyncPreferences {
   private func parkDestination() throws {
     guard destination != nil else { return }
     var next = state
-    if next.initialized {
+    let enrolled = next.fields.subtracting(next.awaitingConfirmation)
+    if !enrolled.isEmpty {
       // AppSettings 是全局的。跨目标期间变化的字段必须复核后才能写回原目标。
       next.parked = Dictionary(
-        uniqueKeysWithValues: Field.allCases.map { ($0, localValue($0)) })
+        uniqueKeysWithValues: enrolled.map { ($0, localValue($0)) })
     }
     next.pending?.cancelled = true
     try save(next)
@@ -653,6 +704,7 @@ public final class SyncPreferences {
     state = next
     if devices != next.devices { devices = next.devices }
     if isEnabled != next.enabled { isEnabled = next.enabled }
+    if selectedFields != next.fields { selectedFields = next.fields }
     if lastSettingsSyncAt != next.lastSettingsSyncAt {
       lastSettingsSyncAt = next.lastSettingsSyncAt
     }
@@ -705,6 +757,7 @@ public final class SyncPreferences {
     let inputs: [Field: PreferenceSnapshot]?
     let round: Round?
     var cancelled = false
+    var revokedFields: Set<Field>?
   }
 
   private struct Round: Codable, Equatable {
@@ -716,6 +769,8 @@ public final class SyncPreferences {
     var schema = 1
     var enabled = false
     var initialized = false
+    var selection: Set<Field>?
+    var joining: Set<Field>?
     var sequence: UInt64 = 0
     var baseline: [Field: Baseline] = [:]
     var ownDigest: Data?
@@ -729,8 +784,12 @@ public final class SyncPreferences {
     var pending: Pending?
     var application: [Field: Action] = [:]
 
+    var fields: Set<Field> { enabled ? selection ?? Set(Field.allCases) : [] }
+    var awaitingConfirmation: Set<Field> { joining ?? (initialized ? [] : fields) }
+
     mutating func stopSettingsSync() {
       initialized = false
+      joining = nil
       pending?.cancelled = true
       application = [:]
       edits = [:]

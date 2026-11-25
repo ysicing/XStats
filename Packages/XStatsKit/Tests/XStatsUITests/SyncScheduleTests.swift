@@ -145,6 +145,8 @@ struct SyncScheduleTests {
     let secondSettings = AppSettings(defaults: secondDefaults)
     firstSettings.appearance = .dark
     secondSettings.appearance = .light
+    firstSettings.restEnabled = true
+    secondSettings.restEnabled = false
     let firstID = UUID()
     let secondID = UUID()
     let repository = ScheduleRepository()
@@ -163,7 +165,7 @@ struct SyncScheduleTests {
     await first.preparePreferences()
     let firstPreferences = try #require(first.preferences)
     #expect(await repository.accessCount == 0)
-    try firstPreferences.setEnabled(true)
+    try firstPreferences.setSelectedFields([.appearance, .restEnabled])
     first.setSession(available: true, recordsActivity: false)
     try await waitUntilIdle(first)
     try #require(firstPreferences.lastSettingsSyncAt != nil)
@@ -175,8 +177,11 @@ struct SyncScheduleTests {
     second.setEnabled(true)
     await second.preparePreferences()
     let secondPreferences = try #require(second.preferences)
-    try secondPreferences.setEnabled(true)
+    second.setIntervalMinutes(0)
     second.setSession(available: true, recordsActivity: false)
+    #expect(second.syncMode == nil)
+    try secondPreferences.setSelectedFields([.appearance])
+    #expect(second.syncMode == .manual)
     try await waitUntilIdle(second)
 
     let choice = try #require(secondPreferences.firstChoice)
@@ -189,6 +194,7 @@ struct SyncScheduleTests {
     try await waitUntilIdle(second)
 
     #expect(secondSettings.appearance == .dark)
+    #expect(!secondSettings.restEnabled)
     #expect(secondPreferences.firstChoice == nil)
     #expect(secondPreferences.lastSettingsSyncAt != nil)
     #expect(await repository.publishedSettingsCount == 2)
@@ -332,11 +338,15 @@ struct SyncScheduleTests {
       controller.setEnabled(true)
     }
 
-    try preferences.setEnabled(true)
+    try preferences.setSelectedFields([.appearance, .restEnabled])
+    try renderSyncPreview(
+      SyncPreferenceSettings(preferences: preferences, sync: controller, settings: settings),
+      locale: locale, layoutDirection: layoutDirection,
+      name: "sync-preferences-checklist-\(localeID)", size: NSSize(width: 460, height: 340))
     let pendingUpload = try preferences.prepare(documents, activitySyncedAt: nil)
     #expect(pendingUpload == nil)
     let choice = try #require(preferences.firstChoice)
-    #expect(Set(choice.fields.map(\.field)) == Set(SyncPreferences.Field.allCases))
+    #expect(Set(choice.fields.map(\.field)) == [.appearance, .restEnabled])
     #expect(controller.syncMode == nil)
     try renderSyncPreview(
       SyncPreferenceSettings(preferences: preferences, sync: controller, settings: settings),
@@ -345,9 +355,9 @@ struct SyncScheduleTests {
   }
 
   private func renderSyncPreview<Content: View>(
-    _ content: Content, locale: Locale, layoutDirection: LayoutDirection, name: String
+    _ content: Content, locale: Locale, layoutDirection: LayoutDirection, name: String,
+    size: NSSize = NSSize(width: 640, height: 580)
   ) throws {
-    let size = NSSize(width: 640, height: 580)
     let host = NSHostingView(
       rootView:
         content

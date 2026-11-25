@@ -415,7 +415,7 @@ Settings → Sync brings together storage, scheduling, sync status and participa
 devices. Sync is off by default. The **Sync** switch in Settings → Features →
 Optional Features starts or stops participation on this Mac. Local
 App Activity recording remains controlled by the experimental feature switch.
-Feature Settings sync is a separate opt-in per destination. Activity recording
+Each Mac selects which Feature Settings to sync with each destination. Activity recording
 consent, system permissions, connection details, credentials and the sync controls
 are local to each Mac. Automatic runs can be scheduled every 5, 10, 30 or 60
 minutes, with 10 minutes as the default. **Manual Only** disables the timer.
@@ -446,12 +446,14 @@ credentials sent over HTTP are outside the dataset encryption. On macOS 15 and l
 a local WebDAV connection may require Local Network access in System Settings.
 
 `SyncPreferences` uses an allowlist for appearance, menu bar layout, the built-in
-rest sound and the rest-reminder switch. It tracks a per-field causal version with
+rest sound and the rest-reminder switch. Each selected field participates in
+two-way sync. Deselecting a field preserves its local value and leaves previously
+published versions available to other Macs. It tracks a per-field causal version with
 device counters and an encrypted local baseline for each destination. Changes to
 different fields can merge independently. Concurrent proposals for the same field
-with different values require the user to choose. The first exchange requests
-confirmation for fields that differ from local values. In the absence of differences,
-the initial settings exchange can complete directly. A choice is tied to the field
+with different values require the user to choose. Newly selected fields request
+confirmation when the shared values differ. Previously enrolled fields can continue
+to sync while the added fields await a choice. A choice is tied to the field
 values and versions reviewed. A change to those inputs during review or publication
 can invalidate the choice. The controller applies a published choice after verifying
 its write and the reviewed field state against a fresh authenticated snapshot.

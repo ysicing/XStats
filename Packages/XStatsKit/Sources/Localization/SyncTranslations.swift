@@ -7,6 +7,10 @@ extension Translations {
     同步内容	What to Sync
     仅本机	This Mac Only
     功能设置	Feature Settings
+    功能设置同步	Feature Settings Sync
+    选择这台 Mac 要同步的设置。	Choose which settings this Mac syncs.
+    当前值	Current Value
+    选择同步项	Choose Settings to Sync
     同步设备	Synced Devices
     无法读取同步设置	Unable to load sync settings
     正在读取同步设置	Loading sync settings

@@ -127,6 +127,7 @@ struct SyncSettingsPage: View {
       case .preferences:
         if let preferences = sync.preferences {
           SyncPreferenceSettings(preferences: preferences, sync: sync, settings: model.settings)
+            .id(preferences.selectedID)
         }
       case .device(let id):
         detailSheet(title: ActivityPageFormat.deviceName(id, localID: localID, names: names)) {

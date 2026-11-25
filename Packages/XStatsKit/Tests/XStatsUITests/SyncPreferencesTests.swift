@@ -7,6 +7,121 @@ import Testing
 
 @MainActor
 struct SyncPreferencesTests {
+  @Test func eachMacExchangesOnlySelectedFieldsAndJoinsAddedFieldsSeparately() throws {
+    let left = Peer()
+    let right = Peer()
+    defer {
+      left.clean()
+      right.clean()
+    }
+    left.settings.appearance = .dark
+    right.settings.appearance = .dark
+    left.settings.restEnabled = true
+    right.settings.restEnabled = false
+    let publisher = try left.open()
+    let follower = try right.open()
+    #expect(follower.selectedFields.isEmpty)
+    try publisher.setSelectedFields([.appearance, .restEnabled])
+    try follower.setSelectedFields([.appearance])
+
+    var documents: [UUID: Data] = [:]
+    try exchange(publisher, in: &documents)
+    try exchange(follower, in: &documents)
+    #expect(follower.firstChoice == nil)
+    #expect(!right.settings.restEnabled)
+    #expect(follower.lastSettingsSyncAt != nil)
+
+    let reopened = try right.open()
+    #expect(reopened.selectedFields == [.appearance])
+    try reopened.setSelectedFields([.appearance, .restEnabled])
+    left.settings.appearance = .light
+    try exchange(publisher, in: &documents)
+    try exchange(reopened, in: &documents)
+    #expect(right.settings.appearance == .light)
+    #expect(!right.settings.restEnabled)
+    let review = try #require(reopened.firstChoice)
+    #expect(review.fields.map(\.field) == [.restEnabled])
+    try reopened.cancelFirst()
+    #expect(reopened.selectedFields == [.appearance])
+
+    try reopened.setSelectedFields([.appearance, .restEnabled])
+    try exchange(reopened, in: &documents)
+    let renewedReview = try #require(reopened.firstChoice)
+    try reopened.acceptFirst(renewedReview, selections: [.restEnabled: .device(left.id)])
+    try exchange(reopened, in: &documents)
+    #expect(right.settings.restEnabled)
+    #expect(reopened.firstChoice == nil)
+
+    try reopened.setSelectedFields([.appearance])
+    right.settings.restEnabled = false
+    right.settings.appearance = .dark
+    try exchange(reopened, in: &documents)
+    try exchange(publisher, in: &documents)
+    #expect(left.settings.restEnabled)
+    #expect(left.settings.appearance == .dark)
+  }
+
+  @Test(arguments: [false, true])
+  func scopeChangeRevokesLateApplicationOnlyForTheRemovedField(reselectBeforeReadback: Bool) throws
+  {
+    let left = Peer()
+    let right = Peer()
+    defer {
+      left.clean()
+      right.clean()
+    }
+    var documents: [UUID: Data] = [:]
+    let (publisher, follower) = try joined(left, right, documents: &documents)
+    let oldRestState = right.settings.restEnabled
+    left.settings.appearance = .dark
+    left.settings.restEnabled.toggle()
+    try exchange(publisher, in: &documents)
+    let upload = try follower.prepare(documents, activitySyncedAt: nil)
+    let outgoing = try #require(upload)
+    try follower.setSelectedFields([.appearance])
+    if reselectBeforeReadback {
+      try follower.setSelectedFields([.appearance, .restEnabled])
+    }
+    documents[right.id] = outgoing
+
+    let reopened = try right.open()
+    try exchange(reopened, in: &documents)
+    #expect(right.settings.appearance == .dark)
+    #expect(right.settings.restEnabled == oldRestState)
+    #expect(reopened.conflicts.isEmpty)
+    #expect(
+      reopened.firstChoice?.fields.map(\.field) == (reselectBeforeReadback ? [.restEnabled] : nil))
+  }
+
+  @Test func existingGroupOptInKeepsItsFourFieldsAndVerifiedBaseline() throws {
+    let peer = Peer(recordJournal: true)
+    defer { peer.clean() }
+    var documents: [UUID: Data] = [:]
+    let sync = try peer.open()
+    try seed(sync, in: &documents)
+    let receipt = try #require(sync.lastSettingsSyncAt)
+    let storage = try #require(peer.defaults.string(forKey: JournalDefaults.storage))
+    let encrypted = try #require(peer.defaults.data(forKey: storage))
+    let key = HKDF<SHA256>.deriveKey(
+      inputKeyMaterial: peer.key, salt: Data(SHA256.hash(data: Data(Peer.destination.utf8))),
+      info: Data("XStats.SyncPreferences.v1/\(peer.id.uuidString)".utf8), outputByteCount: 32)
+    let cleartext = try AES.GCM.open(AES.GCM.SealedBox(combined: encrypted), using: key)
+    var legacy = try #require(JSONSerialization.jsonObject(with: cleartext) as? [String: Any])
+    legacy.removeValue(forKey: "selection")
+    legacy.removeValue(forKey: "joining")
+    let legacyBytes = try JSONSerialization.data(withJSONObject: legacy)
+    let legacyCiphertext = try AES.GCM.seal(legacyBytes, using: key)
+    let legacyJournal = try #require(legacyCiphertext.combined)
+    peer.defaults.set(legacyJournal, forKey: storage)
+
+    let reopened = try peer.open()
+    #expect(reopened.selectedFields == Set(SyncPreferences.Field.allCases))
+    #expect(reopened.lastSettingsSyncAt == receipt)
+    try exchange(reopened, in: &documents)
+    #expect(reopened.firstChoice == nil)
+    #expect(reopened.conflicts.isEmpty)
+  }
+
   @Test func firstImportWaitsForVerifiedPublicationAndReportsRealMetadata() throws {
     let source = Peer(name: "工作 Mac")
     let follower = Peer()
@@ -517,6 +632,39 @@ struct SyncPreferencesTests {
     var documents: [UUID: Data] = [:]
     try exchange(reopened, in: &documents)
     #expect(reopened.lastSettingsSyncAt != nil)
+  }
+
+  @Test func enablingBeforeUnlockAfterClearingSelectionRestoresGroupEnrollment() throws {
+    let peer = Peer()
+    defer { peer.clean() }
+    let sync = try peer.open()
+    try sync.setSelectedFields([.appearance])
+    try sync.setSelectedFields([])
+    sync.clearDestination()
+    sync.selectDestination(Peer.destination)
+    try sync.setEnabled(true)
+    try sync.unlockDestination(key: peer.key)
+
+    #expect(sync.selectedFields == Set(SyncPreferences.Field.allCases))
+    var documents: [UUID: Data] = [:]
+    try exchange(sync, in: &documents)
+    #expect(sync.lastSettingsSyncAt != nil)
+    #expect(try peer.open().selectedFields == Set(SyncPreferences.Field.allCases))
+  }
+
+  @Test(arguments: [false, true])
+  func staleSchedulingHintCannotChangeSavedFieldSelection(enabled: Bool) throws {
+    let peer = Peer(recordJournal: true)
+    defer { peer.clean() }
+    let sync = try peer.open()
+    try sync.setSelectedFields([.appearance])
+    if !enabled { try sync.setSelectedFields([]) }
+    let storage = try #require(peer.defaults.string(forKey: JournalDefaults.storage))
+    peer.defaults.set(!enabled, forKey: storage + ".enabled")
+    let reopened = try peer.open()
+    #expect(reopened.isEnabled == enabled)
+    #expect(reopened.selectedFields == (enabled ? [.appearance] : []))
+    #expect(peer.defaults.bool(forKey: storage + ".enabled") == enabled)
   }
 
   @Test func returningToDestinationDoesNotUploadSettingsChangedInAnotherDestination() throws {

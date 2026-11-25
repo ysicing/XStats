@@ -3108,3 +3108,7 @@ HTTP 仅限内网或 Tailscale，WebDAV 登录凭据会通过 HTTP 发送。	HTT
 汇总各台 Mac 的活动记录	Regroupe les données d’activité de vos Mac
 活动记录保存在这台 Mac	Les données d’activité restent sur ce Mac
 外观、菜单栏布局和休息提醒偏好	Préférences d’apparence, de disposition de la barre des menus et de rappels de pause
+功能设置同步	Synchronisation des réglages des fonctionnalités
+选择这台 Mac 要同步的设置。	Choisissez les réglages que ce Mac synchronise.
+当前值	Valeur actuelle
+选择同步项	Choisir les réglages à synchroniser
