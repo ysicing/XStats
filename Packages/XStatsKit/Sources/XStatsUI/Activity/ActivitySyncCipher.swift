@@ -57,7 +57,7 @@ struct ActivitySyncCipher: Sendable {
   }
 
   func shardName(_ shard: ActivitySyncShard, in parent: [String]) throws -> String {
-    guard parent.count == 2, ActivitySyncRemotePath.validShardDirectory(parent),
+    guard (2...3).contains(parent.count), ActivitySyncRemotePath.validShardDirectory(parent),
       shard.digest.utf8.prefix(65).count == 64, let digest = Self.unhex(shard.digest)
     else { throw ActivitySyncFailure.invalidShard }
     var uuid = shard.device.uuid
@@ -67,11 +67,27 @@ struct ActivitySyncCipher: Sendable {
   }
 
   func shard(from remote: String, day: String, in parent: [String]) throws -> ActivitySyncShard {
-    guard parent.count == 2, ActivitySyncRemotePath.validShardDirectory(parent)
+    guard (2...3).contains(parent.count), ActivitySyncRemotePath.validShardDirectory(parent)
     else { throw ActivitySyncFailure.invalidListing }
     let bytes = try unwrap(remote, tag: 3, length: 48, parent: parent)
     return ActivitySyncShard(
       day: day, device: Self.device(from: bytes), digest: Self.hex(bytes.dropFirst(16)))
+  }
+
+  func partition(for device: UUID, page: UInt16, in parent: [String]) throws -> String {
+    guard parent.count == 2, ActivitySyncRemotePath.validShardDirectory(parent)
+    else { throw ActivitySyncFailure.invalidListing }
+    var bytes = withUnsafeBytes(of: device.uuid) { Data($0) }
+    bytes.append(UInt8(page >> 8))
+    bytes.append(UInt8(truncatingIfNeeded: page))
+    return try wrap(bytes, tag: 5, length: 24, parent: parent)
+  }
+
+  func partitionInfo(_ name: String, in parent: [String]) throws -> (device: UUID, page: UInt16) {
+    guard parent.count == 2, ActivitySyncRemotePath.isPartition(name)
+    else { throw ActivitySyncFailure.invalidListing }
+    let bytes = try unwrap(name, tag: 5, length: 18, parent: parent)
+    return (Self.device(from: bytes), UInt16(bytes[16]) << 8 | UInt16(bytes[17]))
   }
 
   func path(for shard: ActivitySyncShard) throws -> [String] {
@@ -81,7 +97,7 @@ struct ActivitySyncCipher: Sendable {
   }
 
   func seal(_ plaintext: Data, at path: [String]) throws -> Data {
-    guard path.count == 3, ActivitySyncRemotePath.validObject(path)
+    guard ActivitySyncRemotePath.validActivityObject(path)
     else { throw ActivitySyncFailure.invalidListing }
     guard plaintext.count <= ActivitySyncRemotePath.maximumBytes - Self.overhead else {
       throw ActivitySyncFailure.limit
@@ -90,7 +106,7 @@ struct ActivitySyncCipher: Sendable {
   }
 
   func open(_ ciphertext: Data, at path: [String]) throws -> Data {
-    guard path.count == 3, ActivitySyncRemotePath.validObject(path)
+    guard ActivitySyncRemotePath.validActivityObject(path)
     else { throw ActivitySyncFailure.invalidListing }
     guard ciphertext.count <= ActivitySyncRemotePath.maximumBytes else {
       throw ActivitySyncFailure.limit

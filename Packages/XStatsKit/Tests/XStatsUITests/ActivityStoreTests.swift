@@ -14,6 +14,38 @@ struct ActivityStoreTests {
 
   private static let fixtureKey = SymmetricKey(data: Data(repeating: 0xA5, count: 32))
 
+  @Test func reportRevisionsOnlyChangeForDatesTouchedByCommittedSessions() async throws {
+    let store = ActivityStore(url: nil)
+    let days = (0..<3).map { DateInterval(start: date(Double($0 * 86_400)), duration: 86_400) }
+    #expect(await store.reportRevisions(in: [DateInterval(start: date(0), duration: 0)]) == [0])
+    let before = await store.reportRevisions(in: days)
+    let record = session(start: 86_399, end: 86_401)
+    #expect(try await store.insert([record]))
+    let after = await store.reportRevisions(in: days)
+    #expect(after[0] > before[0])
+    #expect(after[0] == after[1])
+    #expect(after[2] == before[2])
+    #expect(try await !store.insert([record]))
+    #expect(await store.reportRevisions(in: days) == after)
+  }
+
+  @Test func aConflictingRecordDoesNotCommitTheRestOfItsShardOrReceipt() async throws {
+    let store = ActivityStore(url: nil)
+    let first = session(start: 1, end: 2)
+    try await store.insert([first])
+    let conflict = session(id: first.id, deviceID: first.deviceID, start: 1, end: 3)
+    let second = session(start: 4, end: 5)
+    let path = ["month", "date", "object"]
+    let receipt = ActivityStore.SyncReceipt(dataset: "test", path: path, ownRecords: [])
+    await #expect(throws: ActivityStore.Failure.authentication) {
+      try await store.insert([second, conflict], receipt: receipt)
+    }
+    #expect(try await store.syncReceipts(dataset: "test", paths: [path]).isEmpty)
+    #expect(try await store.sessions(in: DateInterval(start: date(0), duration: 10)) == [first])
+    #expect(try await store.insert([first, second], receipt: receipt))
+    #expect(try await store.syncReceipts(dataset: "test", paths: [path]).count == 1)
+  }
+
   @Test func fileRoundTripKeepsFirstSessionAndListsDistinctDevices() async throws {
     let url = temporaryURL()
     defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }

@@ -17,6 +17,38 @@ struct ActivitySession: Codable, Sendable, Identifiable, Equatable {
   var subcategory: String?
 }
 
+private struct StoredActivitySession: Codable {
+  let session: ActivitySession
+
+  init(_ session: ActivitySession) { self.session = session }
+
+  init(from decoder: any Decoder) throws {
+    var fields = try decoder.unkeyedContainer()
+    session = try ActivitySession(
+      id: fields.decode(UUID.self), deviceID: fields.decode(UUID.self),
+      appID: fields.decode(String.self), appName: fields.decode(String.self),
+      category: fields.decode(String.self), start: fields.decode(Date.self),
+      end: fields.decode(Date.self),
+      deviceName: fields.isAtEnd ? nil : fields.decodeIfPresent(String.self),
+      subcategory: fields.isAtEnd ? nil : fields.decodeIfPresent(String.self))
+  }
+
+  func encode(to encoder: any Encoder) throws {
+    var fields = encoder.unkeyedContainer()
+    try fields.encode(session.id)
+    try fields.encode(session.deviceID)
+    try fields.encode(session.appID)
+    try fields.encode(session.appName)
+    try fields.encode(session.category)
+    try fields.encode(session.start)
+    try fields.encode(session.end)
+    if session.deviceName != nil || session.subcategory != nil {
+      try fields.encode(session.deviceName)
+    }
+    if let subcategory = session.subcategory { try fields.encode(subcategory) }
+  }
+}
+
 actor ActivityStore {
   enum Failure: Error, Equatable {
     case batchTooLarge
@@ -50,6 +82,9 @@ actor ActivityStore {
   // 句柄仅由 actor 方法访问，析构时没有在途操作。
   nonisolated(unsafe) private var db: OpaquePointer?
   private var keys: Keys?
+  private var revision: UInt64 = 0
+  private var revisionFloor: UInt64 = 0
+  private var dayRevisions: [Int: UInt64] = [:]
 
   init(url: URL?, keyProvider: (@Sendable () throws -> SymmetricKey)? = nil) {
     self.url = url
@@ -60,9 +95,22 @@ actor ActivityStore {
     if let db { sqlite3_close(db) }
   }
 
-  func insert(_ sessions: [ActivitySession]) throws {
+  struct SyncReceipt: Sendable {
+    let dataset: String
+    let path: [String]
+    let ownRecords: [UUID]
+    var version: String?
+  }
+
+  struct ReceiptContents: Codable, Sendable {
+    let ownRecords: [UUID]
+    let version: String?
+  }
+
+  @discardableResult
+  func insert(_ sessions: [ActivitySession], receipt: SyncReceipt? = nil) throws -> Bool {
     guard sessions.count <= Self.maximumBatchSize else { throw Failure.batchTooLarge }
-    guard !sessions.isEmpty else { return }
+    guard !sessions.isEmpty || receipt != nil else { return false }
     for session in sessions {
       try Task.checkCancellation()
       guard validSession(session) else { throw Failure.invalidSession }
@@ -72,6 +120,8 @@ actor ActivityStore {
       throw Failure.database(SQLITE_CANTOPEN)
     }
     let encoder = JSONEncoder()
+    var daysChanged = Set<Int>()
+    var allDaysChanged = false
     try execute("BEGIN IMMEDIATE", on: handle)
     do {
       let insertRecord = """
@@ -89,7 +139,8 @@ actor ActivityStore {
           for session in sessions {
             try Task.checkCancellation()
             let indexes = keys.indexes(for: session)
-            let ciphertext = try keys.seal(encoder.encode(session), authenticating: indexes.aad)
+            let ciphertext = try keys.seal(
+              encoder.encode(StoredActivitySession(session)), authenticating: indexes.aad)
             guard ciphertext.count <= Self.maximumCiphertextBytes else {
               throw Failure.invalidSession
             }
@@ -100,7 +151,12 @@ actor ActivityStore {
             try check(sqlite3_step(recordQuery), expected: SQLITE_DONE)
             let inserted = sqlite3_changes(handle) != 0
             try check(sqlite3_reset(recordQuery))
-            guard inserted else { continue }
+            guard inserted else {
+              if receipt != nil {
+                try verifyExisting(session, on: handle, keys: keys, indexes: indexes)
+              }
+              continue
+            }
             if session.deviceName != nil,
               latestNamed[session.deviceID].map({ $0.end < session.end }) ?? true
             {
@@ -108,6 +164,12 @@ actor ActivityStore {
             }
 
             let days = Self.days(start: session.start, end: session.end)
+            if days.count > Self.maximumIndexedDays {
+              allDaysChanged = true
+            } else if !allDaysChanged {
+              daysChanged.formUnion(days)
+              allDaysChanged = daysChanged.count > Self.maximumQueryDays
+            }
             let tokens: [Data]
             if days.count > Self.maximumIndexedDays {
               tokens = [overflow]
@@ -132,11 +194,33 @@ actor ActivityStore {
       for session in latestNamed.values {
         try updateDeviceNameIndex(session, on: handle, keys: keys)
       }
+      if let receipt {
+        try writeReceipt(receipt, on: handle, keys: keys)
+      }
       try Task.checkCancellation()
       try execute("COMMIT", on: handle)
     } catch {
       sqlite3_exec(handle, "ROLLBACK", nil, nil, nil)
       throw error
+    }
+    if receipt != nil { receiptsAvailable = true }
+    guard allDaysChanged || !daysChanged.isEmpty else { return false }
+    revision &+= 1
+    if allDaysChanged || dayRevisions.count + daysChanged.count > Self.maximumQueryDays {
+      revisionFloor = revision
+      dayRevisions.removeAll(keepingCapacity: true)
+    } else {
+      for day in daysChanged { dayRevisions[day] = revision }
+    }
+    return true
+  }
+
+  func reportRevisions(in intervals: [DateInterval]) -> [UInt64] {
+    intervals.map { interval in
+      guard interval.start < interval.end else { return 0 }
+      let days = Self.days(start: interval.start, end: interval.end)
+      guard days.count <= Self.maximumQueryDays else { return revision }
+      return days.reduce(revisionFloor) { max($0, dayRevisions[$1, default: 0]) }
     }
   }
 
@@ -186,7 +270,17 @@ actor ActivityStore {
     guard let (handle, keys) = try open() else { return [] }
     var devices: [UUID] = []
     try scan(
-      "SELECT \(Self.columns) FROM activity_records AS s GROUP BY s.device_key", on: handle
+      """
+      WITH RECURSIVE devices(token) AS (
+        SELECT min(device_key) FROM activity_records
+        UNION ALL
+        SELECT (SELECT min(device_key) FROM activity_records WHERE device_key > devices.token)
+        FROM devices WHERE token IS NOT NULL
+      )
+      SELECT \(Self.columns) FROM devices JOIN activity_records AS s ON s.record_key = (
+        SELECT record_key FROM activity_records WHERE device_key = devices.token LIMIT 1
+      )
+      """, on: handle
     ) { query in
       devices.append(try decodeSession(query, keys: keys).deviceID)
     }
@@ -240,7 +334,17 @@ actor ActivityStore {
   func localDays(deviceID: UUID) throws -> [String] {
     guard let (handle, keys) = try open() else { return [] }
     let sql = """
-      SELECT \(Self.columns) FROM activity_records AS s WHERE s.device_key = ? GROUP BY s.day_key
+      WITH RECURSIVE days(token) AS (
+        SELECT min(day_key) FROM activity_records WHERE device_key = ?1
+        UNION ALL
+        SELECT (SELECT min(day_key) FROM activity_records
+                WHERE device_key = ?1 AND day_key > days.token)
+        FROM days WHERE token IS NOT NULL
+      )
+      SELECT \(Self.columns) FROM days JOIN activity_records AS s ON s.record_key = (
+        SELECT record_key FROM activity_records WHERE device_key = ?1 AND day_key = days.token
+        LIMIT 1
+      )
       """
     let decoder = JSONDecoder()
     var days: [String] = []
@@ -253,10 +357,53 @@ actor ActivityStore {
     return days.sorted()
   }
 
-  func exportDay(_ day: String, deviceID: UUID) throws -> [ActivitySession] {
+  func unpublishedSessions(
+    on day: String, deviceID: UUID, excluding published: Set<UUID>, limit: Int?
+  ) throws -> [ActivitySession] {
+    let index = try Self.exportDayIndex(day)
+    guard let (handle, keys) = try open() else { return [] }
+    var publishedTokens = Set<Data>()
+    for id in published {
+      try Task.checkCancellation()
+      publishedTokens.insert(keys.token("record", id.uuidString))
+    }
+    let decoder = JSONDecoder()
+    var rows: [ActivitySession] = []
+    try statement(
+      "SELECT record_key FROM activity_records WHERE device_key = ? AND day_key = ?", on: handle
+    ) { indexQuery in
+      try bind(keys.device(deviceID), at: 1, in: indexQuery)
+      try bind(keys.startDay(index, deviceID: deviceID), at: 2, in: indexQuery)
+      try statement(
+        "SELECT \(Self.columns) FROM activity_records AS s WHERE record_key = ?", on: handle
+      ) { recordQuery in
+        while limit.map({ rows.count < $0 }) ?? true {
+          try Task.checkCancellation()
+          let status = sqlite3_step(indexQuery)
+          if status == SQLITE_DONE { break }
+          try check(status, expected: SQLITE_ROW)
+          let record = try token(at: 0, in: indexQuery)
+          guard !publishedTokens.contains(record) else { continue }
+          try bind(record, at: 1, in: recordQuery)
+          try check(sqlite3_step(recordQuery), expected: SQLITE_ROW)
+          rows.append(try decodeSession(recordQuery, keys: keys, decoder: decoder))
+          try check(sqlite3_reset(recordQuery))
+        }
+      }
+    }
+    try sort(&rows)
+    return rows
+  }
+
+  private static func exportDayIndex(_ day: String) throws -> Int {
     guard day.utf8.prefix(11).count == 10, day >= "0001-01-01",
-      let date = try? Self.utc.parse(day), date.formatted(Self.utc) == day
+      let date = try? utc.parse(day), date.formatted(utc) == day
     else { throw Failure.invalidDay }
+    return dayIndex(date)
+  }
+
+  func exportDay(_ day: String, deviceID: UUID) throws -> [ActivitySession] {
+    let index = try Self.exportDayIndex(day)
     guard let (handle, keys) = try open() else { return [] }
     let sql = """
       SELECT \(Self.columns) FROM activity_records AS s WHERE s.device_key = ? AND s.day_key = ?
@@ -267,13 +414,89 @@ actor ActivityStore {
       sql, on: handle,
       bind: { query in
         try bind(keys.device(deviceID), at: 1, in: query)
-        try bind(keys.startDay(Self.dayIndex(date), deviceID: deviceID), at: 2, in: query)
+        try bind(keys.startDay(index, deviceID: deviceID), at: 2, in: query)
       }
     ) { query in
       sessions.append(try decodeSession(query, keys: keys, decoder: decoder))
     }
     try sort(&sessions)
     return sessions
+  }
+
+  func syncReceipts(dataset: String, paths: [[String]]) throws -> [[String]: ReceiptContents] {
+    guard !paths.isEmpty, let (handle, keys) = try open() else { return [:] }
+    if !receiptsAvailable { receiptsAvailable = try hasReceiptTable(on: handle) }
+    guard receiptsAvailable else { return [:] }
+    let decoder = JSONDecoder()
+    var receipts: [[String]: ReceiptContents] = [:]
+    try statement("SELECT ciphertext FROM activity_sync_receipts WHERE object_key = ?", on: handle)
+    {
+      query in
+      for path in paths {
+        try Task.checkCancellation()
+        let token = keys.receipt(dataset, path: path)
+        try bind(token, at: 1, in: query)
+        let status = sqlite3_step(query)
+        if status == SQLITE_ROW {
+          let ciphertext = try blob(
+            at: 0, in: query, length: Self.sealedOverhead...Self.maximumCiphertextBytes)
+          // 本机回执只是优化，可重新从已认证的远端分片恢复。
+          if let bytes = try? keys.unseal(ciphertext, authenticating: token),
+            let receipt = try? decoder.decode(ReceiptContents.self, from: bytes)
+          {
+            receipts[path] = receipt
+          }
+        } else {
+          try check(status, expected: SQLITE_DONE)
+        }
+        try check(sqlite3_reset(query))
+      }
+    }
+    return receipts
+  }
+
+  private var receiptsAvailable = false
+  private static let receiptSchema = """
+    CREATE TABLE IF NOT EXISTS activity_sync_receipts (
+      object_key BLOB PRIMARY KEY NOT NULL CHECK (length(object_key) = 32),
+      ciphertext BLOB NOT NULL CHECK (length(ciphertext) BETWEEN 28 AND 16384)
+    ) WITHOUT ROWID
+    """
+
+  private func writeReceipt(_ receipt: SyncReceipt, on handle: OpaquePointer, keys: Keys) throws {
+    if !receiptsAvailable { try execute(Self.receiptSchema, on: handle) }
+    let token = keys.receipt(receipt.dataset, path: receipt.path)
+    let contents = ReceiptContents(ownRecords: receipt.ownRecords, version: receipt.version)
+    let data = try keys.seal(JSONEncoder().encode(contents), authenticating: token)
+    try statement(
+      "INSERT OR REPLACE INTO activity_sync_receipts VALUES (?, ?)", on: handle
+    ) {
+      try bind(token, at: 1, in: $0)
+      try bind(data, at: 2, in: $0)
+      try check(sqlite3_step($0), expected: SQLITE_DONE)
+    }
+  }
+
+  private func verifyExisting(
+    _ session: ActivitySession, on handle: OpaquePointer, keys: Keys, indexes: RecordIndexes
+  ) throws {
+    try statement(
+      "SELECT \(Self.columns) FROM activity_records AS s WHERE record_key = ?", on: handle
+    ) { query in
+      try bind(indexes.record, at: 1, in: query)
+      try check(sqlite3_step(query), expected: SQLITE_ROW)
+      var previous = try decodeSession(query, keys: keys)
+      var incoming = session
+      if previous.deviceName == nil || incoming.deviceName == nil {
+        previous.deviceName = nil
+        incoming.deviceName = nil
+      }
+      if previous.subcategory == nil || incoming.subcategory == nil {
+        previous.subcategory = nil
+        incoming.subcategory = nil
+      }
+      guard previous == incoming else { throw Failure.authentication }
+    }
   }
 
   private func readCandidates(
@@ -444,6 +667,7 @@ actor ActivityStore {
         }
         try execute("PRAGMA journal_mode=WAL", on: handle)
       }
+      receiptsAvailable = try hasReceiptTable(on: handle)
       db = handle
       keys = unlocked
       return (handle, unlocked)
@@ -484,9 +708,10 @@ actor ActivityStore {
     ) { query in
       guard let name = sqlite3_column_text(query, 0) else { throw Failure.unsupportedSchema }
       tables.insert(String(cString: name))
-      guard tables.count <= 3 else { throw Failure.unsupportedSchema }
+      guard tables.count <= 4 else { throw Failure.unsupportedSchema }
     }
     if tables.isEmpty { return nil }
+    tables.remove("activity_sync_receipts")
     guard tables == ["activity_metadata", "activity_records", "activity_ranges"] else {
       throw Failure.unsupportedSchema
     }
@@ -496,6 +721,18 @@ actor ActivityStore {
       let check = try blob(at: 1, in: query, length: Self.sealedOverhead...Self.sealedOverhead)
       guard sqlite3_step(query) == SQLITE_DONE else { throw Failure.authentication }
       return Metadata(salt: salt, keyCheck: check)
+    }
+  }
+
+  private func hasReceiptTable(on handle: OpaquePointer) throws -> Bool {
+    try statement(
+      "SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = 'activity_sync_receipts'",
+      on: handle
+    ) { query in
+      let status = sqlite3_step(query)
+      if status == SQLITE_ROW { return true }
+      try check(status, expected: SQLITE_DONE)
+      return false
     }
   }
 
@@ -552,6 +789,8 @@ actor ActivityStore {
   ) throws {
     try statement(sql, on: handle) { query in
       try Task.checkCancellation()
+      sqlite3_progress_handler(handle, 4096, { _ in Task.isCancelled ? 1 : 0 }, nil)
+      defer { sqlite3_progress_handler(handle, 0, nil, nil) }
       try bind(query)
       var status = sqlite3_step(query)
       while status == SQLITE_ROW {
@@ -559,6 +798,7 @@ actor ActivityStore {
         try visit(query)
         status = sqlite3_step(query)
       }
+      try Task.checkCancellation()
       try check(status, expected: SQLITE_DONE)
     }
   }
@@ -572,7 +812,11 @@ actor ActivityStore {
     let ciphertext = try blob(
       at: 3, in: query, length: Self.sealedOverhead...Self.maximumCiphertextBytes)
     let plaintext = try keys.unseal(ciphertext, authenticating: indexes.aad)
-    guard let session = try? decoder.decode(ActivitySession.self, from: plaintext),
+    let session =
+      plaintext.first == UInt8(ascii: "[")
+      ? (try? decoder.decode(StoredActivitySession.self, from: plaintext).session)
+      : (try? decoder.decode(ActivitySession.self, from: plaintext))
+    guard let session,
       validSession(session), keys.indexes(for: session) == indexes
     else { throw Failure.authentication }
     return session
@@ -652,6 +896,10 @@ actor ActivityStore {
 
     func startDay(_ day: Int, deviceID: UUID) -> Data {
       token("start-day", "\(deviceID.uuidString):\(day)")
+    }
+
+    func receipt(_ dataset: String, path: [String]) -> Data {
+      token("sync-receipt", dataset + "/" + path.joined(separator: "/"))
     }
 
     func token(_ domain: String, _ value: String) -> Data {

@@ -7,6 +7,23 @@ import Testing
 
 @MainActor
 struct SyncPreferencesTests {
+  @Test func automaticStatusUpdatesAreThrottledButManualSyncCanPublishImmediately() throws {
+    let peer = Peer()
+    defer { peer.clean() }
+    let sync = try peer.open()
+    let firstSync = Date(timeIntervalSince1970: 1_800_000_000)
+    let initial = try #require(
+      try sync.prepare(
+        [:], activitySyncedAt: firstSync, now: firstSync, minimumStatusInterval: 3_600))
+    let documents = [peer.id: initial]
+    try sync.didPublish(documents)
+    let next = firstSync.addingTimeInterval(300)
+    #expect(
+      try sync.prepare(
+        documents, activitySyncedAt: next, now: next, minimumStatusInterval: 3_600) == nil)
+    #expect(try sync.prepare(documents, activitySyncedAt: next, now: next) != nil)
+  }
+
   @Test func eachMacExchangesOnlySelectedFieldsAndJoinsAddedFieldsSeparately() throws {
     let left = Peer()
     let right = Peer()

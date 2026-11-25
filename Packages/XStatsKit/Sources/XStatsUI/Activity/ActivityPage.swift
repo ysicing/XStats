@@ -15,7 +15,9 @@ struct ActivityPage: View {
   @State private var storedDeviceIDs: [UUID] = []
   @State private var storedDeviceNames: [UUID: String] = [:]
   @State private var refresh = 0
+  @State private var refreshPending = false
   @State private var loaded: Loaded?
+  @State private var summaries: [DateInterval: DailySummary] = [:]
   @State private var failedRequest: Request?
   @State private var selectedApp: ActivityPageAnalytics.App?
 
@@ -48,15 +50,14 @@ struct ActivityPage: View {
     let includesLocal = device == .all || device == .local
     let isCurrent = interval != nil && interval == current
     let tracksLocalChanges = includesLocal && isCurrent
+    let recordingRevision = tracksLocalChanges ? controller.revision : 0
     let isVisible = model.isMainWindowVisible
     let liveDay =
       isVisible && tracksLocalChanges && period == .day && controller.enabled
         && selectedApp == nil ? interval : nil
     let request = selection.map {
       Request(
-        selection: $0, localID: localID, enabled: controller.enabled,
-        revision: tracksLocalChanges ? controller.revision : 0,
-        refresh: refresh)
+        selection: $0, localID: localID, enabled: controller.enabled, refresh: refresh)
     }
     let visibleRequest = isVisible ? request : nil
     let report = loaded?.selection == selection ? loaded?.report : nil
@@ -131,6 +132,18 @@ struct ActivityPage: View {
         await load(visibleRequest, controller: controller, calendar: calendar)
       }
     }
+    .task(id: isVisible && refreshPending) {
+      guard isVisible, refreshPending else { return }
+      do {
+        try await Task.sleep(for: .seconds(period == .day ? 2 : 10), tolerance: .milliseconds(500))
+      } catch { return }
+      guard !Task.isCancelled, model.isMainWindowVisible else { return }
+      refreshPending = false
+      refresh &+= 1
+    }
+    .onChange(of: recordingRevision) {
+      if isVisible { refreshPending = true }
+    }
     .task(id: liveDay) {
       guard let liveDay else { return }
       while !Task.isCancelled {
@@ -140,12 +153,16 @@ struct ActivityPage: View {
         guard !Task.isCancelled, model.isMainWindowVisible, controller.enabled,
           Date.now < liveDay.end
         else { return }
-        refresh += 1
+        refreshPending = true
       }
     }
     .onReceive(
-      Publishers.Merge3(
-        NotificationCenter.default.publisher(for: Self.syncFinished),
+      NotificationCenter.default.publisher(for: Self.syncFinished).receive(on: RunLoop.main)
+    ) { notice in
+      if isVisible, notice.object as? ActivityStore === controller.store { refreshPending = true }
+    }
+    .onReceive(
+      Publishers.Merge(
         NotificationCenter.default.publisher(for: .NSCalendarDayChanged),
         NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)
       ).receive(on: RunLoop.main)
@@ -156,7 +173,17 @@ struct ActivityPage: View {
       ActivityPageSegments(
         app: app, localID: localID, deviceNames: deviceNames,
         showsDevice: device == .all && !remoteIDs.isEmpty,
-        locale: locale)
+        locale: locale,
+        load: selection.flatMap { selection in
+          guard selection.period != .day else { return nil }
+          return {
+            let detail = try await makeReport(
+              selection.interval, period: selection.period, controller: controller,
+              calendar: calendar, deviceID: selection.device.id(localID: localID),
+              now: .now, detail: .app(app.id))
+            return detail.apps.first { $0.id == app.id }
+          }
+        })
     }
     .onChange(of: device) { _, _ in animatePeriodChange = false }
   }
@@ -270,25 +297,90 @@ struct ActivityPage: View {
     do {
       let selection = request.selection
       let deviceID = selection.device.id(localID: request.localID)
-      let sessions = try await controller.sessions(in: selection.interval, deviceID: deviceID)
-      try Task.checkCancellation()
       let knownIDs = try? await controller.store.deviceIDs()
       let names = try await controller.store.deviceNames()
       try Task.checkCancellation()
       let now = Date.now
-      let worker = Task.detached(priority: .userInitiated) {
-        let report = try ActivityPageAnalytics.make(
-          sessions: sessions, interval: selection.interval, period: selection.period,
-          calendar: calendar, deviceID: deviceID, through: now)
-        return (report, Set(knownIDs ?? []).union(report.deviceIDs))
-      }
-      let (report, ids) = try await withTaskCancellationHandler {
-        try await worker.value
-      } onCancel: {
-        worker.cancel()
+      let report: ActivityPageAnalytics
+      if selection.period == .day {
+        report = try await makeReport(
+          selection.interval, period: .day, controller: controller, calendar: calendar,
+          deviceID: deviceID, now: now)
+        summaries = [:]
+      } else {
+        var intervals: [DateInterval] = []
+        var cursor = selection.interval.start
+        while cursor < selection.interval.end,
+          let day = calendar.dateInterval(of: .day, for: cursor), day.end > cursor
+        {
+          let end = min(day.end, selection.interval.end)
+          intervals.append(DateInterval(start: cursor, end: end))
+          cursor = end
+        }
+        let revisions = await controller.store.reportRevisions(in: intervals)
+        let hasLocal = deviceID == nil || deviceID == request.localID
+        let cacheThrough = min(now, hasLocal ? controller.earliestUncommittedStart ?? now : now)
+        let reusable = intervals.indices.map { index -> ActivityPageAnalytics? in
+          let interval = intervals[index]
+          guard interval.end <= cacheThrough, let cached = summaries[interval],
+            cached.calendar == calendar, cached.device == selection.device,
+            cached.revision == revisions[index]
+          else { return nil }
+          return cached.report
+        }
+        var ordered: [ActivityPageAnalytics]
+        var cacheable = true
+        if reusable.allSatisfy({ $0 == nil }) {
+          ordered = try await loadDays(
+            intervals, selection: selection, controller: controller, calendar: calendar,
+            deviceID: deviceID, now: now)
+        } else {
+          var daily: [ActivityPageAnalytics] = []
+          for (interval, cached) in zip(intervals, reusable) {
+            try Task.checkCancellation()
+            if let cached {
+              daily.append(cached)
+            } else {
+              let summary = try await makeReport(
+                interval, period: selection.period, controller: controller, calendar: calendar,
+                deviceID: deviceID, now: now, detail: .none)
+              daily.append(summary)
+            }
+          }
+          ordered = daily
+          if await controller.store.reportRevisions(in: intervals) != revisions {
+            ordered = try await loadDays(
+              intervals, selection: selection, controller: controller, calendar: calendar,
+              deviceID: deviceID, now: now)
+            cacheable = false
+          }
+        }
+        let work = Task.detached(priority: .userInitiated) { [ordered] in
+          try ActivityPageAnalytics.combineDailySummaries(ordered)
+        }
+        report = try await withTaskCancellationHandler {
+          try await work.value
+        } onCancel: {
+          work.cancel()
+        }
+        try Task.checkCancellation()
+        summaries =
+          cacheable
+          ? Dictionary(
+            uniqueKeysWithValues: intervals.indices.compactMap { index in
+              let interval = intervals[index]
+              guard interval.end <= cacheThrough else { return nil }
+              return (
+                interval,
+                DailySummary(
+                  calendar: calendar, device: selection.device, revision: revisions[index],
+                  report: ordered[index])
+              )
+            }) : [:]
       }
       try Task.checkCancellation()
       guard model.isMainWindowVisible else { return }
+      let ids = Set(knownIDs ?? []).union(report.deviceIDs)
       storedDeviceIDs = (knownIDs == nil ? ids.union(storedDeviceIDs) : ids)
         .sorted { $0.uuidString < $1.uuidString }
       storedDeviceNames = names
@@ -298,6 +390,45 @@ struct ActivityPage: View {
       guard !Task.isCancelled, model.isMainWindowVisible else { return }
       if failedRequest == nil { Self.logger.error("读取应用活动失败") }
       failedRequest = request
+    }
+  }
+
+  @MainActor
+  private func loadDays(
+    _ intervals: [DateInterval], selection: Selection, controller: ActivityController,
+    calendar: Calendar, deviceID: UUID?, now: Date
+  ) async throws -> [ActivityPageAnalytics] {
+    let sessions = try await controller.sessions(in: selection.interval, deviceID: deviceID)
+    try Task.checkCancellation()
+    let work = Task.detached(priority: .userInitiated) {
+      try ActivityPageAnalytics.summarizeDays(
+        intervals, sessions: sessions, period: selection.period, calendar: calendar,
+        deviceID: deviceID, through: now)
+    }
+    return try await withTaskCancellationHandler {
+      try await work.value
+    } onCancel: {
+      work.cancel()
+    }
+  }
+
+  @MainActor
+  private func makeReport(
+    _ interval: DateInterval, period: ActivityPagePeriod, controller: ActivityController,
+    calendar: Calendar, deviceID: UUID?, now: Date, detail: ActivityPageAnalytics.Detail = .all
+  ) async throws -> ActivityPageAnalytics {
+    let sessions =
+      interval.start < now ? try await controller.sessions(in: interval, deviceID: deviceID) : []
+    try Task.checkCancellation()
+    let work = Task.detached(priority: .userInitiated) {
+      try ActivityPageAnalytics.make(
+        sessions: sessions, interval: interval, period: period, calendar: calendar,
+        deviceID: deviceID, through: now, detail: detail)
+    }
+    return try await withTaskCancellationHandler {
+      try await work.value
+    } onCancel: {
+      work.cancel()
     }
   }
 
@@ -325,8 +456,14 @@ struct ActivityPage: View {
     let selection: Selection
     let localID: UUID
     let enabled: Bool
-    let revision: Int
     let refresh: Int
+  }
+
+  private struct DailySummary {
+    let calendar: Calendar
+    let device: Device
+    let revision: UInt64
+    let report: ActivityPageAnalytics
   }
 
   private struct Loaded {

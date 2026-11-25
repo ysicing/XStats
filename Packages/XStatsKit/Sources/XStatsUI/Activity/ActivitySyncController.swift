@@ -235,7 +235,8 @@ final class ActivitySyncController {
         documents in
         let identifier = await engine.datasetIdentifier
         return try await self.prepareMetadata(
-          documents, identifier: identifier, activityDate: completedActivity, ticket: ticket)
+          documents, identifier: identifier, activityDate: completedActivity, mode: mode,
+          ticket: ticket)
       }
       try Task.checkCancellation()
       guard ticket == generation else { throw CancellationError() }
@@ -245,7 +246,8 @@ final class ActivitySyncController {
   }
 
   private func prepareMetadata(
-    _ documents: [UUID: Data], identifier: String?, activityDate: Date?, ticket: UUID
+    _ documents: [UUID: Data], identifier: String?, activityDate: Date?, mode: ActivitySyncMode,
+    ticket: UUID
   ) async throws -> Data? {
     try Task.checkCancellation()
     guard generation == ticket, let identifier else { throw CancellationError() }
@@ -257,7 +259,9 @@ final class ActivitySyncController {
     }
     defaults.set(identifier, forKey: markerKey)
     guard generation == ticket else { throw CancellationError() }
-    return try preferences?.prepare(documents, activitySyncedAt: activityDate)
+    return try preferences?.prepare(
+      documents, activitySyncedAt: activityDate,
+      minimumStatusInterval: mode == .automatic ? 3_600 : 0)
   }
 
   private func clearPreferences() {

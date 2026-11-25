@@ -13,6 +13,7 @@ private actor Shards: ActivitySyncRepository {
   var reads = 0
   var markerCreateAttempts = 0
   var concurrentCreation = false
+  var versions: [[String]: String] = [:]
 
   init(key: SymmetricKey) { self.key = key }
 
@@ -24,14 +25,29 @@ private actor Shards: ActivitySyncRepository {
   }
 
   func read(_ path: [String]) -> Data? {
-    if path.count == 3 { reads += 1 }
+    if ActivitySyncRemotePath.validActivityObject(path) { reads += 1 }
     return files[path]
+  }
+
+  func listActivityObjects(_ path: [String]) -> ActivitySyncListing {
+    let names = list(path)
+    return ActivitySyncListing(
+      names: names,
+      versions: Dictionary(
+        uniqueKeysWithValues: names.compactMap { name in
+          versions[path + [name]].map { (name, $0) }
+        }))
+  }
+
+  func setVersion(_ version: String, at path: [String], replacing data: Data? = nil) {
+    versions[path] = version
+    if let data { files[path] = data }
   }
 
   func create(_ data: Data, at path: [String]) throws -> Bool {
     if path == [ActivitySyncRemotePath.marker] { markerCreateAttempts += 1 }
     guard files[path] == nil else { return false }
-    if path.count == 3 {
+    if ActivitySyncRemotePath.validActivityObject(path) {
       writes += 1
       if concurrentCreation {
         concurrentCreation = false
@@ -59,14 +75,19 @@ private actor Shards: ActivitySyncRepository {
     return cipher
   }
 
-  func seed(_ sessions: [ActivitySession]) throws -> [String] {
+  func seed(_ sessions: [ActivitySession], page: UInt16? = nil) throws -> [String] {
     let first = try #require(sessions.first)
     let data = try ActivitySyncShard.encode(sessions)
     let shard = ActivitySyncShard(
       day: ActivitySyncShard.day(of: first.start), device: first.deviceID,
       digest: ActivitySyncShard.checksum(data))
     let cipher = try fixtureCipher()
-    let path = try cipher.path(for: shard)
+    var path = try cipher.path(for: shard)
+    if let page {
+      let day = Array(path.dropLast())
+      let directory = try day + [cipher.partition(for: shard.device, page: page, in: day)]
+      path = try directory + [cipher.shardName(shard, in: directory)]
+    }
     files[path] = try cipher.seal(data, at: path)
     return path
   }
@@ -424,6 +445,96 @@ struct ActivitySyncTests {
     #expect(await repository.writes == 0)
     let data = try await store.exportDay(ActivitySyncShard.day(of: now), deviceID: source)
     #expect(data == [first, second])
+  }
+
+  @Test func sqliteReceiptsSurviveReopeningAndAvoidReadingUnchangedShards() async throws {
+    let repository = Shards(key: key)
+    let first = UUID()
+    let second = UUID()
+    let workspace = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: workspace) }
+    let url = workspace.appending(path: "activity.sqlite")
+    let key = self.key
+    let initial = ActivityStore(url: url, keyProvider: { key })
+    let local = session(first, offset: 0)
+    let remote = session(second, offset: 2)
+    try await initial.insert([local])
+    _ = try await repository.seed([remote])
+    try await ActivitySyncEngine(key: key).run(
+      store: initial, device: first, repository: repository, now: now)
+    let reads = await repository.reads
+    let writes = await repository.writes
+    let reopened = ActivityStore(url: url, keyProvider: { key })
+    try await ActivitySyncEngine(key: key).run(
+      store: reopened, device: first, repository: repository, now: now)
+    #expect(await repository.reads == reads)
+    #expect(await repository.writes == writes)
+    #expect(
+      try await reopened.sessions(in: DateInterval(start: now, duration: 60)) == [local, remote])
+  }
+
+  @Test func changedCiphertextAtAListedPathIsNotTrustedFromTheReceipt() async throws {
+    let repository = Shards(key: key)
+    let source = UUID()
+    let reader = UUID()
+    let store = ActivityStore(url: nil)
+    let path = try await repository.seed([session(source, offset: 0)])
+    await repository.setVersion("original", at: path)
+    try await ActivitySyncEngine(key: key).run(
+      store: store, device: reader, repository: repository, now: now)
+    try await ActivitySyncEngine(key: key).run(
+      store: store, device: reader, repository: repository, now: now)
+    #expect(await repository.reads == 1)
+    await repository.setVersion("modified", at: path, replacing: Data(repeating: 0, count: 64))
+    await #expect(throws: ActivitySyncFailure.authenticationFailed) {
+      try await ActivitySyncEngine(key: key).run(
+        store: store, device: reader, repository: repository, now: now)
+    }
+    #expect(await repository.reads == 2)
+  }
+
+  @Test func busyDaysRotateEncryptedDevicePartitionsWithoutDroppingFlatHistory() async throws {
+    let repository = Shards(key: key)
+    let source = UUID()
+    let local = UUID()
+    let limit = ActivitySyncRemotePath.flatDayThreshold
+    let flat = (0..<limit).map { session(source, offset: $0) }
+    let partitioned = (0..<limit).map { session(local, offset: limit + $0) }
+    for row in flat { _ = try await repository.seed([row]) }
+    for row in partitioned { _ = try await repository.seed([row], page: 0) }
+    let added = session(local, offset: 2 * limit)
+    let store = ActivityStore(url: nil)
+    try await store.insert([added])
+    try await ActivitySyncEngine(key: key).run(
+      store: store, device: local, repository: repository, mode: .manual, now: now)
+    let files = await repository.files
+    let cipher = try await repository.fixtureCipher()
+    let shard = try #require(
+      files.first {
+        $0.key.count == 4
+          && (try? cipher.partitionInfo(
+            $0.key[2], in: Array($0.key.prefix(2))
+          ).page) == 1
+      })
+    let remoteShard = try cipher.shard(
+      from: shard.key[3], day: ActivitySyncShard.day(of: added.start),
+      in: Array(shard.key.dropLast()))
+    #expect(try remoteShard.decode(cipher.open(shard.value, at: shard.key)) == [added])
+    let folderURL = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: folderURL) }
+    let folder = ActivitySyncFolder(root: folderURL)
+    #expect(try await folder.create(shard.value, at: shard.key))
+    let cloudDirectory = Array(shard.key.dropLast())
+    let listing = try await folder.listActivityObjects(cloudDirectory)
+    #expect(listing.names == [shard.key[3]])
+    #expect(listing.versions[shard.key[3]] != nil)
+    #expect(try await folder.read(shard.key) == shard.value)
+    let destination = ActivityStore(url: nil)
+    try await ActivitySyncEngine(key: key).run(
+      store: destination, device: UUID(), repository: repository, mode: .manual, now: now)
+    let interval = DateInterval(start: now, duration: Double(2 * limit + 1))
+    #expect(try await destination.sessions(in: interval) == flat + partitioned + [added])
   }
 
   @Test func oneManualSyncImportsAllDiscoveredHistoricalDaysAndShards() async throws {

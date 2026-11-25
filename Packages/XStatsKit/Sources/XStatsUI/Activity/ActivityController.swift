@@ -75,6 +75,7 @@ final class ActivityController {
   @ObservationIgnored private var timer: Timer?
   @ObservationIgnored private var clock = ActivityClock()
   @ObservationIgnored private var application: ActivityApplication?
+  @ObservationIgnored private var recentApplications: [String: ActivityApplication] = [:]
   @ObservationIgnored private var pending: [ActivitySession] = []
   @ObservationIgnored private var writer: Task<Void, Never>?
   private(set) var writeFailed = false
@@ -115,6 +116,11 @@ final class ActivityController {
   }
 
   var isSampling: Bool { observer != nil && timer?.isValid == true }
+  var earliestUncommittedStart: Date? {
+    let pendingStart = pending.lazy.map(\.start).min()
+    if let current = clock.current, let pendingStart { return min(current.start, pendingStart) }
+    return pendingStart ?? clock.current?.start
+  }
 
   func start() {
     started = true
@@ -150,6 +156,7 @@ final class ActivityController {
 
   private func reconcile() {
     let active = started && enabled && !paused
+    if !active { recentApplications.removeAll(keepingCapacity: true) }
     sync.setSession(available: started && !paused, recordsActivity: enabled)
     if active && !isSampling {
       observer = NSWorkspace.shared.notificationCenter.addObserver(
@@ -189,7 +196,9 @@ final class ActivityController {
     if let front, front.activationPolicy == .regular, let id = front.bundleIdentifier,
       !id.isEmpty, id.utf8.count <= 1024, !id.utf8.contains(0), id != "com.apple.loginwindow"
     {
-      if application?.id != id {
+      if let cached = recentApplications[id] {
+        application = cached
+      } else {
         let category =
           front.bundleURL.flatMap(Bundle.init(url:))?
           .object(forInfoDictionaryKey: "LSApplicationCategoryType") as? String
@@ -197,9 +206,12 @@ final class ActivityController {
           !candidate.isEmpty && candidate.utf8.count <= 1024 && !candidate.utf8.contains(0)
             ? candidate : nil
         }
-        application = ActivityApplication(
+        let observed = ActivityApplication(
           id: id, name: name ?? id,
           classification: .automatic(appID: id, storeCategory: category))
+        if recentApplications.count >= 64 { recentApplications.removeAll(keepingCapacity: true) }
+        recentApplications[id] = observed
+        application = observed
       }
     } else {
       application = nil
@@ -221,6 +233,9 @@ final class ActivityController {
     guard writer == nil, !pending.isEmpty else { return }
     writer = Task {
       defer { writer = nil }
+      if isSampling, pending.count < 256 {
+        try? await Task.sleep(for: .milliseconds(500), tolerance: .milliseconds(100))
+      }
       while !pending.isEmpty {
         let batch = Array(pending.prefix(256))
         do {

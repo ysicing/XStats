@@ -74,12 +74,22 @@ struct ActivitySyncShard: Hashable, Sendable {
 
 protocol ActivitySyncRepository: Sendable {
   func list(_ directory: [String]) async throws -> Set<String>
+  func listActivityObjects(_ directory: [String]) async throws -> ActivitySyncListing
   func read(_ path: [String]) async throws -> Data?
   func create(_ data: Data, at path: [String]) async throws -> Bool
   func replaceMetadata(_ data: Data, at path: [String]) async throws
 }
 
+struct ActivitySyncListing: Sendable {
+  var names: Set<String> = []
+  var versions: [String: String] = [:]
+}
+
 extension ActivitySyncRepository {
+  func listActivityObjects(_ directory: [String]) async throws -> ActivitySyncListing {
+    try await ActivitySyncListing(names: list(directory))
+  }
+
   func replaceMetadata(_ data: Data, at path: [String]) async throws {
     throw ActivitySyncFailure.folderUnavailable
   }
@@ -102,10 +112,7 @@ actor ActivitySyncEngine {
   private var running = false
   private var lastMonth = ""
   private var cursors: [String: String] = [:]
-  private var imports = Set<String>()
-  private var published: [String: Set<UUID>] = [:]
-  private var ownShards: [String: Set<String>] = [:]
-  private var unchanged: [String: String] = [:]
+  private var importedRecords = false
   private(set) var continuationDay: String?
 
   init(key: SymmetricKey, sharedKeys: ActivitySharedKeys? = nil) {
@@ -122,7 +129,13 @@ actor ActivitySyncEngine {
     try Task.checkCancellation()
     guard !running else { throw ActivitySyncFailure.busy }
     running = true
-    defer { running = false }
+    importedRecords = false
+    defer {
+      if importedRecords {
+        NotificationCenter.default.post(name: .init("XStatsActivitySyncFinished"), object: store)
+      }
+      running = false
+    }
     let today = ActivitySyncShard.day(of: now)
     let current = String(today.prefix(7))
     try await authenticateDataset(repository: repository)
@@ -337,60 +350,95 @@ actor ActivitySyncEngine {
     _ day: String, listed: Bool, store: ActivityStore, device: UUID,
     repository: any ActivitySyncRepository, mode: ActivitySyncMode
   ) async throws -> Bool {
+    guard let datasetIdentifier else { throw ActivitySyncFailure.authenticationFailed }
+    let dataset = datasetIdentifier + "/" + device.uuidString
     let remoteMonth = try cipher.directoryName(String(day.prefix(7)), in: [])
     let parent = try [remoteMonth, cipher.directoryName(day, in: [remoteMonth])]
-    let entries = listed ? try await repository.list(parent) : []
-    var shards: [String: ActivitySyncShard] = [:]
-    for name in entries {
-      try Task.checkCancellation()
-      shards[name] = try cipher.shard(from: name, day: day, in: parent)
-    }
-    let own = Set(shards.compactMap { $0.value.device == device ? $0.key : nil })
-    let local = try await store.exportDay(day, deviceID: device)
-    // 会话 ID 标识不可变记录。目录和本地记录均未变化时，无需重读自己的远端历史。
-    let signature = ActivitySyncShard.checksum(
-      Data((own.sorted() + local.map(\.id.uuidString)).joined().utf8))
-    if let recorded = ownShards[day], !recorded.isSubset(of: own) {
-      // 同一路径的云盘账号或目录可能已更换。仅以本轮实际列出的不可变对象恢复发布进度。
-      published[day] = nil
-      ownShards[day] = nil
-      unchanged[day] = nil
-    }
-    let needsOwn = unchanged[day] != signature
-    if needsOwn, published[day] == nil, published.count >= 8,
-      let victim = published.keys.filter({ $0 != day && $0 != continuationDay }).min()
-    {
-      published[victim] = nil
-      ownShards[victim] = nil
-    }
+    let listing = listed ? try await repository.listActivityObjects(parent) : ActivitySyncListing()
+    let entries = listing.names
+    var shards: [[String]: ActivitySyncShard] = [:]
+    var versions: [[String]: String] = [:]
+    var ownPage: (number: UInt16, count: Int)?
     var failure: (any Error)?
-    let names = shards.compactMap { name, shard -> String? in
-      let pending =
-        shard.device == device
-        ? needsOwn && !(ownShards[day]?.contains(name) ?? false)
-        : !imports.contains(name)
-      return pending ? name : nil
-    }
-    let selected = mode == .manual ? names.sorted() : slice(names, key: day, limit: 4)
-    for name in selected {
-      guard let shard = shards[name] else { continue }
+    var ownListingFailed = false
+    var ownPartitions: [String] = []
+    var peerPartitions: [String] = []
+    for name in entries.sorted() {
+      try Task.checkCancellation()
       do {
-        let path = parent + [name]
+        if ActivitySyncRemotePath.isPartition(name) {
+          let partition = try cipher.partitionInfo(name, in: parent)
+          if partition.device == device {
+            ownPartitions.append(name)
+          } else {
+            peerPartitions.append(name)
+          }
+        } else {
+          let path = parent + [name]
+          shards[path] = try cipher.shard(from: name, day: day, in: parent)
+          versions[path] = listing.versions[name]
+        }
+      } catch {
+        failure = error
+        ownListingFailed = true
+      }
+    }
+    let scannedPeers =
+      mode == .manual ? peerPartitions : slice(peerPartitions, key: "pages/" + day, limit: 4)
+    for name in ownPartitions + scannedPeers {
+      try Task.checkCancellation()
+      let partition = try cipher.partitionInfo(name, in: parent)
+      let directory = parent + [name]
+      do {
+        let children = try await repository.listActivityObjects(directory)
+        if partition.device == device, ownPage.map({ $0.number < partition.page }) ?? true {
+          ownPage = (partition.page, children.names.count)
+        }
+        for child in children.names {
+          try Task.checkCancellation()
+          let shard = try cipher.shard(from: child, day: day, in: directory)
+          guard shard.device == partition.device else { throw ActivitySyncFailure.invalidShard }
+          let path = directory + [child]
+          shards[path] = shard
+          versions[path] = children.versions[child]
+        }
+      } catch {
+        try Task.checkCancellation()
+        failure = error
+        if partition.device == device { ownListingFailed = true }
+      }
+    }
+    var dayEntries = entries.count
+    let receipts = try await store.syncReceipts(dataset: dataset, paths: Array(shards.keys))
+    var published = Set<UUID>()
+    var pending = [String: [String]]()
+    for (path, shard) in shards {
+      if let receipt = receipts[path],
+        versions[path].map({ $0 == receipt.version }) ?? (mode != .manual || shard.device != device)
+      {
+        published.formUnion(receipt.ownRecords)
+      } else {
+        pending[path.dropFirst(2).joined(separator: "/")] = path
+      }
+    }
+    let names = Array(pending.keys)
+    let selected = mode == .manual ? names.sorted() : slice(names, key: day, limit: 4)
+    var unverifiedOwn = pending.values.count { shards[$0]?.device == device }
+    for name in selected {
+      guard let path = pending[name], let shard = shards[path] else { continue }
+      do {
         guard let ciphertext = try await repository.read(path) else {
           throw ActivitySyncFailure.invalidListing
         }
         let sessions = try shard.decode(cipher.open(ciphertext, at: path))
-        try Task.checkCancellation()
-        try await store.insert(sessions)
-        await MainActor.run {
-          NotificationCenter.default.post(name: .init("XStatsActivitySyncFinished"), object: store)
-        }
+        let ids = shard.device == device ? sessions.map(\.id) : []
+        let changed = try await store.insert(
+          sessions,
+          receipt: .init(dataset: dataset, path: path, ownRecords: ids, version: versions[path]))
+        importedRecords = importedRecords || changed
         if shard.device == device {
-          published[day, default: []].formUnion(sessions.map(\.id))
-          ownShards[day, default: []].insert(name)
-        } else {
-          if imports.count >= 32_768 { imports.removeAll(keepingCapacity: true) }
-          imports.insert(name)
+          published.formUnion(ids)
+          unverifiedOwn -= 1
         }
       } catch {
         try Task.checkCancellation()
@@ -398,11 +446,12 @@ actor ActivitySyncEngine {
       }
     }
     var outstanding = selected.count < names.count
-    if needsOwn, own.isSubset(of: ownShards[day] ?? []) {
-      let known = published[day] ?? []
-      let missing = local.filter { !known.contains($0.id) }
+    if unverifiedOwn == 0 && !ownListingFailed {
       // 手动同步遍历本轮快照；自动同步限制每轮批数，单个分片的上限相同。
       let batchSize = ActivitySyncShard.batchSize
+      let missing = try await store.unpublishedSessions(
+        on: day, deviceID: device, excluding: published,
+        limit: mode == .manual ? nil : 2 * batchSize + 1)
       let count = mode == .manual ? missing.count : min(missing.count, 2 * batchSize)
       outstanding = outstanding || count < missing.count
       for offset in stride(from: 0, to: count, by: batchSize) {
@@ -411,8 +460,27 @@ actor ActivitySyncEngine {
         let plaintext = try ActivitySyncShard.encode(batch)
         let shard = ActivitySyncShard(
           day: day, device: device, digest: ActivitySyncShard.checksum(plaintext))
-        let name = try cipher.shardName(shard, in: parent)
-        let path = parent + [name]
+        var writeDirectory = parent
+        if ownPage != nil || dayEntries >= ActivitySyncRemotePath.flatDayThreshold {
+          var partition = ownPage ?? (number: 0, count: 0)
+          if partition.count >= ActivitySyncRemotePath.flatDayThreshold {
+            guard partition.number < UInt16.max else { throw ActivitySyncFailure.limit }
+            partition = (partition.number + 1, 0)
+          }
+          if partition.count == 0 {
+            guard dayEntries < ActivitySyncRemotePath.maximumEntries else {
+              throw ActivitySyncFailure.limit
+            }
+            dayEntries += 1
+          }
+          writeDirectory += [try cipher.partition(for: device, page: partition.number, in: parent)]
+          partition.count += 1
+          ownPage = partition
+        } else {
+          dayEntries += 1
+        }
+        let name = try cipher.shardName(shard, in: writeDirectory)
+        let path = writeDirectory + [name]
         let ciphertext = try cipher.seal(plaintext, at: path)
         let created = try await repository.create(ciphertext, at: path)
         if !created {
@@ -420,12 +488,8 @@ actor ActivitySyncEngine {
             try cipher.open(existing, at: path) == plaintext
           else { throw ActivitySyncFailure.invalidShard }
         }
-        published[day, default: []].formUnion(batch.map(\.id))
-        ownShards[day, default: []].insert(name)
-      }
-      if missing.isEmpty {
-        if unchanged.count >= 8192 { unchanged.removeAll(keepingCapacity: true) }
-        unchanged[day] = signature
+        try await store.insert(
+          [], receipt: .init(dataset: dataset, path: path, ownRecords: batch.map(\.id)))
       }
     }
     if let failure { throw failure }

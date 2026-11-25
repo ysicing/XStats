@@ -283,9 +283,10 @@ public final class SyncPreferences {
   }
 
   /// 返回需写入本机设备槽位的明文。nil 表示该次全读无需上传。
-  public func prepare(_ documents: [UUID: Data], activitySyncedAt: Date?, now: Date = Date()) throws
-    -> Data?
-  {
+  public func prepare(
+    _ documents: [UUID: Data], activitySyncedAt: Date?, now: Date = Date(),
+    minimumStatusInterval: TimeInterval = 0
+  ) throws -> Data? {
     guard destination != nil else { throw Failure.noDestination }
     prepared = nil
     let records = try decode(documents)
@@ -294,6 +295,12 @@ public final class SyncPreferences {
       try finishPublication(pending, records: records)
     }
     let own = records[deviceID]
+    let statusActivityTime = activitySyncedAt.flatMap { date in
+      guard minimumStatusInterval > 0, let previous = own?.device.lastActivitySyncAt,
+        date >= previous, date.timeIntervalSince(previous) < minimumStatusInterval
+      else { return date }
+      return nil
+    }
     let snapshots = snapshots(in: records)
     // 偏好输入未变化时保留已确认的写入，活动回执可随下一轮更新。
     if let pending = state.pending, !pending.cancelled, pending.revokedFields == nil,
@@ -363,7 +370,7 @@ public final class SyncPreferences {
 
     let metadata = Device(
       id: deviceID, name: deviceName ?? own?.device.name,
-      lastActivitySyncAt: activitySyncedAt ?? own?.device.lastActivitySyncAt,
+      lastActivitySyncAt: statusActivityTime ?? own?.device.lastActivitySyncAt,
       lastSettingsSyncAt: next.lastSettingsSyncAt ?? own?.device.lastSettingsSyncAt)
     var outbound = Document(device: metadata, fields: own?.fields ?? [:])
     for field in Field.allCases where writes.contains(field) {
@@ -384,8 +391,12 @@ public final class SyncPreferences {
     let completeRound =
       isEnabled && conflicts.allSatisfy { explicit.contains($0.field) }
       && joining == initial
+    let statusDue =
+      state.lastSettingsSyncAt.map {
+        now < $0 || now.timeIntervalSince($0) >= minimumStatusInterval
+      } ?? true
     let publishes =
-      completeRound || !initial.isEmpty || !writes.isEmpty || !targets.isEmpty
+      (completeRound && statusDue) || !initial.isEmpty || !writes.isEmpty || !targets.isEmpty
       || own?.device != metadata
     var projected = records
     if publishes { projected[deviceID] = outbound }

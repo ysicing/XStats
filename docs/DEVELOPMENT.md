@@ -446,6 +446,24 @@ XSTATS_MONITORING_RESOURCE_REPORT="$PWD/build/monitoring-verification/resources.
 此项约运行 15 秒，使用隔离偏好，不操作风扇、音量、显示器或系统扩展；报告记录各阶段快照数、
 CPU 采样数与测试进程 CPU 时间。它验证采样循环的需求与释放，不代表整机能耗或长期稳定性结论。
 
+## 应用活动统计与同步
+
+应用活动关闭、锁屏或休眠时停止采集定时器。日视图仅在前台窗口刷新，周月报保留当前选择的逐日摘要，
+按已提交写入影响的日期重新计算。报告详情按需读取。加密 SQLite 可直接读取旧记录，新写入使用较紧凑的
+编码。活动历史保留原始时段，空间仍随记录增加。已写入新编码的本机库需要新版读取。
+
+同步将已认证分片的回执与导入数据在同一事务提交。分片须出现在当前目标的目录清单中，文件版本或
+WebDAV 强 ETag 变化时重新认证。目标未提供版本时，手动同步重新核对本机已发布的分片。
+繁忙日期达到平铺目录阈值后，新分片按设备分页，原有分片仍可读取。要读取分页分片，参与同步的设备
+需要使用支持分页的版本。自动同步的设备状态时间最多每小时自动更新一次，设置变化和手动同步仍即时处理。
+
+回归覆盖跨日重叠、报告失效、SQLite 重开、平铺和分页历史混合以及选择性设置同步：
+
+```bash
+swift test --package-path Packages/XStatsKit --jobs 2 --no-parallel \
+  --filter 'XStatsUITests\.(Activity[^.]*Tests|SyncPreferencesTests)'
+```
+
 ## macOS 15 启动与 SwiftUI 隔离验收
 
 macOS 15 的异步 DisplayLink 可能在后台调用 `ForEach.content`。只传递不可变快照的行使用

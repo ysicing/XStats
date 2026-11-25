@@ -7,7 +7,7 @@ actor ActivitySyncWebDAV: ActivitySyncRepository {
   let configuration: ActivityDAVConfiguration
   private let password: String
   private let httpTransport: ActivityDAVHTTPTransport
-  private let makeSessionConfiguration: @Sendable () -> URLSessionConfiguration
+  private let httpsSession: URLSession?
 
   init(
     configuration: ActivityDAVConfiguration, password: String,
@@ -17,8 +17,20 @@ actor ActivitySyncWebDAV: ActivitySyncRepository {
     self.configuration = configuration
     self.password = password
     self.httpTransport = httpTransport
-    self.makeSessionConfiguration = makeSessionConfiguration
+    if configuration.endpoint.scheme == "https" {
+      let options = makeSessionConfiguration()
+      options.urlCache = nil
+      options.urlCredentialStorage = nil
+      options.httpCookieStorage = nil
+      options.timeoutIntervalForRequest = 20
+      options.timeoutIntervalForResource = 45
+      httpsSession = URLSession(configuration: options)
+    } else {
+      httpsSession = nil
+    }
   }
+
+  deinit { httpsSession?.invalidateAndCancel() }
 
   private var syncRoot: URL {
     let base = configuration.directoryURL
@@ -27,14 +39,18 @@ actor ActivitySyncWebDAV: ActivitySyncRepository {
   }
 
   func list(_ directory: [String]) async throws -> Set<String> {
+    try await listActivityObjects(directory).names
+  }
+
+  func listActivityObjects(_ directory: [String]) async throws -> ActivitySyncListing {
     guard ActivitySyncRemotePath.validDirectory(directory) else {
       throw ActivitySyncFailure.invalidListing
     }
     let url = directoryURL(directory, under: syncRoot)
     let response = try await request("PROPFIND", url)
-    if response.status == 404 { return [] }
+    if response.status == 404 { return ActivitySyncListing() }
     try require(response.status, in: [207])
-    return try ActivitySyncDAVListing.children(in: response.data, directory: url, path: directory)
+    return try ActivitySyncDAVListing.objects(in: response.data, directory: url, path: directory)
   }
 
   func read(_ path: [String]) async throws -> Data? {
@@ -120,25 +136,18 @@ actor ActivitySyncWebDAV: ActivitySyncRepository {
       request.setValue("1", forHTTPHeaderField: "Depth")
       request.setValue("application/xml; charset=utf-8", forHTTPHeaderField: "Content-Type")
       request.httpBody = Data(
-        #"<propfind xmlns="DAV:"><prop><resourcetype/></prop></propfind>"#.utf8)
+        #"<propfind xmlns="DAV:"><prop><resourcetype/><getetag/></prop></propfind>"#.utf8)
     } else if method == "PUT" {
       request.setValue(
         creating ? "application/json" : "application/octet-stream",
         forHTTPHeaderField: "Content-Type")
       if creating { request.setValue("*", forHTTPHeaderField: "If-None-Match") }
     }
-    if configuration.endpoint.scheme == "http" {
+    guard let httpsSession else {
       return try await httpTransport.send(request, endpoint: configuration.endpoint, limit: limit)
     }
-    let options = makeSessionConfiguration()
-    options.urlCache = nil
-    options.urlCredentialStorage = nil
-    options.httpCookieStorage = nil
-    options.timeoutIntervalForRequest = 20
-    options.timeoutIntervalForResource = 45
-    let session = URLSession(configuration: options)
-    defer { session.invalidateAndCancel() }
-    let (bytes, response) = try await session.bytes(for: request, delegate: NoRedirect())
+    let (bytes, response) = try await httpsSession.bytes(for: request, delegate: NoRedirect())
+    defer { bytes.task.cancel() }
     guard let http = response as? HTTPURLResponse, http.url == url else {
       throw WebDAVError.transport
     }
@@ -169,11 +178,14 @@ actor ActivitySyncWebDAV: ActivitySyncRepository {
 final class ActivitySyncDAVListing: NSObject, XMLParserDelegate {
   let directory: URL
   let path: [String]
-  var entries = Set<String>()
+  var objects = ActivitySyncListing()
   var stack: [String] = []
   var responseCount = 0
   var href = ""
   var status = ""
+  var etag = ""
+  var propertyStatus = ""
+  var version: String?
   var multistatus = false
 
   init(directory: URL, path: [String]) {
@@ -182,6 +194,10 @@ final class ActivitySyncDAVListing: NSObject, XMLParserDelegate {
   }
 
   static func children(in data: Data, directory: URL, path: [String]) throws -> Set<String> {
+    try objects(in: data, directory: directory, path: path).names
+  }
+
+  static func objects(in data: Data, directory: URL, path: [String]) throws -> ActivitySyncListing {
     guard data.count <= 1_048_576, let xml = String(data: data, encoding: .utf8),
       !xml.contains("<!"), !xml.utf8.contains(0), ActivitySyncRemotePath.validDirectory(path)
     else { throw ActivitySyncFailure.invalidListing }
@@ -193,7 +209,7 @@ final class ActivitySyncDAVListing: NSObject, XMLParserDelegate {
     guard parser.parse(), listing.multistatus, listing.stack.isEmpty else {
       throw ActivitySyncFailure.invalidListing
     }
-    return listing.entries
+    return listing.objects
   }
 
   func parser(
@@ -213,6 +229,10 @@ final class ActivitySyncDAVListing: NSObject, XMLParserDelegate {
       if responseCount > ActivitySyncRemotePath.maximumEntries + 1 { parser.abortParsing() }
       href = ""
       status = ""
+      version = nil
+    case ["multistatus", "response", "propstat"]:
+      etag = ""
+      propertyStatus = ""
     default: break
     }
   }
@@ -225,6 +245,12 @@ final class ActivitySyncDAVListing: NSObject, XMLParserDelegate {
     case ["multistatus", "response", "status"]:
       status += string
       if status.utf8.count > 256 { parser.abortParsing() }
+    case ["multistatus", "response", "propstat", "prop", "getetag"]:
+      etag += string
+      if etag.utf8.count > 1024 { parser.abortParsing() }
+    case ["multistatus", "response", "propstat", "status"]:
+      propertyStatus += string
+      if propertyStatus.utf8.count > 256 { parser.abortParsing() }
     default: break
     }
   }
@@ -233,7 +259,14 @@ final class ActivitySyncDAVListing: NSObject, XMLParserDelegate {
     _ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?,
     qualifiedName qName: String?
   ) {
-    if stack == ["multistatus", "response"] {
+    if stack == ["multistatus", "response", "propstat"] {
+      let candidate = etag.trimmingCharacters(in: .whitespacesAndNewlines)
+      if propertyStatus.split(separator: " ").dropFirst().first == "200",
+        candidate.first == "\"", candidate.last == "\"", candidate.count >= 2
+      {
+        version = candidate
+      }
+    } else if stack == ["multistatus", "response"] {
       if !status.isEmpty {
         guard let token = status.split(separator: " ").dropFirst().first, let code = Int(token),
           (200..<300).contains(code)
@@ -242,7 +275,10 @@ final class ActivitySyncDAVListing: NSObject, XMLParserDelegate {
           return
         }
       }
-      if let name = Self.child(href, of: directory, path: path) { entries.insert(name) }
+      if let name = Self.child(href, of: directory, path: path) {
+        objects.names.insert(name)
+        objects.versions[name] = version
+      }
     }
     stack.removeLast()
   }

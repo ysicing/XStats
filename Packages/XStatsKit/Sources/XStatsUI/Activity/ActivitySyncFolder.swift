@@ -25,12 +25,16 @@ struct ActivitySyncFolder: ActivitySyncRepository {
   }
 
   func list(_ path: [String]) async throws -> Set<String> {
+    try await listActivityObjects(path).names
+  }
+
+  func listActivityObjects(_ path: [String]) async throws -> ActivitySyncListing {
     guard ActivitySyncRemotePath.validDirectory(path) else {
       throw ActivitySyncFailure.invalidListing
     }
     let components = rootComponents + path
     let directory = location(components, isDirectory: true)
-    guard let parent = try openDirectory(components) else { return [] }
+    guard let parent = try openDirectory(components) else { return ActivitySyncListing() }
     defer { close(parent) }
     return try await coordinated(at: directory, writing: false) { [self] in
       let descriptor = dup(parent)
@@ -40,7 +44,7 @@ struct ActivitySyncFolder: ActivitySyncRepository {
         throw POSIXError(.EIO)
       }
       defer { closedir(iterator) }
-      var result = Set<String>()
+      var result = ActivitySyncListing()
       var count = 0
       while true {
         try Task.checkCancellation()
@@ -71,7 +75,12 @@ struct ActivitySyncFolder: ActivitySyncRepository {
         guard info.st_mode & S_IFMT == (file ? S_IFREG : S_IFDIR) else {
           throw ActivitySyncFailure.invalidListing
         }
-        result.insert(name)
+        result.names.insert(name)
+        if !placeholder, ActivitySyncRemotePath.validActivityObject(path + [name]) {
+          result.versions[name] =
+            "\(info.st_ino)/\(info.st_size)/\(info.st_mtimespec.tv_sec)/\(info.st_mtimespec.tv_nsec)"
+            + "/\(info.st_ctimespec.tv_sec)/\(info.st_ctimespec.tv_nsec)"
+        }
       }
       return result
     }

@@ -9,6 +9,40 @@ struct ActivityPageAnalyticsTests {
   private let remote = UUID()
   private let midnight = Date(timeIntervalSinceReferenceDate: 0)
 
+  @Test func splitReportMatchesAFullReportWithOverlapsAcrossMidnight() throws {
+    let calendar = utcCalendar
+    let first = DateInterval(start: midnight, duration: 86_400)
+    let second = DateInterval(start: first.end, duration: 86_400)
+    let combined = DateInterval(start: first.start, end: second.end)
+    let sessions = [
+      session(from: 86_000, to: 87_000),
+      session(appID: "browser", category: "browsing", from: 86_200, to: 86_700),
+      session(on: remote, from: 86_200, to: 86_800),
+      session(on: remote, appID: "chat", category: "communication", from: 86_500, to: 88_000),
+    ]
+    let now = at(87_000)
+    let full = try ActivityPageAnalytics.make(
+      sessions: sessions, interval: combined, period: .week, calendar: calendar, deviceID: nil,
+      through: now)
+    let days = try ActivityPageAnalytics.summarizeDays(
+      [first, second], sessions: sessions, period: .week, calendar: calendar, deviceID: nil,
+      through: now)
+    let summary = try ActivityPageAnalytics.combineDailySummaries(days)
+    #expect(summary.seconds == full.seconds)
+    #expect(summary.days.map(\.secondsByCategory) == full.days.map(\.secondsByCategory))
+    #expect(summary.categories.map(\.breakdown) == full.categories.map(\.breakdown))
+    #expect(summary.apps.map(\.id) == full.apps.map(\.id))
+    #expect(summary.apps.map(\.seconds) == full.apps.map(\.seconds))
+    #expect(summary.apps.allSatisfy { $0.segments.isEmpty })
+    let detail = try ActivityPageAnalytics.make(
+      sessions: sessions, interval: combined, period: .week, calendar: calendar, deviceID: nil,
+      through: now, detail: .app("browser"))
+    #expect(
+      detail.apps.first { $0.id == "browser" }?.segments.map(\.id)
+        == full.apps.first { $0.id == "browser" }?.segments.map(\.id))
+    #expect(detail.apps.first { $0.id == "editor" }?.segments.isEmpty == true)
+  }
+
   @Test func currentRulesReclassifyHistoryAcrossDevicesAndRetainCapturedSubcategories() throws {
     let interval = try #require(utcCalendar.dateInterval(of: .day, for: midnight))
     var learning = session(appID: "school.app", category: "work", from: 120, to: 180)

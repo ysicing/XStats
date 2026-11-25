@@ -377,6 +377,10 @@ struct ActivityPageSegments: View {
   let deviceNames: [UUID: String]
   let showsDevice: Bool
   let locale: Locale
+  var load: (() async throws -> ActivityPageAnalytics.App?)?
+  @State private var details: ActivityPageAnalytics.App?
+  @State private var didLoad = false
+  @State private var failed = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: DS.Space.s3) {
@@ -386,28 +390,24 @@ struct ActivityPageSegments: View {
           Text(tr("活动时段")).font(.subheadline).foregroundStyle(.secondary)
         }
         Spacer()
-        Text(ActivityPageFormat.duration(app.seconds, locale: locale))
-          .monospacedDigit().foregroundStyle(.secondary)
+        Text(
+          ActivityPageFormat.duration(
+            details?.seconds ?? (didLoad ? 0 : app.seconds), locale: locale)
+        )
+        .monospacedDigit().foregroundStyle(.secondary)
       }
-      List(app.segments) { segment in
-        HStack(spacing: DS.Space.s2) {
-          Circle().fill(segment.category.color).frame(width: 7, height: 7)
-            .accessibilityHidden(true)
-          VStack(alignment: .leading, spacing: DS.Space.s1) {
-            Text(ActivityPageFormat.segmentTimes(segment, locale: locale))
-            if showsDevice {
-              Text(
-                verbatim: ActivityPageFormat.deviceName(
-                  segment.deviceID, localID: localID, names: deviceNames)
-              )
-              .font(.caption).foregroundStyle(.secondary)
-            }
-          }
-          Spacer()
-          Text(ActivityPageFormat.duration(segment.seconds, locale: locale))
-            .monospacedDigit().foregroundStyle(.secondary)
-        }
-        .accessibilityElement(children: .combine)
+      if load != nil && !didLoad && !failed {
+        ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else if failed {
+        Label(tr("无法读取活动记录"), systemImage: "exclamationmark.circle")
+          .foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else if didLoad && details == nil {
+        Label(tr("此时段无活动记录"), systemImage: "clock")
+          .foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else {
+        segments
       }
       HStack {
         Spacer()
@@ -417,6 +417,40 @@ struct ActivityPageSegments: View {
     }
     .padding(DS.Space.s4)
     .frame(width: 540, height: 440)
+    .task {
+      guard let load else { return }
+      do {
+        let loaded = try await load()
+        try Task.checkCancellation()
+        details = loaded
+        didLoad = true
+      } catch {
+        if !Task.isCancelled { failed = true }
+      }
+    }
+  }
+
+  private var segments: some View {
+    List((details ?? app).segments) { segment in
+      HStack(spacing: DS.Space.s2) {
+        Circle().fill(segment.category.color).frame(width: 7, height: 7)
+          .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: DS.Space.s1) {
+          Text(ActivityPageFormat.segmentTimes(segment, locale: locale))
+          if showsDevice {
+            Text(
+              verbatim: ActivityPageFormat.deviceName(
+                segment.deviceID, localID: localID, names: deviceNames)
+            )
+            .font(.caption).foregroundStyle(.secondary)
+          }
+        }
+        Spacer()
+        Text(ActivityPageFormat.duration(segment.seconds, locale: locale))
+          .monospacedDigit().foregroundStyle(.secondary)
+      }
+      .accessibilityElement(children: .combine)
+    }
   }
 }
 

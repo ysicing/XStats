@@ -15,6 +15,19 @@ enum ActivityPagePeriod: CaseIterable, Hashable, Sendable {
 }
 
 struct ActivityPageAnalytics: Sendable {
+  enum Detail: Sendable {
+    case all, none
+    case app(String)
+
+    func includes(_ id: String) -> Bool {
+      switch self {
+      case .all: true
+      case .none: false
+      case .app(let selected): id == selected
+      }
+    }
+  }
+
   enum Category: String, CaseIterable, Sendable {
     case work, browsing, communication, entertainment, other
   }
@@ -71,7 +84,7 @@ struct ActivityPageAnalytics: Sendable {
 
   static func make(
     sessions: [ActivitySession], interval: DateInterval, period: ActivityPagePeriod,
-    calendar: Calendar, deviceID: UUID?, through now: Date? = nil
+    calendar: Calendar, deviceID: UUID?, through now: Date? = nil, detail: Detail = .all
   ) throws -> Self {
     var days: [Bucket] = []
     var dayIndices: [Date: Int] = [:]
@@ -122,7 +135,8 @@ struct ActivityPageAnalytics: Sendable {
       seconds += segment.seconds
       breakdown[category, default: [:]][classification, default: 0] += segment.seconds
       deviceIDs.insert(session.deviceID)
-      apps[session.appID, default: AppAccumulator()].append(segment, name: session.appName)
+      apps[session.appID, default: AppAccumulator()].append(
+        segment, name: session.appName, keepSegment: detail.includes(session.appID))
       for index in firstDay..<days.count {
         let day = days[index].interval
         let overlap = min(end, day.end).timeIntervalSince(max(start, day.start))
@@ -179,31 +193,81 @@ struct ActivityPageAnalytics: Sendable {
         id: id, name: app.name, category: app.category, seconds: app.seconds, segments: merged)
       rankedApps.append(rankedApp)
     }
-    rankedApps.sort { lhs, rhs in
-      if lhs.seconds == rhs.seconds {
-        return lhs.id < rhs.id
-      }
-      return lhs.seconds > rhs.seconds
-    }
-
-    var categories: [CategoryTotal] = breakdown.map { id, details in
-      CategoryTotal(id: id, seconds: details.values.reduce(0, +), breakdown: details)
-    }
-    categories.sort { lhs, rhs in
-      if lhs.seconds == rhs.seconds {
-        return lhs.id.rawValue < rhs.id.rawValue
-      }
-      return lhs.seconds > rhs.seconds
-    }
-
     var dayLanes: [Lane] = lanes.map { id, segments in
       Lane(id: id, segments: segments)
     }
     dayLanes.sort { lhs, rhs in lhs.id.uuidString < rhs.id.uuidString }
     try Task.checkCancellation()
     return Self(
-      seconds: seconds, days: days, hours: hours, lanes: dayLanes, apps: rankedApps,
-      categories: categories, deviceIDs: deviceIDs)
+      seconds: seconds, days: days, hours: hours, lanes: dayLanes,
+      apps: rankedApps.sorted(by: appRank),
+      categories: categoryTotals(breakdown), deviceIDs: deviceIDs)
+  }
+
+  static func combineDailySummaries(_ reports: [Self]) throws -> Self {
+    var seconds: TimeInterval = 0
+    var days: [Bucket] = []
+    var apps: [String: App] = [:]
+    var breakdown: [Category: [ActivityClassification: TimeInterval]] = [:]
+    var devices = Set<UUID>()
+    for report in reports {
+      try Task.checkCancellation()
+      seconds += report.seconds
+      days += report.days
+      devices.formUnion(report.deviceIDs)
+      for app in report.apps {
+        try Task.checkCancellation()
+        apps[app.id] = App(
+          id: app.id, name: app.name, category: app.category,
+          seconds: app.seconds + (apps[app.id]?.seconds ?? 0), segments: [])
+      }
+      for category in report.categories {
+        breakdown[category.id, default: [:]].merge(category.breakdown, uniquingKeysWith: +)
+      }
+    }
+    return Self(
+      seconds: seconds, days: days, hours: [], lanes: [], apps: apps.values.sorted(by: appRank),
+      categories: categoryTotals(breakdown), deviceIDs: devices)
+  }
+
+  static func summarizeDays(
+    _ intervals: [DateInterval], sessions: [ActivitySession], period: ActivityPagePeriod,
+    calendar: Calendar, deviceID: UUID?, through now: Date
+  ) throws -> [Self] {
+    let indices = Dictionary(
+      uniqueKeysWithValues: intervals.enumerated().map {
+        (calendar.startOfDay(for: $0.element.start), $0.offset)
+      })
+    var partitioned = Array(repeating: [ActivitySession](), count: intervals.count)
+    guard let first = intervals.first else { return [] }
+    for session in sessions {
+      try Task.checkCancellation()
+      let start = max(first.start, session.start)
+      guard var index = indices[calendar.startOfDay(for: start)] else { continue }
+      while index < intervals.count, intervals[index].start < session.end {
+        partitioned[index].append(session)
+        index += 1
+      }
+    }
+    return try intervals.indices.map { index in
+      try make(
+        sessions: partitioned[index], interval: intervals[index], period: period,
+        calendar: calendar, deviceID: deviceID, through: now, detail: .none)
+    }
+  }
+
+  private static func appRank(_ lhs: App, _ rhs: App) -> Bool {
+    lhs.seconds == rhs.seconds ? lhs.id < rhs.id : lhs.seconds > rhs.seconds
+  }
+
+  private static func categoryTotals(
+    _ breakdown: [Category: [ActivityClassification: TimeInterval]]
+  ) -> [CategoryTotal] {
+    breakdown.map { id, details in
+      CategoryTotal(id: id, seconds: details.values.reduce(0, +), breakdown: details)
+    }.sorted { lhs, rhs in
+      lhs.seconds == rhs.seconds ? lhs.id.rawValue < rhs.id.rawValue : lhs.seconds > rhs.seconds
+    }
   }
 
   private static func foregroundSessions(
@@ -272,7 +336,7 @@ struct ActivityPageAnalytics: Sendable {
     private(set) var category = Category.other
     private var latest: Segment?
 
-    mutating func append(_ segment: Segment, name: String) {
+    mutating func append(_ segment: Segment, name: String, keepSegment: Bool) {
       if let latest {
         if segment.end > latest.end
           || (segment.end == latest.end
@@ -284,7 +348,7 @@ struct ActivityPageAnalytics: Sendable {
         updateMetadata(segment, name: name)
       }
       seconds += segment.seconds
-      segments.append(segment)
+      if keepSegment { segments.append(segment) }
     }
 
     private mutating func updateMetadata(_ segment: Segment, name: String) {
