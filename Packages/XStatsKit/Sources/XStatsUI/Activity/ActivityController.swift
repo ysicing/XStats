@@ -89,8 +89,8 @@ final class ActivityController {
   let deviceName: String?
   let sync: ActivitySyncController
   private(set) var enabled: Bool
+  @ObservationIgnored var onEnabledChanged: ((Bool) -> Void)?
   private(set) var revision = 0
-  @ObservationIgnored private let defaults: UserDefaults
   @ObservationIgnored private let sessionAvailable: () -> Bool
   @ObservationIgnored private var started = false
   @ObservationIgnored private var paused = false
@@ -103,7 +103,7 @@ final class ActivityController {
   private(set) var writeFailed = false
 
   init(
-    defaults: UserDefaults, databaseURL: URL?, deviceName: String? = nil,
+    defaults: UserDefaults, databaseURL: URL?, deviceName: String? = nil, enabled: Bool = false,
     sessionAvailable: @escaping () -> Bool = {
       guard let session = CGSessionCopyCurrentDictionary() as? [String: Any] else { return false }
       return session["CGSSessionScreenIsLocked"] as? Bool != true
@@ -111,10 +111,9 @@ final class ActivityController {
         && CGDisplayIsAsleep(CGMainDisplayID()) == 0
     }
   ) {
-    self.defaults = defaults
     self.deviceName = deviceName
     self.sessionAvailable = sessionAvailable
-    enabled = defaults.bool(forKey: "activity.recording")
+    self.enabled = enabled
     if let existing = defaults.string(forKey: "activity.deviceID").flatMap(UUID.init(uuidString:)) {
       deviceID = existing
     } else {
@@ -146,7 +145,7 @@ final class ActivityController {
   func setEnabled(_ value: Bool) {
     guard enabled != value else { return }
     enabled = value
-    defaults.set(value, forKey: "activity.recording")
+    onEnabledChanged?(value)
     reconcile()
   }
 

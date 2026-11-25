@@ -4,7 +4,7 @@ import Testing
 @testable import XStatsUI
 
 struct ActivityControllerTests {
-  @MainActor @Test func experimentalGateControlsNavigationWithoutStartingRecording() throws {
+  @MainActor @Test func experimentalGateControlsRecordingAndNavigationTogether() throws {
     let suite = "ActivityFeatureTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -17,16 +17,36 @@ struct ActivityControllerTests {
     #expect(AppDeepLink.page(.activity, settings: settings) == .settingsFeatures)
     model.setActivityFeatureEnabled(true)
     #expect(AppDeepLink.page(.activity, settings: settings) == .activity)
-    #expect(!model.activity.enabled && !model.activity.sync.active)
+    #expect(model.activity.enabled && !model.activity.sync.active)
     settings.panelTab = .activity
     #expect(AppSettings(defaults: defaults).panelTab == .activity)
-    model.activity.setEnabled(true)
+    #expect(AppModel(settings: AppSettings(defaults: defaults), historyURL: nil).activity.enabled)
     model.setActivityFeatureEnabled(false)
-    #expect(!model.activity.enabled && !defaults.bool(forKey: "activity.recording"))
+    #expect(!model.activity.enabled && !defaults.bool(forKey: "activity.enabled"))
     #expect(settings.panelTab == .settingsFeatures)
     settings.panelTab = .activity
     #expect(settings.panelTab == .settingsFeatures)
     #expect(!AppSettings(defaults: defaults).activityFeatureEnabled)
+    model.setActivityFeatureEnabled(true)
+    settings.panelTab = .activity
+    model.activity.setEnabled(false)
+    #expect(!settings.activityFeatureEnabled && settings.panelTab == .settingsFeatures)
+  }
+
+  @MainActor @Test(arguments: [true, false], [true, false, nil] as [Bool?])
+  func upgradePreservesRecordingConsent(feature: Bool, recording: Bool?) throws {
+    let suite = "ActivityFeatureMigrationTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(feature, forKey: "activity.featureEnabled")
+    defaults.set(recording, forKey: "activity.recording")
+    let settings = AppSettings(defaults: defaults)
+    let model = AppModel(settings: settings, historyURL: nil)
+    let wasRecording = feature && recording == true
+    #expect(settings.activityFeatureEnabled == wasRecording)
+    #expect(model.activity.enabled == wasRecording)
+    model.setActivityFeatureEnabled(!wasRecording)
+    #expect(AppSettings(defaults: defaults).activityFeatureEnabled == !wasRecording)
   }
 
   @MainActor @Test func samplingAndSyncFollowRecordingAndSessionLifetime() async throws {

@@ -384,11 +384,13 @@ release details and historical validation limits.
 
 ## App Activity
 
-App Activity is opt-in under Settings → Features → Experimental. Enabling it shows
-the read-only monitor page. The same Experimental section contains the recording
-switch and storage settings. Storage can be configured before enabling the feature
-or recording. Disabling the feature stops recording and automatic sync, hides the page,
-and preserves history. When recording is enabled, it records foreground app identifiers,
+App Activity is opt-in under Settings → Features → Experimental. Its single switch
+enables recording, automatic sync and the read-only monitor page together. Storage
+settings remain accessible alongside the switch before enabling the feature.
+Disabling the feature stops recording and automatic sync, hides the page,
+and preserves history. The unified preference takes precedence over the legacy
+switches; upgrades remain enabled only if both legacy switches were enabled.
+When recording is enabled, it records foreground app identifiers,
 names, categories and usage interval timestamps as encrypted records in local SQLite.
 New records include the local hostname and Mac model in the encrypted payload.
 Device filters and activity details use the latest known name for each stable device

@@ -295,20 +295,6 @@ struct FeatureSettings: View {
             }
           }
         }
-        if settings.activityFeatureEnabled {
-          GroupRow {
-            SettingRow(
-              title: tr("记录应用活动"),
-              subtitle: !model.activity.enabled && model.activity.sync.provider == .iCloud
-                ? tr("启用记录后默认同步到 iCloud 云盘。你可以先更改存储位置。") : nil,
-              icon: "record.circle"
-            ) {
-              DSToggle(
-                isOn: Binding(get: { model.activity.enabled }, set: model.activity.setEnabled),
-                label: tr("记录应用活动"))
-            }
-          }
-        }
       }
       SettingsGroup {
         GroupRow(showsDivider: false) {

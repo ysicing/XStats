@@ -61,8 +61,7 @@ public final class AppModel {
   var featureSettingsTab: FeatureSettingsTab = .basic
 
   func setActivityFeatureEnabled(_ enabled: Bool) {
-    if !enabled { activity.setEnabled(false) }
-    settings.activityFeatureEnabled = enabled
+    activity.setEnabled(enabled)
   }
 
   public var isMainWindowVisible = false {
@@ -213,8 +212,11 @@ public final class AppModel {
       defaults: settings.activityDefaults,
       databaseURL: historyURL != nil && settings.activityDefaults === UserDefaults.standard
         ? URL.applicationSupportDirectory.appending(path: "XStats/activity.sqlite") : nil,
-      deviceName: ActivityController.localDeviceName(model: store.system.modelName))
-    if !settings.activityFeatureEnabled { activity.setEnabled(false) }
+      deviceName: ActivityController.localDeviceName(model: store.system.modelName),
+      enabled: settings.activityFeatureEnabled)
+    activity.onEnabledChanged = { [weak settings] enabled in
+      settings?.activityFeatureEnabled = enabled
+    }
     sync = SyncController(settings: settings)
     diskTools = DiskToolsController(helper: helper)
     speedTest = SpeedTestController(settings: settings)

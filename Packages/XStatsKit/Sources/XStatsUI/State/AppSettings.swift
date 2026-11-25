@@ -583,7 +583,7 @@ public final class AppSettings {
   var activityDefaults: UserDefaults { defaults }
   var activityFeatureEnabled: Bool {
     didSet {
-      defaults.set(activityFeatureEnabled, forKey: "activity.featureEnabled")
+      defaults.set(activityFeatureEnabled, forKey: "activity.enabled")
       if !activityFeatureEnabled, panelTab == .activity { panelTab = .settingsFeatures }
     }
   }
@@ -1493,7 +1493,10 @@ public final class AppSettings {
     let corner = defaults.integer(forKey: Keys.launchpadHotCorner)
     launchpadHotCorner = (1...4).contains(corner) ? corner : 0
     let isProcessesEnabled = defaults.bool(forKey: Keys.processesEnabled)
-    let isActivityFeatureEnabled = defaults.bool(forKey: "activity.featureEnabled")
+    let isActivityFeatureEnabled =
+      defaults.object(forKey: "activity.enabled") as? Bool
+      ?? (defaults.bool(forKey: "activity.featureEnabled")
+        && defaults.bool(forKey: "activity.recording"))
     activityFeatureEnabled = isActivityFeatureEnabled
     processesEnabled = isProcessesEnabled
     let isPortsEnabled = defaults.bool(forKey: Keys.portsEnabled)
