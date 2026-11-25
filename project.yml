@@ -146,6 +146,7 @@ targets:
         NSAudioCaptureUsageDescription: 在本机调节应用音量；仅在您开启录屏系统声音时录制声音，内容保存在本机，不上传。
         NSBluetoothAlwaysUsageDescription: 显示已配对的蓝牙音频设备，并在您选择时连接设备。
         NSCalendarsFullAccessUsageDescription: 在本机日历面板显示您选择的系统日程，不修改或上传日程内容。
+        NSLocalNetworkUsageDescription: 连接您配置的局域网服务，例如用于同步应用活动的 WebDAV 服务器。
         NSRemindersFullAccessUsageDescription: 在本机日历面板显示您选择的到期提醒，不修改或上传提醒内容。
     entitlements:
       path: Apps/XStats/App/XStats.entitlements
@@ -154,6 +155,8 @@ targets:
         com.apple.security.device.audio-input: true
         # EventKit 在 Hardened Runtime 下请求日历与提醒事项访问所需；仍由用户单独授权。
         com.apple.security.personal-information.calendars: true
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)work.12306.xstats.app
         com.apple.security.application-groups:
           - group.work.12306.xstats
           - $(TeamIdentifierPrefix)work.12306.xstats.network-observation

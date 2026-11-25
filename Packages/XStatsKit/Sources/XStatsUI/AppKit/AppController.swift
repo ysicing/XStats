@@ -301,6 +301,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     }
 
     observeWorkspace()
+    model.activity.start()
     observeRestEnabled()
     observeTimerPresentation()
     observeRestDurations()
@@ -464,6 +465,19 @@ public final class AppController: NSObject, NSApplicationDelegate {
     // Sparkle 在安装就绪后可能因用户主动退出而继续安装；退出也必须经过相同的停用门禁。
     terminationTask = Task {
       defer { terminationTask = nil }
+      if !(await model.activity.stop()) {
+        NSApp.activate()
+        let alert = NSAlert()
+        alert.messageText = tr("应用活动尚未保存")
+        alert.informativeText = tr("仍然退出会丢失尚未写入本机的活动记录。")
+        alert.addButton(withTitle: tr("取消"))
+        alert.addButton(withTitle: tr("仍然退出"))
+        guard alert.runModal() == .alertSecondButtonReturn else {
+          model.activity.start()
+          sender.reply(toApplicationShouldTerminate: false)
+          return
+        }
+      }
       do {
         try await model.menuBarApplicationFolding.prepareForTermination {
           NSApp.activate()
@@ -475,6 +489,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
           return alert.runModal() == .alertSecondButtonReturn
         }
       } catch {
+        model.activity.start()
         sender.reply(toApplicationShouldTerminate: false)
         return
       }
@@ -504,6 +519,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
         await model.history.flushAndWait()
         sender.reply(toApplicationShouldTerminate: true)
       } catch {
+        model.activity.start()
         model.menuBarApplicationFolding.cancelTermination()
         model.networkComponent.cancelTermination()
         if model.updates.installationRequiresPreparation {
@@ -592,6 +608,9 @@ public final class AppController: NSObject, NSApplicationDelegate {
       guard terminationTask == nil else { return }
       await model.finderDocuments.create(identifier)
     case .open(let requested):
+      if requested == .activity && !model.settings.activityFeatureEnabled {
+        model.featureSettingsTab = .experimental
+      }
       model.openMainWindow(requested.map { AppDeepLink.page($0, settings: model.settings) })
     case .panel(let item):
       if let item {
@@ -1309,6 +1328,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
   private func pauseForInactivity() {
     guard !isTerminating else { return }
+    model.activity.setPaused(true)
     commandBar.dismiss()
     launchpad.dismiss()
     launchpadTriggersPaused = true
@@ -1346,6 +1366,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
   private func resumeFromInactivity() {
     // 系统唤醒时常仍停在锁屏界面，要等解锁后再恢复。
     guard !screenLocked, !isTerminating else { return }
+    model.activity.setPaused(false)
     launchpadTriggersPaused = false
     configureLaunchpadTriggers()
     model.fans.setPaused(false)

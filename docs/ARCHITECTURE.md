@@ -382,6 +382,42 @@ ownership of unfinished media. Active-session locks protect caches across hosts.
 See [CAPTURE.md](CAPTURE.md) for capture/export contracts, cache policy, independent
 release details and historical validation limits.
 
+## App Activity
+
+App Activity is opt-in under Settings → Features → Experimental. Enabling it shows
+the read-only monitor page. The same Experimental section contains the recording
+switch and storage settings. Storage can be configured before enabling the feature
+or recording. Disabling the feature stops recording and automatic sync, hides the page,
+and preserves history. When recording is enabled, it records foreground app identifiers,
+names, categories and usage interval timestamps as encrypted records in local SQLite.
+New records include the local hostname and Mac model in the encrypted payload.
+Device filters and activity details use the latest known name for each stable device
+UUID. Older devices with no reported name fall back to their short ID.
+It pauses counting after five minutes of inactivity. Encryption is part of the
+initial storage and sync formats for App Activity.
+
+When recording is enabled, activity syncs automatically through iCloud Drive by
+default. Users can choose WebDAV, a shared folder synced by Google Drive for desktop,
+or local-only storage. Activity WebDAV permits HTTP only for internal or Tailscale
+servers and requires HTTPS for other destinations.
+
+On macOS 15 and later, connecting to a local WebDAV server may prompt for Local
+Network access. Users can manage this permission in System Settings >
+Privacy & Security > Local Network.
+
+Each Mac encrypts its local records with a device-specific key. A separate recovery
+key shared across the user's Macs encrypts synchronized activity. Both keys are
+stored in Keychain. The signed app uses iCloud Keychain to join an existing dataset
+on another trusted Mac on the same Apple Account, including when the activity
+files are stored on WebDAV. A valid legacy key is published after authenticating
+the existing dataset marker. A Mac that receives the files before the key waits
+and retries. Recovery-code import remains available for different Apple Accounts
+or systems without shared Keychain access. Storage providers can still see the size
+and modification time of synced files.
+
+The device selector shows either one device or the sum across all devices.
+Overlapping sessions contribute time from each device to the combined view.
+
 ## Updates, synchronization and diagnostics
 
 `UpdateController` owns one long-lived Sparkle updater and custom user driver.
@@ -403,12 +439,13 @@ Existing random identities remain stable; new ones hash the local serial or use 
 saved random fallback. Raw serials are not sent and identifiers are excluded from
 settings backups. Main-app, Capture and component update lifecycles remain separate.
 
-WebDAV synchronization is an explicit, single in-flight HTTPS GET/PUT of an allowlisted
-settings envelope. Requests reject redirects, bound downloads to 1 MiB and use normal
-certificate validation. Upload confirmation overwrites without merging or automatic
-retry; download validation and confirmation precede applying preferences. Cancellation
-or failure leaves settings intact. Endpoint credentials stay in local Keychain;
-settings documents contain no connection credentials or monitoring history.
+WebDAV settings synchronization is an explicit, single in-flight HTTPS GET/PUT of an
+allowlisted settings envelope. Requests reject redirects, bound downloads to 1 MiB
+and use normal certificate validation. Upload confirmation overwrites without merging
+or automatic retry. Downloads are validated and confirmed before preferences are
+applied. Cancellation or failure leaves settings intact. Endpoint credentials stay
+in local Keychain. Settings documents contain no connection credentials or
+monitoring history.
 
 User-facing strings use `Localization` and the application locale for dates/numbers,
 including RTL layouts. Tests prefer explicit translation tables; changes affecting

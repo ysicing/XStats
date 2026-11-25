@@ -116,6 +116,7 @@ public struct MainWindowView: View {
         case .overview: OverviewPage()
         case .system: SystemInfoPage()
         case .history: HistoryPage()
+        case .activity: ActivityPage()
         case .aiUsage: AIUsagePage()
         case .audio: DetailPage { AudioMixerContent() }
         case .connections: NetworkConnectionsPage()
@@ -247,8 +248,12 @@ private struct MainSidebar: View {
     VStack(alignment: .leading, spacing: DS.Space.s1) {
       group(
         tr("监控"),
-        PanelTab.monitors.filter {
-          $0 != .thermal || model.store.supportsFans
+        PanelTab.monitors.filter { tab in
+          switch tab {
+          case .activity: model.settings.activityFeatureEnabled
+          case .thermal: model.store.supportsFans
+          default: true
+          }
         })
       group(
         tr("工具"),

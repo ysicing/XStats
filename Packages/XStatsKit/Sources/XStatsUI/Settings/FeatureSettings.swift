@@ -50,6 +50,7 @@ struct FeatureSettings: View {
   @State private var managesNetworkComponent = false
   @State private var enablesAfterComponentInstall = false
   @State private var showsAppCloneRisk = false
+  @State private var showsActivitySettings = false
 
   @Environment(\.isSnapshot) private var isSnapshot
 
@@ -277,6 +278,38 @@ struct FeatureSettings: View {
         .foregroundStyle(DS.Palette.textSecondary)
         .fixedSize(horizontal: false, vertical: true)
       DashboardSettings()
+      SettingsGroup {
+        GroupRow(showsDivider: false) {
+          SettingRow(title: tr("应用活动"), icon: PanelTab.activity.symbol) {
+            HStack(spacing: DS.Space.s2) {
+              Button(tr("设置")) { showsActivitySettings = true }
+                .buttonStyle(DSButtonStyle(kind: .secondary))
+                .accessibilityLabel(tr("存储设置"))
+                .sheet(isPresented: $showsActivitySettings) {
+                  ActivitySyncSettings(controller: model.activity.sync)
+                }
+              DSToggle(
+                isOn: Binding(
+                  get: { settings.activityFeatureEnabled }, set: model.setActivityFeatureEnabled),
+                label: tr("应用活动"))
+            }
+          }
+        }
+        if settings.activityFeatureEnabled {
+          GroupRow {
+            SettingRow(
+              title: tr("记录应用活动"),
+              subtitle: !model.activity.enabled && model.activity.sync.provider == .iCloud
+                ? tr("启用记录后默认同步到 iCloud 云盘。你可以先更改存储位置。") : nil,
+              icon: "record.circle"
+            ) {
+              DSToggle(
+                isOn: Binding(get: { model.activity.enabled }, set: model.activity.setEnabled),
+                label: tr("记录应用活动"))
+            }
+          }
+        }
+      }
       SettingsGroup {
         GroupRow(showsDivider: false) {
           FinderDocumentSettings()

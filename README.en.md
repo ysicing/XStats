@@ -116,6 +116,7 @@ Command Bar, Launchpad and new documents in Finder are experimental features, ea
 | **Fan control** | Switch between automatic and manual control on supported Macs |
 | **Keep awake** | Keep the system or display awake, including with the lid closed |
 | **Apps & Services** | Manage apps, Homebrew packages, startup items and services |
+| **App Activity (experimental)** | Enable it in Settings → Features → Experimental to record foreground app usage and view it by category and device. |
 | **Clean & Optimize** | Review caches and build artifacts, with optional Mole support · [Scope](docs/CLEANUP.md) |
 | **Diagnostics** | Speed, DNS, egress, public IP, connectivity and WebRTC / DNS leak tests |
 | **Calendar** | Chinese lunar dates, holidays, make-up workdays, almanac, events and reminders |
@@ -218,6 +219,7 @@ Monitoring data, history and AI usage are processed locally.
 
 - **Update checks**: send the version and a hashed installation ID to retrieve the update feed.
 - **AI usage**: reads quotas and statistics from a local or remote Magpie instance.
+- **App Activity**: when recording is enabled, encrypts the hostname, Mac model, app identifiers, app names, categories and usage timestamps for local storage and sync. Sync uses iCloud Drive by default. You can choose WebDAV, a folder synced by Google Drive for desktop, or local-only storage. Macs on the same Apple Account automatically receive the sync key through iCloud Keychain. For WebDAV, enter the server details and credentials. Macs on different accounts can join with a recovery key. The storage provider can still see the size and modification time of synced files. WebDAV allows HTTP only on internal or Tailscale networks and requires HTTPS elsewhere.
 - **Online features**: component and geography database downloads, along with network diagnostics, connect to their respective services. Global-probe targets and results may be queried by others.
 - **Menu bar folding**: this experimental macOS 27 feature requires access to one system configuration file to hide and restore selected apps.
 

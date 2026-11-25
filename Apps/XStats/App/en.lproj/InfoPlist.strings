@@ -4,6 +4,7 @@
 "NSRemindersFullAccessUsageDescription" = "Show your selected due reminders locally without modifying or uploading them.";
 "NSAudioCaptureUsageDescription" = "Adjust app volume locally. Audio is recorded only when you enable system audio for a screen recording. Content stays on this Mac and is not uploaded.";
 "NSBluetoothAlwaysUsageDescription" = "Show paired Bluetooth audio devices and connect them when you select them.";
+"NSLocalNetworkUsageDescription" = "Connect to local network services you configure, such as a WebDAV server for syncing App Activity.";
 "NSSystemExtensionUsageDescription" = "View app network connections locally without blocking connections or reading communication content.";
 "NSScreenCaptureUsageDescription" = "Capture the selected region, window, or screen when you take a screenshot or record. Content stays on this Mac and is not uploaded.";
 "NSMicrophoneUsageDescription" = "When you enable the microphone, record audio in a local video without uploading content.";

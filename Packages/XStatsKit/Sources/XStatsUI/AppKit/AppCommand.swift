@@ -136,6 +136,7 @@ struct AppCommand: Identifiable, Sendable {
     case .overview: "dashboard 仪表盘 总览"
     case .system: "hardware display 本机信息 显示器 硬件"
     case .history: "history 历史"
+    case .activity: "activity screen time 应用活动 屏幕使用时间"
     case .aiUsage: "ai usage tokens AI用量"
     case .cpu: "processor 处理器"
     case .gpu: "graphics 显卡"

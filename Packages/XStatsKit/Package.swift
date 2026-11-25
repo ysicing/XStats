@@ -44,6 +44,7 @@ let package = Package(
       name: "FinderDocuments", dependencies: ["Localization"], resources: [.copy("Templates")]),
     .testTarget(name: "FinderDocumentsTests", dependencies: ["FinderDocuments", "Localization"]),
     .target(name: "MagpieHTTP", linkerSettings: [.linkedLibrary("curl")]),
+    .target(name: "ActivityDAVHTTP", linkerSettings: [.linkedLibrary("curl")]),
     .target(name: "AIUsage", dependencies: ["MagpieHTTP"]),
     .target(name: "SMC", dependencies: ["Localization"]),
     .target(
@@ -68,7 +69,7 @@ let package = Package(
       dependencies: [
         "CaptureUI", "CaptureCore", "NetworkObservation", "AudioControl", "AIUsage", "Localization",
         "Metrics", "SMC", "HelperShared", "Cleaner", "Updates", "WebDAVSync", "WidgetData",
-        "FinderDocuments", "DockIcons",
+        "FinderDocuments", "DockIcons", "ActivityDAVHTTP",
         .product(name: "Tyme4Swift", package: "tyme4swift"),
         .product(name: "Sparkle", package: "Sparkle"),
       ],

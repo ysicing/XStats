@@ -3008,3 +3008,57 @@ CPU 占用最高的进程	Prozesse mit der höchsten CPU-Auslastung
 跟随 XStats	Wie XStats
 农历：{}	Mondkalender: {}
 补班	Ersatzarbeitstag
+应用活动	App-Aktivität
+记录应用活动	App-Aktivität aufzeichnen
+应用活动记录已关闭	Die Aufzeichnung der App-Aktivität ist deaktiviert
+应用活动尚未保存	Nicht gespeicherte App-Aktivität
+仍然退出会丢失尚未写入本机的活动记录。	Wenn du die App jetzt beendest, gehen die Aktivitätsdaten verloren, die noch nicht auf diesem Mac gespeichert wurden.
+无法读取活动记录	Aktivitätsverlauf konnte nicht geladen werden
+正在读取活动记录	Aktivitätsverlauf wird geladen
+此时段无活动记录	Keine Aktivität in diesem Zeitraum
+设备	Gerät
+所有设备	Alle Geräte
+设备 {}	Gerät {}
+本机（{}）	Dieser Mac ({})
+存储设置	Speichereinstellungen
+启用记录后默认同步到 iCloud 云盘。你可以先更改存储位置。	Bei aktiver Aufzeichnung wird standardmäßig mit iCloud Drive synchronisiert. Du kannst vorher einen anderen Speicherort wählen.
+存储位置	Speicherort
+Google Drive 共享文件夹	Freigegebener Google Drive-Ordner
+仅保存在本机	Nur auf diesem Mac speichern
+共享文件夹	Freigegebener Ordner
+选择文件夹	Ordner auswählen
+立即同步	Jetzt synchronisieren
+等待 iCloud 云盘就绪	Warten auf iCloud Drive
+正在等待 iCloud 钥匙串同步活动密钥	Warten auf die Synchronisierung des Aktivitätsschlüssels über den iCloud-Schlüsselbund
+活动同步失败，将自动重试	Aktivität konnte nicht synchronisiert werden. Der Vorgang wird automatisch wiederholt.
+本轮同步完成	Synchronisierung abgeschlossen
+无法保存同步配置	Synchronisierungseinstellungen konnten nicht gespeichert werden
+无法打开共享文件夹	Der freigegebene Ordner konnte nicht geöffnet werden
+同步恢复密钥	Schlüssel zur Wiederherstellung der Synchronisierung
+查看恢复密钥	Schlüssel zur Wiederherstellung anzeigen
+导入恢复密钥	Schlüssel zur Wiederherstellung importieren
+在其他 Mac 导入同一密钥，即可读取加密的活动记录。请妥善保存。	Importiere diesen Schlüssel auf deinen anderen Macs, um die verschlüsselten Aktivitätsdaten zu lesen. Bewahre ihn sicher auf.
+恢复密钥格式无效	Ungültiges Format des Schlüssels zur Wiederherstellung
+无法读取或保存活动密钥，请检查钥匙串	Der Aktivitätsschlüssel konnte nicht gelesen oder gespeichert werden. Prüfe deinen Schlüsselbund.
+无法验证同步数据，请核对恢复密钥和同步位置。	Die Synchronisierungsdaten konnten nicht überprüft werden. Prüfe den Schlüssel zur Wiederherstellung und den Synchronisierungsort.
+替换这台 Mac 的同步密钥？	Synchronisierungsschlüssel auf diesem Mac ersetzen?
+请先保存原恢复密钥，以便日后读取使用原密钥加密的云端记录。	Bewahre zuerst den bisherigen Schlüssel zur Wiederherstellung auf, damit du später die damit verschlüsselten Daten in der Cloud lesen kannst.
+替换密钥	Schlüssel ersetzen
+HTTP 仅限内网或 Tailscale，WebDAV 登录凭据会通过 HTTP 发送。	HTTP ist nur in internen Netzwerken oder über Tailscale zulässig. WebDAV-Anmeldedaten werden über HTTP gesendet.
+请输入有效的 WebDAV 目录地址。HTTP 仅支持私有局域网或 Tailscale，不允许账号、查询参数或片段。	Gib eine gültige WebDAV-Verzeichnisadresse ohne Anmeldedaten, Abfrageparameter oder Fragment ein. HTTP ist nur in privaten lokalen Netzwerken oder über Tailscale zulässig.
+统计周期	Zeitraum
+日	Tag
+周	Woche
+月	Monat
+上一时段	Vorheriger Zeitraum
+下一时段	Nächster Zeitraum
+应用排行	Meistgenutzte Apps
+分类排行	Meistgenutzte Kategorien
+活跃时长	Aktive Zeit
+活跃时长（设备累计）	Aktive Zeit (Summe aller Geräte)
+各设备的活跃分钟分别计算后相加	Die aktiven Minuten werden pro Gerät erfasst und addiert
+活动时段	Aktivitätssitzungen
+工作	Arbeit
+娱乐	Unterhaltung
+沟通	Kommunikation
+浏览	Websurfen

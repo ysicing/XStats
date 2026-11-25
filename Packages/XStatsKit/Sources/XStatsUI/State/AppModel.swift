@@ -51,6 +51,7 @@ public final class AppModel {
   let ports = PortsController()
   let dashboard = DashboardController()
   public let history: HistoryRecorder
+  let activity: ActivityController
   public let sync: SyncController
   let diskTools: DiskToolsController
   @ObservationIgnored public let hub = MetricsHub()
@@ -58,6 +59,11 @@ public final class AppModel {
 
   /// 功能页分类仅用于当前窗口，不持久化、不影响采样需求。
   var featureSettingsTab: FeatureSettingsTab = .basic
+
+  func setActivityFeatureEnabled(_ enabled: Bool) {
+    if !enabled { activity.setEnabled(false) }
+    settings.activityFeatureEnabled = enabled
+  }
 
   public var isMainWindowVisible = false {
     didSet {
@@ -203,6 +209,12 @@ public final class AppModel {
     alerts = AlertController(settings: settings)
     alerts.readBluetoothDevices = { [bluetooth] in await bluetooth.recentDevices(maxAge: 5 * 60) }
     history = HistoryRecorder(settings: settings, databaseURL: historyURL)
+    activity = ActivityController(
+      defaults: settings.activityDefaults,
+      databaseURL: historyURL != nil && settings.activityDefaults === UserDefaults.standard
+        ? URL.applicationSupportDirectory.appending(path: "XStats/activity.sqlite") : nil,
+      deviceName: ActivityController.localDeviceName(model: store.system.modelName))
+    if !settings.activityFeatureEnabled { activity.setEnabled(false) }
     sync = SyncController(settings: settings)
     diskTools = DiskToolsController(helper: helper)
     speedTest = SpeedTestController(settings: settings)

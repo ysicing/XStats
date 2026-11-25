@@ -15,6 +15,7 @@ enum AppDeepLink: Equatable, Sendable {
 
   static let pages: [String: PanelTab] = [
     "overview": .overview, "system": .system, "history": .history, "ai-usage": .aiUsage,
+    "activity": .activity,
     "cpu": .cpu, "gpu": .gpu, "memory": .memory, "disk": .disk, "network": .network,
     "thermal": .thermal, "battery": .battery, "processes": .processes, "ports": .ports,
     "audio": .audio,
@@ -80,7 +81,8 @@ enum AppDeepLink: Equatable, Sendable {
 
   @MainActor static func page(_ requested: PanelTab, settings: AppSettings) -> PanelTab {
     switch requested {
-    case .audio where !settings.audioEnabled, .rest where !settings.restEnabled,
+    case .activity where !settings.activityFeatureEnabled,
+      .audio where !settings.audioEnabled, .rest where !settings.restEnabled,
       .connections where !settings.canViewNetworkConnections,
       .processes where !settings.processesEnabled, .ports where !settings.portsEnabled,
       .cleaner where !settings.cleanerEnabled,

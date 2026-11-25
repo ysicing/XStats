@@ -380,7 +380,8 @@ public enum AppearanceMode: String, CaseIterable, Identifiable, Sendable {
 
 /// 主窗口侧边栏的页面
 public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
-  case overview, system, history, aiUsage, cpu, gpu, memory, disk, network, thermal, battery,
+  case overview, system, history, activity, aiUsage, cpu, gpu, memory, disk, network, thermal,
+    battery,
     processes, ports, keepAwake, rest, cleaner, uninstaller, startupItems, audio, connections
   case settingsGeneral, settingsFeatures, settingsMenuBar, settingsNotifications, settingsAccount,
     settingsHelper, settingsAbout, settingsShortcuts
@@ -388,7 +389,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
   public var id: String { rawValue }
 
   static let monitors: [PanelTab] = [
-    .overview, .system, .history, .cpu, .gpu, .memory, .disk, .network, .battery,
+    .overview, .system, .history, .activity, .cpu, .gpu, .memory, .disk, .network, .battery,
     .thermal,
   ]
   // 按中文名称由短到长排列，所有语言沿用固定顺序，保持导航位置一致。
@@ -414,6 +415,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case .overview: tr("仪表盘")
     case .system: tr("本机信息")
     case .history: tr("历史")
+    case .activity: tr("应用活动")
     case .aiUsage: tr("AI")
     case .cpu: "CPU"
     case .gpu: "GPU"
@@ -446,6 +448,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case .overview: "square.grid.2x2"
     case .system: "laptopcomputer"
     case .history: "clock.arrow.circlepath"
+    case .activity: "chart.bar.xaxis"
     case .aiUsage: "sparkles"
     case .cpu: "cpu"
     case .gpu: "square.3.layers.3d"
@@ -577,6 +580,13 @@ public enum UpdateCheckSchedule: String, CaseIterable, Identifiable, Sendable {
 public final class AppSettings {
   @ObservationIgnored private let defaults: UserDefaults
   var audioDefaults: UserDefaults { defaults }
+  var activityDefaults: UserDefaults { defaults }
+  var activityFeatureEnabled: Bool {
+    didSet {
+      defaults.set(activityFeatureEnabled, forKey: "activity.featureEnabled")
+      if !activityFeatureEnabled, panelTab == .activity { panelTab = .settingsFeatures }
+    }
+  }
   var menuBarFoldingDefaults: UserDefaults { defaults }
   var networkObservationDefaults: UserDefaults { defaults }
   var updateDefaults: UserDefaults { defaults }
@@ -1050,6 +1060,7 @@ public final class AppSettings {
     didSet {
       // 统一拦截旧路由与外部打开请求，关闭的音频与进程模块回到功能开关入口。
       if panelTab == .audio && !audioEnabled { panelTab = .settingsFeatures }
+      if panelTab == .activity && !activityFeatureEnabled { panelTab = .settingsFeatures }
       if panelTab == .connections && !canViewNetworkConnections { panelTab = .settingsFeatures }
       if panelTab == .processes && !processesEnabled { panelTab = .settingsFeatures }
       if panelTab == .ports && !portsEnabled { panelTab = .settingsFeatures }
@@ -1482,6 +1493,8 @@ public final class AppSettings {
     let corner = defaults.integer(forKey: Keys.launchpadHotCorner)
     launchpadHotCorner = (1...4).contains(corner) ? corner : 0
     let isProcessesEnabled = defaults.bool(forKey: Keys.processesEnabled)
+    let isActivityFeatureEnabled = defaults.bool(forKey: "activity.featureEnabled")
+    activityFeatureEnabled = isActivityFeatureEnabled
     processesEnabled = isProcessesEnabled
     let isPortsEnabled = defaults.bool(forKey: Keys.portsEnabled)
     portsEnabled = isPortsEnabled
@@ -1553,6 +1566,7 @@ public final class AppSettings {
           || (savedPanelTab == .rest && !isRestEnabled)
           || (savedPanelTab == .cleaner && !isCleanerEnabled)
           || (savedPanelTab == .processes && !isProcessesEnabled)
+          || (savedPanelTab == .activity && !isActivityFeatureEnabled)
           || (savedPanelTab == .ports && !isPortsEnabled)
         ? .settingsFeatures : (savedPanelTab == .startupItems ? .uninstaller : savedPanelTab)
     }

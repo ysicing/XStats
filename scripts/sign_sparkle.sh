@@ -93,6 +93,7 @@ with open(sys.argv[1], "rb") as source:
     entitlements = plistlib.load(source)
 for key in ("com.apple.developer.system-extension.install", "com.apple.developer.networking.networkextension"):
     entitlements.pop(key, None)
+entitlements.pop("keychain-access-groups", None)
 with open(sys.argv[2], "wb") as target:
     plistlib.dump(entitlements, target)
 PY
