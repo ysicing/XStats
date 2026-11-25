@@ -56,6 +56,72 @@ struct ActivityPageAnalyticsTests {
     #expect(remoteOnly.deviceIDs == [remote])
   }
 
+  @Test func hourlyBucketsSplitAtBoundariesAndUseResolvedForegroundTime() throws {
+    let calendar = utcCalendar
+    let interval = try #require(calendar.dateInterval(of: .day, for: midnight))
+    let report = try ActivityPageAnalytics.make(
+      sessions: [
+        session(from: 1_800, to: 7_200),
+        session(appID: "browser", category: "browsing", from: 3_300, to: 3_900),
+        session(on: remote, from: 3_600, to: 7_200),
+      ], interval: interval, period: .day, calendar: calendar, deviceID: nil)
+
+    #expect(report.hours.count == 24)
+    #expect(report.hours[0].secondsByCategory == [.work: 1_500, .browsing: 300])
+    #expect(report.hours[1].secondsByCategory == [.work: 6_900, .browsing: 300])
+    #expect(report.hours.dropFirst(2).allSatisfy { $0.seconds == 0 })
+    #expect(report.hours.reduce(0) { $0 + $1.seconds } == report.seconds)
+  }
+
+  @Test(arguments: [(month: 3, day: 8, hours: 23), (month: 11, day: 1, hours: 25)])
+  func hourlyBucketsFollowElapsedTimeOnDSTDays(month: Int, day: Int, hours: Int) throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
+    let date = try #require(calendar.date(from: DateComponents(year: 2026, month: month, day: day)))
+    let interval = try #require(calendar.dateInterval(of: .day, for: date))
+    let report = try ActivityPageAnalytics.make(
+      sessions: [
+        session(
+          from: interval.start.timeIntervalSince(midnight),
+          to: interval.end.timeIntervalSince(midnight))
+      ], interval: interval, period: .day, calendar: calendar, deviceID: nil)
+
+    #expect(report.hours.count == hours)
+    #expect(Set(report.hours.map(\.id)).count == hours)
+    #expect(report.hours.allSatisfy { $0.seconds == 3_600 })
+    #expect(report.hours.last?.interval.end == interval.end)
+  }
+
+  @Test func futureActivityIsExcludedWithoutDroppingCalendarSlots() throws {
+    let calendar = utcCalendar
+    let interval = try #require(calendar.dateInterval(of: .day, for: midnight))
+    let report = try ActivityPageAnalytics.make(
+      sessions: [
+        session(from: 1_800, to: 5_400),
+        session(on: remote, from: 7_200, to: 8_000),
+      ], interval: interval, period: .day, calendar: calendar, deviceID: nil, through: at(3_900))
+
+    #expect(report.hours.count == 24)
+    #expect(report.hours.prefix(3).map(\.seconds) == [1_800, 300, 0])
+    #expect(report.seconds == 2_100)
+    #expect(report.categories.first?.seconds == report.seconds)
+    #expect(report.deviceIDs == [local])
+  }
+
+  @Test(arguments: [ActivityPagePeriod.week, .month])
+  func drillDownReturnsToTheOriginalPeriod(period: ActivityPagePeriod) {
+    var selection = ActivityPageDateSelection()
+    selection.selectPeriod(period)
+    selection.openDay(at(86_400), from: midnight)
+    #expect(selection.period == .day)
+    #expect(selection.date == at(86_400))
+    selection.date = at(172_800)
+    selection.returnToOverview()
+    #expect(selection.period == period)
+    #expect(selection.date == midnight)
+    #expect(selection.overview == nil)
+  }
+
   @Test func nestedForegroundOverlapsKeepTotalsRanksTimelineAndDetailsInAgreement() throws {
     let calendar = utcCalendar
     let interval = try #require(calendar.dateInterval(of: .day, for: midnight))

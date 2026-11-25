@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import AppKit
 import Combine
 import Localization
 import OSLog
@@ -7,8 +8,9 @@ import SwiftUI
 
 struct ActivityPage: View {
   @Environment(AppModel.self) private var model
-  @State private var period = ActivityPagePeriod.day
-  @State private var referenceDate: Date?
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State private var dateSelection = ActivityPageDateSelection()
+  @State private var animatePeriodChange = false
   @State private var device = Device.all
   @State private var storedDeviceIDs: [UUID] = []
   @State private var storedDeviceNames: [UUID: String] = [:]
@@ -19,6 +21,8 @@ struct ActivityPage: View {
 
   private static let logger = Logger(subsystem: Log.subsystem, category: "activity-page")
   private static let syncFinished = Notification.Name("XStatsActivitySyncFinished")
+
+  private var period: ActivityPagePeriod { dateSelection.period }
 
   private var namesForDisplay: [UUID: String] {
     var deviceNames = storedDeviceNames
@@ -39,7 +43,7 @@ struct ActivityPage: View {
     }()
     let now = Date.now
     let current = calendar.dateInterval(of: period.component, for: now)
-    let interval = calendar.dateInterval(of: period.component, for: referenceDate ?? now)
+    let interval = calendar.dateInterval(of: period.component, for: dateSelection.date ?? now)
     let selection = interval.map { Selection(interval: $0, period: period, device: device) }
     let includesLocal = device == .all || device == .local
     let isCurrent = interval != nil && interval == current
@@ -69,24 +73,37 @@ struct ActivityPage: View {
           }
         }
         if let interval, let current {
-          dateNavigation(interval: interval, current: current, calendar: calendar, locale: locale)
           if let report, controller.enabled || !report.apps.isEmpty {
             ActivityPageTimeline(
               report: report, interval: interval, period: period, calendar: calendar,
-              locale: locale,
-              combinesDevices: device == .all && !remoteIDs.isEmpty)
+              locale: locale, combinesDevices: device == .all && !remoteIDs.isEmpty,
+              now: now, animateEntry: animatePeriodChange,
+              deviceNames: deviceNames, localID: localID,
+              openDay: {
+                animatePeriodChange = false
+                dateSelection.openDay($0, from: interval.start)
+              }
+            ) {
+              dateNavigation(
+                interval: interval, current: current, calendar: calendar, locale: locale)
+            }
+            .id(selection)
             if report.apps.isEmpty {
               Label(tr("此时段无活动记录"), systemImage: "clock")
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity)
                 .padding()
             } else {
-              rankings(report, locale: locale)
+              ActivityPageRankings(report: report, locale: locale) { selectedApp = $0 }
+                .id(selection)
             }
-          } else if !controller.enabled {
-            Card {
-              Label(tr("应用活动记录已关闭"), systemImage: "clock")
-                .font(.headline)
+          } else {
+            dateNavigation(interval: interval, current: current, calendar: calendar, locale: locale)
+            if !controller.enabled {
+              Card {
+                Label(tr("应用活动记录已关闭"), systemImage: "clock")
+                  .font(.headline)
+              }
             }
           }
         }
@@ -141,6 +158,7 @@ struct ActivityPage: View {
         showsDevice: device == .all && !remoteIDs.isEmpty,
         locale: locale)
     }
+    .onChange(of: device) { _, _ in animatePeriodChange = false }
   }
 
   private func header(localID: UUID, remoteIDs: [UUID], names: [UUID: String]) -> some View {
@@ -156,7 +174,16 @@ struct ActivityPage: View {
     .pickerStyle(.menu)
     .labelsHidden()
     .lineLimit(1)
-    let periods = Picker(tr("统计周期"), selection: $period) {
+    let periods = Picker(
+      tr("统计周期"),
+      selection: Binding(
+        get: { period },
+        set: { newPeriod in
+          let event = NSApp?.currentEvent?.type
+          animatePeriodChange = !reduceMotion && (event == .leftMouseDown || event == .leftMouseUp)
+          DS.Motion.select { dateSelection.selectPeriod(newPeriod) }
+        })
+    ) {
       Text(tr("日")).tag(ActivityPagePeriod.day)
       Text(tr("周")).tag(ActivityPagePeriod.week)
       Text(tr("月")).tag(ActivityPagePeriod.month)
@@ -167,13 +194,13 @@ struct ActivityPage: View {
 
     return ViewThatFits(in: .horizontal) {
       HStack(spacing: DS.Space.s3) {
-        devices
         Spacer(minLength: 0)
         periods
+        devices
       }
       VStack(alignment: .leading, spacing: DS.Space.s2) {
-        devices
         periods
+        devices
       }
     }
   }
@@ -184,57 +211,57 @@ struct ActivityPage: View {
     let canAdvance = interval.start < current.start
     let previous = calendar.date(byAdding: period.component, value: -1, to: interval.start)
     let next = calendar.date(byAdding: period.component, value: 1, to: interval.start)
-    return HStack {
-      Label(
-        ActivityPageFormat.dateTitle(interval, period: period, calendar: calendar, locale: locale),
-        systemImage: "calendar"
-      )
-      .font(.headline)
-      .lineLimit(1)
-      Spacer(minLength: DS.Space.s2)
+    let title = ActivityPageFormat.dateTitle(
+      interval, period: period, calendar: calendar, locale: locale)
+    let backLabel = dateSelection.overview?.period == .month ? tr("返回月视图") : tr("返回周视图")
+    let todayLabel =
+      switch period {
+      case .day: tr("今天")
+      case .week: tr("本周")
+      case .month: tr("本月")
+      }
+    let date = VStack(alignment: .leading, spacing: DS.Space.s1) {
+      if dateSelection.overview != nil {
+        Button {
+          animatePeriodChange = false
+          dateSelection.returnToOverview()
+        } label: {
+          Label(backLabel, systemImage: "chevron.backward")
+        }
+        .buttonStyle(.link)
+      }
+      Text(title)
+        .font(.headline)
+    }
+    let controls = HStack(spacing: DS.Space.s2) {
       IconButton(systemName: "chevron.backward", help: tr("上一时段")) {
-        if let previous { referenceDate = previous }
+        animatePeriodChange = false
+        if let previous { dateSelection.date = previous }
       }
       .disabled(previous == nil)
-      Button(tr("今天")) { referenceDate = nil }
-        .disabled(referenceDate == nil)
+      Button(todayLabel) {
+        animatePeriodChange = false
+        dateSelection.date = nil
+      }
+      .disabled(interval == current)
       IconButton(systemName: "chevron.forward", help: tr("下一时段")) {
-        if let next, canAdvance { referenceDate = next < current.start ? next : nil }
+        animatePeriodChange = false
+        if let next, canAdvance { dateSelection.date = next < current.start ? next : nil }
       }
       .disabled(!canAdvance || next == nil)
     }
-  }
-
-  @ViewBuilder
-  private func rankings(_ report: ActivityPageAnalytics, locale: Locale) -> some View {
-    Section {
-      LazyVStack(spacing: 0) {
-        let maximum = report.apps.first?.seconds ?? 0
-        ForEach(report.apps) { app in
-          Button {
-            selectedApp = app
-          } label: {
-            ActivityPageAppRow(app: app, maximum: maximum, locale: locale)
-          }
-          .buttonStyle(.plain)
-        }
+    return ViewThatFits(in: .horizontal) {
+      HStack(alignment: .top, spacing: DS.Space.s3) {
+        date.fixedSize(horizontal: true, vertical: false)
+        Spacer(minLength: 0)
+        controls.fixedSize()
       }
-      .background(DS.Palette.surface, in: RoundedRectangle(cornerRadius: DS.Radius.lg))
-    } header: {
-      Text(tr("应用排行")).font(.headline).accessibilityAddTraits(.isHeader)
-    }
-    Section {
-      Card(spacing: DS.Space.s3) {
-        let maximum = report.categories.first?.seconds ?? 0
-        ForEach(report.categories) { category in
-          ActivityPageRank(
-            title: category.id.title, color: category.id.color, seconds: category.seconds,
-            maximum: maximum, locale: locale)
-        }
+      VStack(alignment: .leading, spacing: DS.Space.s2) {
+        date
+        controls
       }
-    } header: {
-      Text(tr("分类排行")).font(.headline).accessibilityAddTraits(.isHeader)
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   @MainActor
@@ -248,10 +275,11 @@ struct ActivityPage: View {
       let knownIDs = try? await controller.store.deviceIDs()
       let names = try await controller.store.deviceNames()
       try Task.checkCancellation()
+      let now = Date.now
       let worker = Task.detached(priority: .userInitiated) {
         let report = try ActivityPageAnalytics.make(
           sessions: sessions, interval: selection.interval, period: selection.period,
-          calendar: calendar, deviceID: deviceID)
+          calendar: calendar, deviceID: deviceID, through: now)
         return (report, Set(knownIDs ?? []).union(report.deviceIDs))
       }
       let (report, ids) = try await withTaskCancellationHandler {
@@ -304,5 +332,35 @@ struct ActivityPage: View {
   private struct Loaded {
     let selection: Selection
     let report: ActivityPageAnalytics
+  }
+}
+
+struct ActivityPageDateSelection {
+  private(set) var period: ActivityPagePeriod = .day
+  var date: Date?
+  private(set) var overview: (period: ActivityPagePeriod, date: Date?)?
+
+  mutating func selectPeriod(_ period: ActivityPagePeriod) {
+    guard period != self.period else { return }
+    if overview?.period == period {
+      returnToOverview()
+    } else {
+      overview = nil
+      self.period = period
+    }
+  }
+
+  mutating func openDay(_ day: Date, from intervalStart: Date) {
+    guard period != .day else { return }
+    overview = (period, intervalStart)
+    period = .day
+    date = day
+  }
+
+  mutating func returnToOverview() {
+    guard let overview else { return }
+    period = overview.period
+    date = overview.date
+    self.overview = nil
   }
 }

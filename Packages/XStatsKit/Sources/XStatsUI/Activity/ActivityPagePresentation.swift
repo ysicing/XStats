@@ -4,30 +4,51 @@ import AppKit
 import Localization
 import SwiftUI
 
-struct ActivityPageTimeline: View {
+struct ActivityPageTimeline<Navigation: View>: View {
   let report: ActivityPageAnalytics
   let interval: DateInterval
   let period: ActivityPagePeriod
   let calendar: Calendar
   let locale: Locale
   let combinesDevices: Bool
+  let now: Date
+  let animateEntry: Bool
+  let deviceNames: [UUID: String]
+  let localID: UUID
+  let openDay: (Date) -> Void
+  @ViewBuilder let navigation: () -> Navigation
+
+  @State private var showsSessions = false
+  @State private var entered = false
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.isSnapshot) private var isSnapshot
 
   var body: some View {
     Card(spacing: DS.Space.s4) {
+      navigation()
       VStack(alignment: .leading, spacing: DS.Space.s2) {
-        Text(combinesDevices ? tr("活跃时长（设备累计）") : tr("活跃时长"))
-          .foregroundStyle(.secondary)
-          .help(combinesDevices ? tr("各设备的活跃分钟分别计算后相加") : tr("活跃时长"))
         Text(ActivityPageFormat.duration(report.seconds, locale: locale))
           .font(.system(size: 34, weight: .semibold))
           .monospacedDigit()
+        Text(combinesDevices ? tr("设备累计") : tr("活跃时长"))
+          .foregroundStyle(.secondary)
+          .help(combinesDevices ? tr("各设备的活跃分钟分别计算后相加") : tr("活跃时长"))
       }
       .accessibilityElement(children: .combine)
 
-      if period == .day {
-        dayTimeline
-      } else {
-        dailyBars
+      Group {
+        if period == .week {
+          weekRows
+        } else {
+          ActivityPeriodChart(
+            buckets: period == .day ? report.hours : report.days, hourly: period == .day,
+            now: now, calendar: calendar, locale: locale, openDay: openDay)
+        }
+      }
+      .opacity(animateEntry && !entered && !reduceMotion && !isSnapshot ? 0 : 1)
+      .task {
+        guard animateEntry, !reduceMotion, !isSnapshot else { return }
+        withAnimation(DS.Motion.quick) { entered = true }
       }
 
       if !report.categories.isEmpty {
@@ -38,28 +59,38 @@ struct ActivityPageTimeline: View {
         }
         .font(.caption)
       }
+
+      if period == .day, !report.lanes.isEmpty {
+        Divider()
+        DisclosureGroup(tr("活动时段"), isExpanded: $showsSessions) {
+          VStack(alignment: .leading, spacing: DS.Space.s3) {
+            ForEach(report.lanes) { lane in
+              if combinesDevices {
+                Text(ActivityPageFormat.deviceName(lane.id, localID: localID, names: deviceNames))
+                  .font(.caption).foregroundStyle(.secondary)
+              }
+              dayTimeline(lane)
+            }
+          }
+          .padding(.top, DS.Space.s2)
+        }
+      }
     }
   }
 
-  private var dayTimeline: some View {
+  private func dayTimeline(_ lane: ActivityPageAnalytics.Lane) -> some View {
     VStack(spacing: DS.Space.s2) {
       Canvas { context, size in
-        let laneHeight = size.height / CGFloat(max(1, report.lanes.count))
-        let barHeight = min(20, laneHeight * 0.8)
-        let radius = min(barHeight / 2, 2)
-        for (index, lane) in report.lanes.enumerated() {
-          let y = laneHeight * CGFloat(index) + (laneHeight - barHeight) / 2
-          for segment in lane.segments {
-            let x = size.width * segment.start.timeIntervalSince(interval.start) / interval.duration
-            let width = size.width * segment.seconds / interval.duration
-            let rectangle = CGRect(x: x, y: y, width: width, height: barHeight)
-            context.fill(
-              Path(roundedRect: rectangle, cornerRadius: min(radius, width / 2)),
-              with: .color(segment.category.color))
-          }
+        for segment in lane.segments {
+          let x = size.width * segment.start.timeIntervalSince(interval.start) / interval.duration
+          let width = size.width * segment.seconds / interval.duration
+          let rectangle = CGRect(x: x, y: 0, width: width, height: size.height)
+          context.fill(
+            Path(roundedRect: rectangle, cornerRadius: min(2, width / 2)),
+            with: .color(segment.category.color))
         }
       }
-      .frame(height: min(100, 24 * CGFloat(max(1, report.lanes.count))))
+      .frame(height: 16)
       HStack {
         ForEach(0...4, id: \.self) { index in
           if index != 0 { Spacer(minLength: DS.Space.s1) }
@@ -76,54 +107,135 @@ struct ActivityPageTimeline: View {
     .accessibilityHidden(true)
   }
 
-  private var dailyBars: some View {
-    let maximum = max(1, report.days.map(\.seconds).max() ?? 0)
+  private var weekRows: some View {
+    let maximum = report.days.lazy.filter { $0.id <= now }.map(\.seconds).max() ?? 0
+    let ceiling = max(1, ceil(maximum / 3_600)) * 3_600
     let dateStyle = Date.FormatStyle(
       locale: locale, calendar: calendar, timeZone: calendar.timeZone)
-    return HStack(alignment: .top, spacing: DS.Space.s1) {
-      ForEach(Array(report.days.enumerated()), id: \.element.id) { index, day in
-        VStack(spacing: DS.Space.s2) {
-          VStack(spacing: 0) {
-            ForEach(ActivityPageAnalytics.Category.allCases, id: \.self) { category in
-              if let seconds = day.secondsByCategory[category] {
-                Rectangle().fill(category.color)
-                  .frame(height: 84 * seconds / maximum)
-              }
+    return Grid(alignment: .leading, horizontalSpacing: DS.Space.s3, verticalSpacing: DS.Space.s2) {
+      ForEach(report.days) { day in
+        let future = day.id > now
+        let title = day.id.formatted(dateStyle.weekday(.abbreviated).day())
+        let duration = future ? "—" : ActivityPageFormat.duration(day.seconds, locale: locale)
+        GridRow {
+          Text(title)
+            .fixedSize(horizontal: true, vertical: false)
+            .foregroundStyle(future ? .tertiary : .primary)
+            .accessibilityHidden(day.seconds > 0 && !future)
+          if !future, day.seconds > 0 {
+            Button {
+              openDay(day.id)
+            } label: {
+              ActivityCategoryStack(
+                seconds: day.secondsByCategory, scale: ceiling, axis: .horizontal
+              )
+              .background(.secondary.opacity(0.12))
+              .clipShape(Capsule())
+              .frame(height: 12)
+              .padding(.vertical, DS.Space.s1)
+              .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(title)
+            .accessibilityValue(duration)
+            .accessibilityHint(tr("查看当天"))
+            .help(tr("查看当天"))
+          } else {
+            Capsule().fill(future ? .clear : .secondary.opacity(0.12))
+              .frame(height: 12)
+              .padding(.vertical, DS.Space.s1)
+              .accessibilityHidden(true)
           }
-          .clipShape(.rect(cornerRadius: 3))
-          .frame(height: 84, alignment: .bottom)
-          if period == .week || index.isMultiple(of: 7) {
-            Text(day.id.formatted(period == .week ? dateStyle.weekday(.narrow) : dateStyle.day()))
-              .font(.caption2)
-              .lineLimit(1)
-          }
+          Text(duration)
+            .foregroundStyle(future ? .tertiary : .secondary)
+            .lineLimit(1)
+            .fixedSize()
+            .gridColumnAlignment(.trailing)
+            .accessibilityHidden(day.seconds > 0 && !future)
         }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(day.id.formatted(dateStyle.month().day().weekday()))
-        .accessibilityValue(ActivityPageFormat.duration(day.seconds, locale: locale))
-        .help(ActivityPageFormat.duration(day.seconds, locale: locale))
       }
     }
-    .foregroundStyle(.secondary)
-    .environment(\.layoutDirection, .leftToRight)
+    .font(.subheadline)
+    .monospacedDigit()
   }
 
   private var legend: some View {
-    ForEach(report.categories) { category in
+    ForEach(
+      ActivityPageAnalytics.Category.allCases.filter { id in
+        report.categories.contains { $0.id == id }
+      }, id: \.self
+    ) { category in
       HStack(spacing: DS.Space.s1) {
-        Circle().fill(category.id.color).frame(width: 7, height: 7)
+        Circle().fill(category.color).frame(width: 7, height: 7)
           .accessibilityHidden(true)
-        Text(category.id.title)
+        Text(category.title)
       }
     }
   }
 }
 
-struct ActivityPageAppRow: View {
+struct ActivityPageRankings: View {
+  let report: ActivityPageAnalytics
+  let locale: Locale
+  let openApp: (ActivityPageAnalytics.App) -> Void
+  @State private var showsAllApps = false
+
+  var body: some View {
+    ViewThatFits(in: .horizontal) {
+      HStack(alignment: .top, spacing: DS.Space.s4) {
+        apps.frame(minWidth: 282, idealWidth: 282, maxWidth: .infinity)
+        categories.frame(minWidth: 282, idealWidth: 282, maxWidth: .infinity)
+      }
+      VStack(spacing: DS.Space.s4) {
+        apps
+        categories
+      }
+    }
+  }
+
+  private var apps: some View {
+    Card(spacing: DS.Space.s2) {
+      Text(tr("最常用应用")).font(.headline).accessibilityAddTraits(.isHeader)
+      Divider()
+      LazyVStack(spacing: 0) {
+        ForEach(report.apps.prefix(showsAllApps ? report.apps.count : 5)) { app in
+          if app.id != report.apps.first?.id { Divider() }
+          Button {
+            openApp(app)
+          } label: {
+            ActivityPageAppRow(app: app, locale: locale)
+          }
+          .buttonStyle(.plain)
+        }
+      }
+      if report.apps.count > 5 {
+        Button(tr(showsAllApps ? "收起" : "查看全部应用")) { showsAllApps.toggle() }
+          .frame(maxWidth: .infinity)
+      }
+    }
+  }
+
+  private var categories: some View {
+    let entries = report.categories.map {
+      ActivityPageRank.Entry(id: $0.id, title: $0.id.title, color: $0.id.color, seconds: $0.seconds)
+    }
+    return Card(spacing: DS.Space.s2) {
+      Text(tr("分类占比")).font(.headline).accessibilityAddTraits(.isHeader)
+      Divider()
+      ViewThatFits(in: .horizontal) {
+        ActivityPageRank(
+          entries: entries, total: report.seconds, locale: locale, stacksDuration: false
+        )
+        .frame(minWidth: 330)
+        ActivityPageRank(
+          entries: entries, total: report.seconds, locale: locale, stacksDuration: true)
+      }
+    }
+  }
+}
+
+private struct ActivityPageAppRow: View {
   let app: ActivityPageAnalytics.App
-  let maximum: TimeInterval
   let locale: Locale
   @State private var icon: Image?
 
@@ -133,14 +245,17 @@ struct ActivityPageAppRow: View {
         .resizable().scaledToFit().frame(width: 28, height: 28)
         .foregroundStyle(.secondary)
         .accessibilityHidden(true)
-      ActivityPageRank(
-        title: app.name, color: app.category.color, seconds: app.seconds,
-        maximum: maximum, locale: locale)
+      Text(app.name)
+        .lineLimit(2)
+        .fixedSize(horizontal: false, vertical: true)
+      Spacer(minLength: 0)
+      Text(ActivityPageFormat.duration(app.seconds, locale: locale))
+        .monospacedDigit()
+        .fixedSize()
       Image(systemName: "chevron.forward")
         .font(.caption).foregroundStyle(.tertiary)
         .accessibilityHidden(true)
     }
-    .padding(.horizontal, DS.Space.s4)
     .padding(.vertical, DS.Space.s2)
     .contentShape(Rectangle())
     .accessibilityElement(children: .combine)
@@ -152,29 +267,56 @@ struct ActivityPageAppRow: View {
 }
 
 struct ActivityPageRank: View {
-  let title: String
-  let color: Color
-  let seconds: TimeInterval
-  let maximum: TimeInterval
+  struct Entry: Identifiable {
+    let id: ActivityPageAnalytics.Category
+    let title: String
+    let color: Color
+    let seconds: TimeInterval
+  }
+
+  let entries: [Entry]
+  let total: TimeInterval
   let locale: Locale
+  let stacksDuration: Bool
 
   var body: some View {
-    HStack(spacing: DS.Space.s3) {
-      Text(verbatim: title)
-        .fontWeight(.medium)
-        .lineLimit(2)
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(minWidth: 76, maxWidth: 116, alignment: .leading)
-      GeometryReader { proxy in
-        Capsule().fill(color)
-          .frame(width: maximum > 0 ? proxy.size.width * seconds / maximum : 0)
+    Grid(alignment: .leading, horizontalSpacing: DS.Space.s3, verticalSpacing: DS.Space.s2) {
+      ForEach(entries) { entry in
+        let fraction = total > 0 ? entry.seconds / total : 0
+        let percentage = fraction.formatted(.percent.precision(.fractionLength(0)).locale(locale))
+        let duration = ActivityPageFormat.duration(entry.seconds, locale: locale)
+        GridRow {
+          Text(verbatim: entry.title)
+            .fontWeight(.medium)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: 116, alignment: .leading)
+          GeometryReader { proxy in
+            Capsule().fill(.secondary.opacity(0.12)).overlay(alignment: .leading) {
+              Capsule().fill(entry.color).frame(width: proxy.size.width * fraction)
+            }
+          }
+          .frame(height: 5)
+          .accessibilityHidden(true)
+          if stacksDuration {
+            VStack(alignment: .trailing, spacing: DS.Space.s1) {
+              Text(percentage)
+              Text(duration).font(.caption).foregroundStyle(.secondary)
+            }
+            .fixedSize()
+            .gridColumnAlignment(.trailing)
+          } else {
+            Text(percentage)
+              .fixedSize()
+              .gridColumnAlignment(.trailing)
+            Text(duration)
+              .foregroundStyle(.secondary)
+              .fixedSize()
+              .gridColumnAlignment(.trailing)
+          }
+        }
       }
-      .frame(height: 5)
-      .accessibilityHidden(true)
-      Text(ActivityPageFormat.duration(seconds, locale: locale))
-        .monospacedDigit()
-        .fixedSize()
     }
+    .monospacedDigit()
   }
 }
 
@@ -289,10 +431,10 @@ extension ActivityPageAnalytics.Category {
 
   var color: Color {
     switch self {
-    case .work: .indigo
+    case .work: .blue
     case .entertainment: .orange
-    case .communication: .teal
-    case .browsing: .blue
+    case .communication: .indigo
+    case .browsing: .teal
     case .other: .gray
     }
   }

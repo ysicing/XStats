@@ -54,6 +54,17 @@ extension Translations {
     活跃时长（设备累计）	Active Time (Device Total)
     各设备的活跃分钟分别计算后相加	Active minutes are counted on each device and added together
     活动时段	Activity Sessions
+    本周	This Week
+    本月	This Month
+    返回周视图	Back to Week
+    返回月视图	Back to Month
+    设备累计	Device Total
+    每小时活动	Hourly Activity
+    每日活动	Daily Activity
+    查看当天	View Day
+    最常用应用	Most Used Apps
+    分类占比	Category Breakdown
+    查看全部应用	View All Apps
     工作	Work
     娱乐	Entertainment
     沟通	Communication

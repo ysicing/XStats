@@ -3066,6 +3066,17 @@ HTTP 仅限内网或 Tailscale，WebDAV 登录凭据会通过 HTTP 发送。	HTT
 活跃时长（设备累计）	Aktive Zeit (Summe aller Geräte)
 各设备的活跃分钟分别计算后相加	Die aktiven Minuten werden pro Gerät erfasst und addiert
 活动时段	Aktivitätssitzungen
+本周	Diese Woche
+本月	Dieser Monat
+返回周视图	Zurück zur Woche
+返回月视图	Zurück zum Monat
+设备累计	Gerätesumme
+每小时活动	Stündliche Aktivität
+每日活动	Tägliche Aktivität
+查看当天	Tag anzeigen
+最常用应用	Meistgenutzte Apps
+分类占比	Aktivität nach Kategorie
+查看全部应用	Alle Apps anzeigen
 工作	Arbeit
 娱乐	Unterhaltung
 沟通	Kommunikation

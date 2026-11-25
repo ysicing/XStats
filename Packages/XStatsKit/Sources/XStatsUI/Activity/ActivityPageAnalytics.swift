@@ -16,7 +16,7 @@ enum ActivityPagePeriod: CaseIterable, Hashable, Sendable {
 
 struct ActivityPageAnalytics: Sendable {
   enum Category: String, CaseIterable, Sendable {
-    case work, entertainment, communication, browsing, other
+    case work, browsing, communication, entertainment, other
   }
 
   struct Segment: Identifiable, Sendable {
@@ -48,7 +48,7 @@ struct ActivityPageAnalytics: Sendable {
     let seconds: TimeInterval
   }
 
-  struct Day: Identifiable, Sendable {
+  struct Bucket: Identifiable, Sendable {
     let interval: DateInterval
     fileprivate(set) var secondsByCategory: [Category: TimeInterval] = [:]
     var id: Date { interval.start }
@@ -61,7 +61,8 @@ struct ActivityPageAnalytics: Sendable {
   }
 
   let seconds: TimeInterval
-  let days: [Day]
+  let days: [Bucket]
+  let hours: [Bucket]
   let lanes: [Lane]
   let apps: [App]
   let categories: [CategoryTotal]
@@ -69,9 +70,9 @@ struct ActivityPageAnalytics: Sendable {
 
   static func make(
     sessions: [ActivitySession], interval: DateInterval, period: ActivityPagePeriod,
-    calendar: Calendar, deviceID: UUID?
+    calendar: Calendar, deviceID: UUID?, through now: Date? = nil
   ) throws -> Self {
-    var days: [Day] = []
+    var days: [Bucket] = []
     var dayIndices: [Date: Int] = [:]
     var cursor = interval.start
     while cursor < interval.end, let day = calendar.dateInterval(of: .day, for: cursor),
@@ -79,8 +80,18 @@ struct ActivityPageAnalytics: Sendable {
     {
       dayIndices[day.start] = days.count
       let end = min(day.end, interval.end)
-      days.append(Day(interval: DateInterval(start: cursor, end: end)))
+      days.append(Bucket(interval: DateInterval(start: cursor, end: end)))
       cursor = end
+    }
+
+    var hours: [Bucket] = []
+    if period == .day {
+      cursor = interval.start
+      while cursor < interval.end {
+        let end = min(interval.end, cursor.addingTimeInterval(3_600))
+        hours.append(Bucket(interval: DateInterval(start: cursor, end: end)))
+        cursor = end
+      }
     }
 
     var seconds: TimeInterval = 0
@@ -88,7 +99,9 @@ struct ActivityPageAnalytics: Sendable {
     var apps: [String: AppAccumulator] = [:]
     var deviceIDs: Set<UUID> = []
 
-    let foreground = try foregroundSessions(sessions, interval: interval, deviceID: deviceID)
+    let end = min(interval.end, max(interval.start, now ?? interval.end))
+    let observed = DateInterval(start: interval.start, end: end)
+    let foreground = try foregroundSessions(sessions, interval: observed, deviceID: deviceID)
     for session in foreground {
       try Task.checkCancellation()
       let start = session.start
@@ -109,6 +122,15 @@ struct ActivityPageAnalytics: Sendable {
         let overlap = min(end, day.end).timeIntervalSince(max(start, day.start))
         days[index].secondsByCategory[category, default: 0] += overlap
         if day.end >= end { break }
+      }
+      if !hours.isEmpty {
+        let firstHour = Int(start.timeIntervalSince(interval.start) / 3_600)
+        for index in firstHour..<hours.count {
+          let hour = hours[index].interval
+          let overlap = min(end, hour.end).timeIntervalSince(max(start, hour.start))
+          hours[index].secondsByCategory[category, default: 0] += overlap
+          if hour.end >= end { break }
+        }
       }
     }
 
@@ -174,8 +196,8 @@ struct ActivityPageAnalytics: Sendable {
     dayLanes.sort { lhs, rhs in lhs.id.uuidString < rhs.id.uuidString }
     try Task.checkCancellation()
     return Self(
-      seconds: seconds, days: days, lanes: dayLanes, apps: rankedApps, categories: categories,
-      deviceIDs: deviceIDs)
+      seconds: seconds, days: days, hours: hours, lanes: dayLanes, apps: rankedApps,
+      categories: categories, deviceIDs: deviceIDs)
   }
 
   private static func foregroundSessions(

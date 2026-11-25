@@ -31,7 +31,8 @@ struct ActivityPageRenderTests {
     let locale = Locale(identifier: "ar_SA")
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
-    let date = Date(timeIntervalSinceReferenceDate: 0)
+    let date = try #require(
+      calendar.date(from: DateComponents(year: 2026, month: 11, day: 25, hour: 19)))
     let deviceID = UUID()
     let sessions = [
       ActivitySession(
@@ -55,8 +56,15 @@ struct ActivityPageRenderTests {
       let renderer = ImageRenderer(
         content: ActivityPageTimeline(
           report: report, interval: interval, period: period, calendar: calendar, locale: locale,
-          combinesDevices: true
-        )
+          combinesDevices: true, now: date.addingTimeInterval(10_800), animateEntry: false,
+          deviceNames: [:], localID: deviceID, openDay: { _ in }
+        ) {
+          Text(
+            ActivityPageFormat.dateTitle(
+              interval, period: period, calendar: calendar, locale: locale)
+          )
+          .font(.headline)
+        }
         .frame(width: 320)
         .background(DS.Palette.background)
         .environment(\.colorScheme, .light)
@@ -79,12 +87,91 @@ struct ActivityPageRenderTests {
   }
 
   @MainActor
+  @Test(arguments: ActivityPagePeriod.allCases)
+  func rendersActivityOverviewWithRankings(period: ActivityPagePeriod) throws {
+    let locale = Locale(identifier: "zh_CN")
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+    calendar.firstWeekday = 2
+    let date = try #require(
+      calendar.date(from: DateComponents(year: 2026, month: 11, day: 25, hour: 18)))
+    let interval = try #require(calendar.dateInterval(of: period.component, for: date))
+    let localID = UUID()
+    let remoteID = UUID()
+    let apps = [
+      ("Xcode", "work"), ("Safari", "browsing"), ("Terminal", "work"),
+      ("Messages", "communication"), ("Music", "entertainment"), ("Finder", "other"),
+    ]
+    var sessions = try (0..<25).flatMap { day in
+      try apps.enumerated().map { index, app in
+        let start = try #require(
+          calendar.date(from: DateComponents(year: 2026, month: 11, day: day + 1, hour: 8 + index)))
+        return ActivitySession(
+          id: UUID(), deviceID: localID, appID: app.0, appName: app.0, category: app.1,
+          start: start,
+          end: start.addingTimeInterval(Double(3_540 - (day * 211 + index * 613) % 2_820)))
+      }
+    }
+    let overlapStart = try #require(
+      calendar.date(bySettingHour: 10, minute: 15, second: 0, of: date))
+    sessions.append(
+      ActivitySession(
+        id: UUID(), deviceID: remoteID, appID: "Safari", appName: "Safari", category: "browsing",
+        start: overlapStart, end: overlapStart.addingTimeInterval(3_000)))
+    let report = try ActivityPageAnalytics.make(
+      sessions: sessions, interval: interval, period: period, calendar: calendar, deviceID: nil)
+    let previewDirectory = ProcessInfo.processInfo.environment["XSTATS_ACTIVITY_PREVIEW_DIR"]
+      .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
+    if let previewDirectory {
+      try FileManager.default.createDirectory(
+        at: previewDirectory, withIntermediateDirectories: true)
+    }
+    var heights: [Int] = []
+    for width in [840, 640, 480] {
+      let renderer = ImageRenderer(
+        content: VStack(alignment: .leading, spacing: DS.Space.s4) {
+          Text("应用活动").font(.title2.bold())
+          ActivityPageTimeline(
+            report: report, interval: interval, period: period, calendar: calendar, locale: locale,
+            combinesDevices: true, now: date, animateEntry: false,
+            deviceNames: [:], localID: localID, openDay: { _ in }
+          ) {
+            Text(
+              ActivityPageFormat.dateTitle(
+                interval, period: period, calendar: calendar, locale: locale)
+            )
+            .font(.headline)
+          }
+          ActivityPageRankings(report: report, locale: locale) { _ in }
+        }
+        .padding(DS.Space.s4)
+        .frame(width: CGFloat(width))
+        .background(DS.Palette.background)
+        .environment(\.colorScheme, .light)
+        .environment(\.locale, locale)
+        .environment(\.isSnapshot, true))
+      let image = try #require(renderer.cgImage)
+      #expect(image.width == width)
+      heights.append(image.height)
+      if let previewDirectory {
+        let bitmap = NSBitmapImageRep(cgImage: image)
+        let png = try #require(bitmap.representation(using: .png, properties: [:]))
+        try png.write(
+          to: previewDirectory.appendingPathComponent("activity-\(period)-\(width).png"),
+          options: .atomic)
+      }
+    }
+    #expect(heights[2] > heights[1])
+  }
+
+  @MainActor
   private func renderRank(
     _ title: String, direction: LayoutDirection, locale: Locale, width: CGFloat
   ) -> CGImage? {
     let renderer = ImageRenderer(
       content: ActivityPageRank(
-        title: title, color: .indigo, seconds: 4_200, maximum: 7_200, locale: locale
+        entries: [.init(id: .work, title: title, color: .indigo, seconds: 4_200)],
+        total: 7_200, locale: locale, stacksDuration: false
       )
       .frame(width: width)
       .environment(\.locale, locale)

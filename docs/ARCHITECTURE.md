@@ -399,6 +399,10 @@ initial storage and sync formats for App Activity.
 
 The device selector shows either one device or the sum across all devices.
 Each Mac contributes its own active time to the combined view.
+The day view groups resolved foreground activity into elapsed-hour buckets and
+offers a device timeline for inspecting exact sessions. Weekly rows and monthly
+columns group the same activity by local calendar day. Opening a day from a week
+or month keeps the device filter and provides a route back to that period.
 
 Each Mac encrypts its local records with a device-specific key. A separate recovery
 key shared across the user's Macs encrypts synchronized activity. Both keys are
