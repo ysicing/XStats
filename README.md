@@ -112,7 +112,7 @@ AI 用量可自动连接本机 Magpie，也可手动配置远端 Magpie。Token 
 | **命令栏** | 搜索应用、文件与操作，查询进程、端口和软件包 |
 | **启动台** | 仅限 **macOS 26+**；网格、列表、分类与文件夹，自定义应用布局 |
 | **Finder 新建文档** | 通过右键菜单新建文本、Office 与 iWork 文档 |
-| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | 截图标注、本地打码与带声音的录屏；也可[单独下载](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.13) |
+| <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | 截图标注、本地打码与带声音的录屏；也可[单独下载](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.14) |
 | **风扇控制** | 在支持的设备上切换自动或手动控制 |
 | **防休眠** | 保持系统或屏幕唤醒，支持合盖运行 |
 | **应用服务** | 管理应用、Homebrew 软件包、启动项与服务 |
@@ -235,7 +235,7 @@ AI 用量可自动连接本机 Magpie，也可手动配置远端 Magpie。Token 
 <!-- changelog:start -->
 <!-- 由 scripts/sync_changelog.py 从 CHANGELOG.md 生成，请勿手改。 -->
 
-最新版本 **1.6.7**（2026-11-24） · [完整更新日志](CHANGELOG.md)
+最新版本 **1.7.0**（2026-11-26） · [完整更新日志](CHANGELOG.md)
 
 <!-- changelog:end -->
 

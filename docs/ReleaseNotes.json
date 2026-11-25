@@ -1,15 +1,23 @@
 {
-  "version": "1.6.7",
+  "version": "1.7.0",
   "sourceNotes": [
-    "新增默认关闭的实验性监控大屏，支持在局域网浏览器查看实时指标，并提供只读 MCP 入口",
-    "大屏支持多语言、明暗切换，以及农历、节气、节假日与调休提示",
-    "修复部分应用分身更新后因扩展属性丢失导致签名校验失败的问题"
+    "新增实验性应用活动统计，按日、周、月查看前台应用使用时长，并按类别和设备汇总",
+    "新增可选的跨设备加密同步",
+    "升级后首次打开主窗口时，可查看中英文新版亮点",
+    "更新窗口按新增、改进和修复等类别整理跨版本日志，最多显示最近十个版本",
+    "区分 iCloud Drive 不可用与等待文件下载，并减少活动报表和同步中的重复读取",
+    "修复应用活动同步和睡眠唤醒后的记录问题，以及部分更新提示的显示问题",
+    "移除旧版设置备份的手动导入入口，功能设置可通过设置中的可选同步功能传到其他 Mac"
   ],
   "translations": {
     "en": [
-      "Adds an experimental monitoring dashboard, off by default, for live metrics in a local-network browser and a read-only MCP endpoint. Tailscale access to both endpoints is optional.",
-      "The dashboard supports multiple languages, light and dark appearance, and lunar dates, solar terms, holidays, and adjusted working days.",
-      "Fixes signature validation failures after updating some app clones caused by losing extended attributes."
+      "Enable experimental App Activity to review time spent in foreground apps by day, week, or month, grouped by category and device. Records are encrypted on this Mac.",
+      "Optional encrypted sync combines App Activity from multiple Macs and lets you choose which feature settings to sync on each Mac.",
+      "The first time you open the main window after updating, What's New shows highlights in Chinese or English. When you skip releases, it shows up to five highlights from the last five releases.",
+      "The update window groups changes by category across up to ten recent releases.",
+      "Distinguishes unavailable iCloud Drive from a file waiting to download, and reduces repeated reads during activity reporting and sync.",
+      "Fixes App Activity sync, recording after wake, and some update prompt display issues.",
+      "Removes manual import of legacy settings backups. Use optional sync in Settings to bring feature settings to other Macs."
     ]
   }
 }
