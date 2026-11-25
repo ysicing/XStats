@@ -1533,6 +1533,9 @@ extension Translations {
     查看全部进程	All Processes
     查看包含的项目	Show items
     查看完整更新日志	Full Changelog
+    XStats {} 新版亮点	What's New in XStats {}
+    XStats 最近版本亮点	Recent XStats Highlights
+    实验性	Experimental
     查看清理日志	View Cleanup Log
     查询中…	Looking up…
     查询公网 IP	Look Up Public IP

@@ -79,6 +79,7 @@ RELEASE_FILES=(
   project.yml
   CHANGELOG.md
   docs/ReleaseNotes.json
+  Packages/XStatsKit/Sources/XStatsUI/Resources/ReleaseHighlights.json
   docs/CaptureReleaseNotes.json
   README.md
   README.en.md

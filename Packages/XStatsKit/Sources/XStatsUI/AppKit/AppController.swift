@@ -79,6 +79,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
     _ = DiagnosticsExporter.launchDate
     let version =
       Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? tr("开发版")
+    model.settings.releaseHighlightProgress.prepare(currentVersion: model.updates.currentVersion)
     Log.app.notice(
       "XStats \(version, privacy: .public) 启动，macOS \(ProcessInfo.processInfo.operatingSystemVersionString, privacy: .public)"
     )
@@ -188,7 +189,11 @@ public final class AppController: NSObject, NSApplicationDelegate {
       self?.restMenuBar.dismiss()
       self?.menuBar.dismissPopovers()
       self?.calendarMenuBar.dismiss()
-      self?.mainWindow.show(tab: tab)
+      if let tab {
+        self?.mainWindow.show(tab: tab)
+      } else {
+        self?.showMainWindowWithReleaseHighlights()
+      }
     }
     model.openCommandBar = { [weak self] in self?.openCommandBarFromMenu() }
     model.openLaunchpad = { [weak self] in self?.openLaunchpadFromMenu() }
@@ -364,13 +369,13 @@ public final class AppController: NSObject, NSApplicationDelegate {
       event: launchEvent, arguments: arguments, hasPendingDeepLink: !pendingDeepLinks.isEmpty,
       showMainWindowOnLaunch: model.settings.showMainWindowOnLaunch)
     {
-      mainWindow.show(tab: nil)
+      showMainWindowWithReleaseHighlights()
     }
     applicationInstance?.handleRequests { [weak self] request in
       guard let self else { return }
       handleLaunchArguments(request.arguments)
       application(NSApp, open: request.urls)
-      if request.reopen { mainWindow.show(tab: nil) }
+      if request.reopen { showMainWindowWithReleaseHighlights() }
     }
     updateActivationPolicy()
     drainDeepLinks()
@@ -404,7 +409,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       }
     }
     if arguments.contains("--show-window") {
-      mainWindow.show(tab: nil)
+      showMainWindowWithReleaseHighlights()
     }
     if arguments.contains("--show-speedtest") {
       speedTestWindow.show()
@@ -578,7 +583,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
   public func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool)
     -> Bool
   {
-    mainWindow.show(tab: nil)
+    showMainWindowWithReleaseHighlights()
     return true
   }
 
@@ -661,6 +666,10 @@ public final class AppController: NSObject, NSApplicationDelegate {
   @objc private func openAboutFromMenu() { model.openMainWindow(.settingsAbout) }
 
   @objc private func openMainWindowFromMenu() { model.openMainWindow(nil) }
+
+  private func showMainWindowWithReleaseHighlights() {
+    mainWindow.show(tab: nil, releaseHighlightsVersion: model.updates.currentVersion)
+  }
 
   @objc private func openCommandBarFromMenu() {
     guard model.settings.commandBarEnabled, !model.isRecordingShortcut,
@@ -752,7 +761,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       if mainWindow.isVisible && NSApp.isActive {
         mainWindow.close()
       } else {
-        mainWindow.show(tab: nil)
+        showMainWindowWithReleaseHighlights()
       }
     case .openCommandBar:
       openCommandBarFromMenu()

@@ -8,11 +8,14 @@ cd "$(dirname "$0")/.."
 ROOT="$PWD"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
+HIGHLIGHTS=Packages/XStatsKit/Sources/XStatsUI/Resources/ReleaseHighlights.json
 
 # 每个用例都在干净的副本里跑：脚本会改写 project.yml，不能污染仓库
 setup() {
   rm -rf "$WORK/case"
   mkdir -p "$WORK/case/scripts"
+  mkdir -p "$WORK/case/$(dirname "$HIGHLIGHTS")"
+  printf '%s\n' '{"releases":[{"version":"1.0.0","features":[]}]}' > "$WORK/case/$HIGHLIGHTS"
   cp "$ROOT/scripts/version.sh" "$WORK/case/scripts/version.sh"
   cp "$ROOT/project.yml" "$WORK/case/project.yml"
   sed -i '' -E "s/(MARKETING_VERSION: *)\"?[0-9.]+\"?/\1\"$1\"/" "$WORK/case/project.yml"
@@ -76,6 +79,11 @@ expect_project 2026.09.21.04 110
 setup 2026.09.21.04 0109 "$VALID_LOG"
 expect_output "$(cd "$WORK/case" && scripts/version.sh release)" "1.0.0"
 expect_project 1.0.0 110
+
+# 旧工程版本有条目，但即将写入的正式版本缺失。
+setup 0.9.0 109 "$VALID_LOG"
+printf '%s\n' '{"releases":[{"version":"0.9.0","features":[]}]}' > "$WORK/case/$HIGHLIGHTS"
+expect_failure release "缺少目标版本亮点条目"
 
 # 主程序 build/release 不得改写 Capture 的独立版本或变量引用。
 for command in build release; do

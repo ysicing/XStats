@@ -75,7 +75,7 @@ let package = Package(
       ],
       resources: [
         .copy("Resources/Flags"), .copy("Resources/Logos"), .copy("Resources/Legal"),
-        .copy("Resources/NetworkGeography"),
+        .copy("Resources/NetworkGeography"), .copy("Resources/ReleaseHighlights.json"),
       ]),
     .testTarget(name: "MetricsTests", dependencies: ["Metrics", "SMC"]),
     .testTarget(name: "CleanerTests", dependencies: ["Cleaner"]),

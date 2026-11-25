@@ -580,6 +580,7 @@ public enum UpdateCheckSchedule: String, CaseIterable, Identifiable, Sendable {
 @Observable
 public final class AppSettings {
   @ObservationIgnored private let defaults: UserDefaults
+  @ObservationIgnored let releaseHighlightProgress: ReleaseHighlightProgress
   @ObservationIgnored weak var syncPreferences: SyncPreferences?
   var audioDefaults: UserDefaults { defaults }
   var activityDefaults: UserDefaults { defaults }
@@ -1348,6 +1349,8 @@ public final class AppSettings {
     calendar: Calendar = .current
   ) {
     self.defaults = defaults
+    releaseHighlightProgress = ReleaseHighlightProgress(
+      defaults: defaults, existingInstall: defaults.data(forKey: "menuBarTrio") != nil)
     trioHasBattery = BatterySampler.sample() != nil
     var migratedTrioSources: [TrioSource] = []
     let savedTrio = defaults.data(forKey: "menuBarTrio").flatMap { data -> TrioConfiguration? in

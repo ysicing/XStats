@@ -4,12 +4,14 @@
 
 import AppKit
 import SwiftUI
+import Updates
 
 /// 主窗口打开时提供标准应用体验；关闭、最小化与隐藏分别管理窗口与采集需求。
 @MainActor
 final class MainWindowController: NSObject, NSWindowDelegate {
   private let model: AppModel
   private var window: NSWindow?
+  private weak var releaseHighlightsSheet: NSWindow?
   private(set) var isOpen = false
   var onVisibilityChange: ((Bool) -> Void)?
 
@@ -41,7 +43,7 @@ final class MainWindowController: NSObject, NSWindowDelegate {
     window?.performClose(nil)
   }
 
-  func show(tab: PanelTab?) {
+  func show(tab: PanelTab?, releaseHighlightsVersion: String? = nil) {
     if let tab { model.settings.panelTab = tab }
     let window = self.window ?? makeWindow()
     self.window = window
@@ -57,6 +59,41 @@ final class MainWindowController: NSObject, NSWindowDelegate {
     if window.isMiniaturized { window.deminiaturize(nil) }
     window.makeKeyAndOrderFront(nil)
     model.isMainWindowVisible = true
+    if let releaseHighlightsVersion {
+      showReleaseHighlights(for: releaseHighlightsVersion, in: window)
+    }
+  }
+
+  private func showReleaseHighlights(for version: String, in window: NSWindow) {
+    let progress = model.settings.releaseHighlightProgress
+    guard window.attachedSheet == nil,
+      let lastSeen = progress.lastSeenVersion,
+      UpdateFeed.isNewer(version, than: lastSeen),
+      let catalog = ReleaseHighlightsCatalog.bundled,
+      catalog.releases.contains(where: { $0.version == version })
+    else { return }
+    guard let page = catalog.page(after: lastSeen, through: version) else {
+      progress.markSeen(version)
+      return
+    }
+
+    let sheet = NSWindow(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: false)
+    sheet.titleVisibility = .hidden
+    sheet.titlebarAppearsTransparent = true
+    sheet.isReleasedWhenClosed = false
+    let visibleHeight = window.screen?.visibleFrame.height ?? 720
+    let view = ReleaseHighlightsView(
+      page: page, maxContentHeight: max(160, min(480, visibleHeight - 200))
+    ) { [weak window, weak sheet] in
+      guard let window, let sheet, window.attachedSheet === sheet else { return }
+      progress.markSeen(version)
+      window.endSheet(sheet)
+    }
+    let hosting = NSHostingController(rootView: view.appLanguageEnvironment().environment(model))
+    sheet.contentViewController = hosting
+    sheet.setContentSize(hosting.view.fittingSize)
+    releaseHighlightsSheet = sheet
+    window.beginSheet(sheet)
   }
 
   private func makeWindow() -> NSWindow {
@@ -100,6 +137,9 @@ final class MainWindowController: NSObject, NSWindowDelegate {
   }
 
   func windowWillClose(_ notification: Notification) {
+    if let releaseHighlightsSheet, window?.attachedSheet === releaseHighlightsSheet {
+      window?.endSheet(releaseHighlightsSheet)
+    }
     isOpen = false
     model.isMainWindowVisible = false
     onVisibilityChange?(false)

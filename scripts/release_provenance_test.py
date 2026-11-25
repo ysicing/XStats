@@ -75,6 +75,21 @@ class ReleaseProvenanceTest(unittest.TestCase):
         with self.assertRaisesRegex(release_provenance.ProvenanceError, "docs/ReleaseNotes.json"):
             release_provenance.verify(self.repo, provenance, "1.0.0", "109")
 
+    def test_highlights_are_release_metadata_bound_to_build(self) -> None:
+        path = release_provenance.HIGHLIGHTS
+        self.write(path, '{"releases":[{"version":"1.0.0","features":[]}]}')
+        base = release_provenance.prepare(self.repo)
+        provenance = self.repo / "dist/release-provenance.json"
+        release_provenance.record(self.repo, provenance, base, "1.0.0", "109")
+        self.git("add", path)
+        self.git("commit", "-m", "release highlights")
+        release_provenance.verify(self.repo, provenance, "1.0.0", "109")
+        self.write(path, '{"releases":[]}')
+        self.git("add", path)
+        self.git("commit", "-m", "change highlights after build")
+        with self.assertRaisesRegex(release_provenance.ProvenanceError, "ReleaseHighlights.json"):
+            release_provenance.verify(self.repo, provenance, "1.0.0", "109")
+
 
 if __name__ == "__main__":
     unittest.main()

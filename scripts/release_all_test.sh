@@ -122,7 +122,7 @@ python3 scripts/release_provenance.py prepare
 task test
 task release
 python3 scripts/release_provenance.py prepare
-git add -- project.yml CHANGELOG.md docs/ReleaseNotes.json docs/CaptureReleaseNotes.json README.md README.en.md README.ja.md README.ko.md Assets/readme/activity.svg Assets/readme/activity.zh.svg
+git add -- project.yml CHANGELOG.md docs/ReleaseNotes.json Packages/XStatsKit/Sources/XStatsUI/Resources/ReleaseHighlights.json docs/CaptureReleaseNotes.json README.md README.en.md README.ja.md README.ko.md Assets/readme/activity.svg Assets/readme/activity.zh.svg
 git diff --cached --quiet
 git commit -m chore(release): 发布 0.8.0
 git push origin main

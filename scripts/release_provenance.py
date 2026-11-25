@@ -11,10 +11,15 @@ import sys
 from pathlib import Path
 
 
+HIGHLIGHTS = "Packages/XStatsKit/Sources/XStatsUI/Resources/ReleaseHighlights.json"
+HASHED_RELEASE_FILES = {
+    "docs/ReleaseNotes.json": "release_notes_sha256",
+    HIGHLIGHTS: "release_highlights_sha256",
+}
 ALLOWED_RELEASE_FILES = {
     "project.yml",
     "CHANGELOG.md",
-    "docs/ReleaseNotes.json",
+    *HASHED_RELEASE_FILES,
     "docs/CaptureReleaseNotes.json",
     "README.md",
     "README.en.md",
@@ -72,9 +77,9 @@ def record(repo: Path, output: Path, base_commit: str, version: str, build: str)
         "project_sha256": sha256(repo / "project.yml"),
         "changelog_sha256": sha256(repo / "CHANGELOG.md"),
     }
-    notes = repo / "docs/ReleaseNotes.json"
-    if notes.is_file():
-        payload["release_notes_sha256"] = sha256(notes)
+    for name, key in HASHED_RELEASE_FILES.items():
+        if (repo / name).is_file():
+            payload[key] = sha256(repo / name)
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_suffix(output.suffix + ".tmp")
     temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -95,10 +100,11 @@ def verify(repo: Path, provenance: Path, version: str, build: str) -> None:
         raise ProvenanceError("project.yml 与构建时不一致")
     if sha256(repo / "CHANGELOG.md") != payload.get("changelog_sha256"):
         raise ProvenanceError("CHANGELOG.md 与构建时不一致")
-    notes = repo / "docs/ReleaseNotes.json"
-    if notes.exists() or "release_notes_sha256" in payload:
-        if not notes.is_file() or sha256(notes) != payload.get("release_notes_sha256"):
-            raise ProvenanceError("docs/ReleaseNotes.json 与构建时不一致")
+    for name, key in HASHED_RELEASE_FILES.items():
+        path = repo / name
+        if path.exists() or key in payload:
+            if not path.is_file() or sha256(path) != payload.get(key):
+                raise ProvenanceError(f"{name} 与构建时不一致")
     if git(repo, "status", "--porcelain", "--untracked-files=all").stdout:
         raise ProvenanceError("发布前工作区或暂存区不干净")
 

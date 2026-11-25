@@ -3134,3 +3134,6 @@ HTTP 仅限内网或 Tailscale，WebDAV 登录凭据会通过 HTTP 发送。	HTT
 选择这台 Mac 要同步的设置。	Choisissez les réglages que ce Mac synchronise.
 当前值	Valeur actuelle
 选择同步项	Choisir les réglages à synchroniser
+XStats {} 新版亮点	Nouveautés de XStats {}
+XStats 最近版本亮点	Nouveautés récentes de XStats
+实验性	Expérimental

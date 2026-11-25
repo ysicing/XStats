@@ -69,6 +69,17 @@ case "${1:-show}" in
   release)
     # 先把两项都算出来再落盘：中途失败不留下半修改的 project.yml
     version="$(changelog_version)"
+    python3 - "$version" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+version = sys.argv[1]
+catalog = Path("Packages/XStatsKit/Sources/XStatsUI/Resources/ReleaseHighlights.json")
+entries = [entry for entry in json.loads(catalog.read_text())["releases"] if entry["version"] == version]
+if len(entries) != 1 or not isinstance(entries[0].get("features"), list):
+    sys.exit(f"{catalog.name} 必须包含一个 {version} 条目；本版无亮点时请填写 features: []")
+PY
     build="$(next_build)"
     set_value MARKETING_VERSION "$version"
     set_value CURRENT_PROJECT_VERSION "$build"

@@ -1,0 +1,76 @@
+{
+  "releases": [
+    {
+      "version": "1.7.0",
+      "features": [
+        {
+          "id": "activity",
+          "zh": { "title": "应用活动", "detail": "按日、周、月回顾前台应用的使用时长。" },
+          "en": { "title": "App Activity", "detail": "Review time spent in foreground apps by day, week, or month." },
+          "symbol": "chart.bar.xaxis",
+          "showsActivityChart": true,
+          "priority": 3,
+          "experimental": true
+        },
+        {
+          "id": "sync",
+          "zh": { "title": "跨设备加密同步", "detail": "汇总多台 Mac 的活动记录，逐项选择要同步的设置。" },
+          "en": { "title": "Encrypted Sync Across Devices", "detail": "Combine activity from multiple Macs and choose which settings to sync." },
+          "symbol": "lock.icloud",
+          "singleVersionSymbol": "laptopcomputer",
+          "priority": 3
+        }
+      ]
+    },
+    {
+      "version": "1.6.7",
+      "features": [
+        {
+          "id": "dashboard",
+          "zh": { "title": "监控大屏", "detail": "在局域网浏览器中查看 Mac 的实时指标。" },
+          "en": { "title": "Monitoring Dashboard", "detail": "View live Mac metrics in a browser on your local network." },
+          "symbol": "display",
+          "priority": 2,
+          "experimental": true
+        }
+      ]
+    },
+    {
+      "version": "1.6.6",
+      "features": [
+        {
+          "id": "clones",
+          "zh": { "title": "应用分身", "detail": "为常用应用创建独立分身，并为每个分身单独配置代理。" },
+          "en": { "title": "App Clones", "detail": "Create independent copies of your apps and configure a proxy for each copy." },
+          "symbol": "square.on.square",
+          "priority": 2,
+          "experimental": true
+        },
+        {
+          "id": "remoteAI",
+          "zh": { "title": "远端 AI 用量", "detail": "连接远端 Magpie，在 XStats 中查看 AI 用量。" },
+          "en": { "title": "Remote AI Usage", "detail": "Connect to a remote Magpie instance to view AI usage in XStats." },
+          "symbol": "cloud",
+          "priority": 1
+        }
+      ]
+    },
+    {
+      "version": "1.6.5",
+      "features": [
+        {
+          "id": "clones",
+          "zh": { "title": "应用分身", "detail": "为微信、QQ 等应用创建使用独立资料的分身。" },
+          "en": { "title": "App Clones", "detail": "Create copies of apps like WeChat and QQ with separate app data." },
+          "symbol": "square.on.square",
+          "priority": 2,
+          "experimental": true
+        }
+      ]
+    },
+    {
+      "version": "1.6.4",
+      "features": []
+    }
+  ]
+}
