@@ -28,7 +28,6 @@ struct SyncSettingsPage: View {
             }
           }
         }
-        LegacySettingsBackupImport(settings: model.settings)
       }
     }
   }
@@ -94,7 +93,6 @@ struct SyncSettingsPage: View {
         }
       }
       syncActions
-      LegacySettingsBackupImport(settings: model.settings)
     }
     .task(id: load) {
       await sync.preparePreferences()

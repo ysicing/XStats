@@ -462,14 +462,6 @@ Cancelling a pending choice prevents local application even if its write has alr
 reached storage; it does not roll back changes another Mac may have read. The local
 encrypted state retains the reviewed candidates for the next confirmation.
 
-**Import Legacy Settings Backup…** on the Sync page opens a local JSON file picker.
-`LegacySettingsBackupImport` reads a user-selected legacy backup such as
-`xstats-settings.json` with a 1 MiB limit and validates its format and schema version.
-After confirmation, it applies the backup's supported settings to this Mac,
-overwriting the corresponding preferences. The compatibility entry is read-only
-with respect to backup files. Cross-device sync writes encrypted device documents to
-the authenticated dataset.
-
 The earlier `WebDAVSettings` and `SyncController` workflow handled explicit
 upload and download of plaintext `xstats-settings.json` over HTTPS. Its retained
 client uses normal certificate validation, rejects redirects, bounds transfers to
