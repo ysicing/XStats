@@ -1,12 +1,12 @@
 {
-  "version": "0.1.13",
-  "date": "2026-11-15",
+  "version": "0.1.14",
+  "date": "2026-11-26",
   "sourceNotes": [
-    "切换程序坞图标时不再改写已签名应用包，避免影响签名校验。"
+    "更新共享的版本日志解析，兼容带跨版本分类日志的更新清单。"
   ],
   "translations": {
     "en": [
-      "Dock icon changes no longer modify the signed app bundle, preserving code-signature validation."
+      "Updates shared release-note parsing to support update feeds with categorized notes across versions."
     ]
   }
 }
