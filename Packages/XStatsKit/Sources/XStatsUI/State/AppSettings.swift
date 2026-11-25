@@ -1129,6 +1129,8 @@ public final class AppSettings {
   public var menuBarLayout: MenuBarLayout {
     didSet {
       defaults.set(menuBarLayout.rawValue, forKey: Keys.menuBarLayout)
+      // 同步只更新布局，监控模块的启用状态由本机决定。
+      guard syncPreferences?.applyingRemote != true else { return }
       if menuBarLayout == .iconOnly { enableTrioSources(trio.sources) }
       if menuBarLayout != oldValue { syncPreferences?.recordLocalChange(.menuBarLayout) }
     }

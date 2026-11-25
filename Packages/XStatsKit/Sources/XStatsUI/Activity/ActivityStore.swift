@@ -78,7 +78,7 @@ actor ActivityStore {
   private static let afterLastSupportedDay = 253_402_300_800.0 - unixEpochOffset
 
   private let url: URL?
-  private let keyProvider: (@Sendable () throws -> SymmetricKey)?
+  private let localKey: @Sendable (Bool) throws -> SymmetricKey
   // 句柄仅由 actor 方法访问，析构时没有在途操作。
   nonisolated(unsafe) private var db: OpaquePointer?
   private var keys: Keys?
@@ -91,7 +91,16 @@ actor ActivityStore {
 
   init(url: URL?, keyProvider: (@Sendable () throws -> SymmetricKey)? = nil) {
     self.url = url
-    self.keyProvider = keyProvider
+    if let keyProvider {
+      localKey = { _ in try keyProvider() }
+    } else {
+      localKey = { try ActivityKeys.localKey(createIfMissing: $0) }
+    }
+  }
+
+  init(url: URL?, localKey: @escaping @Sendable (Bool) throws -> SymmetricKey) {
+    self.url = url
+    self.localKey = localKey
   }
 
   deinit {
@@ -650,10 +659,9 @@ actor ActivityStore {
     let master: SymmetricKey
     if url == nil {
       master = SymmetricKey(size: .bits256)
-    } else if let keyProvider {
-      master = try keyProvider()
     } else {
-      master = try ActivityKeys.localKey(createIfMissing: file == nil)
+      // 首次创建中断可能只留下空文件；非空文件必须使用原有密钥。
+      master = try localKey(file == nil || (file?.st_size == 0 && existing == nil))
     }
     guard master.bitCount >= 128 else { throw Failure.authentication }
 

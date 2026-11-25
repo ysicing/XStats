@@ -85,7 +85,7 @@ public final class SyncPreferences {
   @ObservationIgnored private var firstSelections: [Field: Selection]?
   @ObservationIgnored private var resolutions: [Field: Selection] = [:]
   @ObservationIgnored private var prepared: Data?
-  @ObservationIgnored private var applyingRemote = false
+  @ObservationIgnored private(set) var applyingRemote = false
   private let logger = Logger(subsystem: "work.12306.xstats", category: "SyncPreferences")
 
   public init(

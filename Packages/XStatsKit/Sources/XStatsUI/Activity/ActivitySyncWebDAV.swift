@@ -67,6 +67,12 @@ actor ActivitySyncWebDAV: ActivitySyncRepository {
   }
 
   func create(_ data: Data, at path: [String]) async throws -> Bool {
+    try await createWithVersion(data, at: path).created
+  }
+
+  func createWithVersion(_ data: Data, at path: [String]) async throws
+    -> (created: Bool, version: String?)
+  {
     guard ActivitySyncRemotePath.validObject(path),
       !ActivitySyncRemotePath.validMetadataObject(path)
     else { throw ActivitySyncFailure.invalidShard }
@@ -80,7 +86,9 @@ actor ActivitySyncWebDAV: ActivitySyncRepository {
     _ = try await write(data, at: path, creating: false)
   }
 
-  private func write(_ data: Data, at path: [String], creating: Bool) async throws -> Bool {
+  private func write(_ data: Data, at path: [String], creating: Bool) async throws
+    -> (created: Bool, version: String?)
+  {
     guard let name = path.last else {
       throw ActivitySyncFailure.invalidShard
     }
@@ -89,18 +97,18 @@ actor ActivitySyncWebDAV: ActivitySyncRepository {
     let root = syncRoot
     let parent = path.dropLast()
     let destination = directoryURL(parent, under: root).appendingPathComponent(name)
-    var status = try await request("PUT", destination, body: data, creating: creating).status
-    if status == 409 || status == 404 {
+    var response = try await request("PUT", destination, body: data, creating: creating)
+    if response.status == 409 || response.status == 404 {
       for depth in 0...parent.count
       where depth > 0 || parent.isEmpty || root != configuration.directoryURL {
         let creation = try await request("MKCOL", directoryURL(parent.prefix(depth), under: root))
         try require(creation.status, in: [201, 405])
       }
-      status = try await request("PUT", destination, body: data, creating: creating).status
+      response = try await request("PUT", destination, body: data, creating: creating)
     }
-    if creating && status == 412 { return false }
-    try require(status, in: [200, 201, 204])
-    return true
+    if creating && response.status == 412 { return (false, nil) }
+    try require(response.status, in: [200, 201, 204])
+    return (true, response.version)
   }
 
   private func directoryURL(_ path: some Sequence<String>, under root: URL) -> URL {
@@ -124,7 +132,7 @@ actor ActivitySyncWebDAV: ActivitySyncRepository {
     _ method: String, _ url: URL, body: Data? = nil, creating: Bool = false,
     limit: Int = ActivitySyncRemotePath.maximumBytes
   )
-    async throws -> WebDAVResponse
+    async throws -> (data: Data, status: Int, version: String?)
   {
     try Task.checkCancellation()
     var request = URLRequest(url: url)
@@ -144,7 +152,9 @@ actor ActivitySyncWebDAV: ActivitySyncRepository {
       if creating { request.setValue("*", forHTTPHeaderField: "If-None-Match") }
     }
     guard let httpsSession else {
-      return try await httpTransport.send(request, endpoint: configuration.endpoint, limit: limit)
+      let response = try await httpTransport.send(
+        request, endpoint: configuration.endpoint, limit: limit)
+      return (response.data, response.status, nil)
     }
     let (bytes, response) = try await httpsSession.bytes(for: request, delegate: NoRedirect())
     defer { bytes.task.cancel() }
@@ -153,7 +163,8 @@ actor ActivitySyncWebDAV: ActivitySyncRepository {
     }
     let status = http.statusCode
     guard (method == "GET" && status == 200) || (method == "PROPFIND" && status == 207) else {
-      return WebDAVResponse(data: Data(), status: status)
+      let version = ActivitySyncDAVListing.strongVersion(http.value(forHTTPHeaderField: "ETag"))
+      return (Data(), status, version)
     }
     guard response.expectedContentLength <= limit else { throw ActivitySyncFailure.limit }
     var data = Data()
@@ -162,7 +173,7 @@ actor ActivitySyncWebDAV: ActivitySyncRepository {
       if data.count.isMultiple(of: 8192) { try Task.checkCancellation() }
       data.append(byte)
     }
-    return WebDAVResponse(data: data, status: status)
+    return (data, status, nil)
   }
 
   final class NoRedirect: NSObject, URLSessionTaskDelegate, Sendable {
@@ -199,7 +210,8 @@ final class ActivitySyncDAVListing: NSObject, XMLParserDelegate {
 
   static func objects(in data: Data, directory: URL, path: [String]) throws -> ActivitySyncListing {
     guard data.count <= 1_048_576, let xml = String(data: data, encoding: .utf8),
-      !xml.contains("<!"), !xml.utf8.contains(0), ActivitySyncRemotePath.validDirectory(path)
+      !xml.utf8.contains(0), ActivitySyncRemotePath.validDirectory(path),
+      !hasProhibitedDeclarations(xml)
     else { throw ActivitySyncFailure.invalidListing }
     let parser = XMLParser(data: data)
     let listing = ActivitySyncDAVListing(directory: directory, path: path)
@@ -210,6 +222,48 @@ final class ActivitySyncDAVListing: NSObject, XMLParserDelegate {
       throw ActivitySyncFailure.invalidListing
     }
     return listing.objects
+  }
+
+  private static func hasProhibitedDeclarations(_ xml: String) -> Bool {
+    // 声明只在标记上下文中生效，注释、CDATA 和处理指令可以包含同样的字面文本。
+    var remaining = xml[...]
+    while let markup = remaining.firstIndex(of: "<") {
+      remaining = remaining[markup...]
+      let closing: String?
+      if remaining.hasPrefix("<!--") {
+        closing = "-->"
+      } else if remaining.hasPrefix("<![CDATA[") {
+        closing = "]]>"
+      } else if remaining.hasPrefix("<?") {
+        closing = "?>"
+      } else {
+        closing = nil
+      }
+      if let closing {
+        guard let end = remaining.range(of: closing) else { return true }
+        remaining = remaining[end.upperBound...]
+      } else {
+        if remaining.hasPrefix("<!"),
+          remaining.range(of: "<!DOCTYPE", options: [.anchored, .caseInsensitive]) != nil
+            || remaining.range(of: "<!ENTITY", options: [.anchored, .caseInsensitive]) != nil
+        {
+          return true
+        }
+        remaining = remaining.dropFirst()
+      }
+    }
+    return false
+  }
+
+  static func strongVersion(_ etag: String?) -> String? {
+    guard let candidate = etag?.trimmingCharacters(in: .whitespacesAndNewlines),
+      candidate.first == "\"", candidate.last == "\"", candidate.count >= 2,
+      candidate.utf8.count <= 1024,
+      candidate.utf8.dropFirst().dropLast().allSatisfy({
+        $0 == 0x21 || (0x23...0x7E).contains($0) || $0 >= 0x80
+      })
+    else { return nil }
+    return candidate
   }
 
   func parser(
@@ -255,14 +309,21 @@ final class ActivitySyncDAVListing: NSObject, XMLParserDelegate {
     }
   }
 
+  func parser(_ parser: XMLParser, foundCDATA data: Data) {
+    guard let text = String(data: data, encoding: .utf8) else {
+      parser.abortParsing()
+      return
+    }
+    self.parser(parser, foundCharacters: text)
+  }
+
   func parser(
     _ parser: XMLParser, didEndElement elementName: String, namespaceURI: String?,
     qualifiedName qName: String?
   ) {
     if stack == ["multistatus", "response", "propstat"] {
-      let candidate = etag.trimmingCharacters(in: .whitespacesAndNewlines)
       if propertyStatus.split(separator: " ").dropFirst().first == "200",
-        candidate.first == "\"", candidate.last == "\"", candidate.count >= 2
+        let candidate = Self.strongVersion(etag)
       {
         version = candidate
       }

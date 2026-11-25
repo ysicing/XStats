@@ -3048,6 +3048,7 @@ Google Drive 共享文件夹	Dossier partagé Google Drive
 在其他 Mac 导入同一密钥，即可读取加密的活动记录。请妥善保存。	Importez cette clé sur vos autres Mac pour lire les données d’activité chiffrées. Conservez-la en lieu sûr.
 恢复密钥格式无效	Format de clé de récupération non valide
 无法读取或保存活动密钥，请检查钥匙串	Impossible de lire ou d’enregistrer la clé d’activité. Vérifiez votre trousseau.
+这台 Mac 的同步密钥已切换，但未能更新 iCloud 钥匙串。其他 Mac 需手动导入同一恢复密钥。	La clé de synchronisation de ce Mac a été modifiée, mais le trousseau iCloud n’a pas pu être mis à jour. Importez manuellement la même clé de récupération sur vos autres Mac.
 无法验证同步数据，请核对恢复密钥和同步位置。	Impossible de vérifier les données de synchronisation. Vérifiez la clé de récupération et l’emplacement de synchronisation.
 替换这台 Mac 的同步密钥？	Remplacer la clé de synchronisation sur ce Mac ?
 请先保存原恢复密钥，以便日后读取使用原密钥加密的云端记录。	Conservez d’abord l’ancienne clé de récupération pour pouvoir lire plus tard les données chiffrées avec cette clé dans le cloud.

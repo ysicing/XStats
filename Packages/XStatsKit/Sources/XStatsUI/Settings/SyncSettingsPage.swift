@@ -13,22 +13,27 @@ struct SyncSettingsPage: View {
   private var localID: UUID { model.activity.deviceID }
 
   var body: some View {
-    if sync.enabled {
-      enabledPage
-    } else {
-      PageScroll {
-        SettingsGroup {
-          GroupRow(showsDivider: false) {
-            SettingRow(title: tr("同步"), subtitle: tr("未开启"), icon: PanelTab.settingsSync.symbol) {
-              Button(tr("可选功能")) {
-                model.featureSettingsTab = .optional
-                model.settings.panelTab = .settingsFeatures
+    Group {
+      if sync.enabled {
+        enabledPage
+      } else {
+        PageScroll {
+          SettingsGroup {
+            GroupRow(showsDivider: false) {
+              SettingRow(title: tr("同步"), subtitle: tr("未开启"), icon: PanelTab.settingsSync.symbol) {
+                Button(tr("可选功能")) {
+                  model.featureSettingsTab = .optional
+                  model.settings.panelTab = .settingsFeatures
+                }
+                .buttonStyle(DSButtonStyle(kind: .secondary))
               }
-              .buttonStyle(DSButtonStyle(kind: .secondary))
             }
           }
         }
       }
+    }
+    .onChange(of: sync.preferences != nil) { _, available in
+      if !available { dismissPreferenceSheet() }
     }
   }
 
@@ -100,11 +105,7 @@ struct SyncSettingsPage: View {
       completedLoad = load
     }
     .onChange(of: sync.destinationID) {
-      guard let sheet else { return }
-      switch sheet {
-      case .preferences, .device: self.sheet = nil
-      case .storage, .activity: break
-      }
+      dismissPreferenceSheet()
     }
     .sheet(item: $sheet) { presented in
       switch presented {
@@ -136,6 +137,13 @@ struct SyncSettingsPage: View {
           }
         }
       }
+    }
+  }
+
+  private func dismissPreferenceSheet() {
+    switch sheet {
+    case .preferences, .device: sheet = nil
+    case .storage, .activity, nil: break
     }
   }
 

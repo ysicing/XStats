@@ -32,12 +32,13 @@ struct ReleaseSummary: View {
     HStack(spacing: DS.Space.s3) {
       AppGlyph(size: DS.Space.s12)
       VStack(alignment: .leading, spacing: DS.Space.s1) {
-        Text(verbatim: tr("XStats \(release.version) 已发布"))
+        Text(verbatim: L10n.translate("XStats \(release.version) 已发布", language: language))
           .dsFont(.lg, weight: .semibold)
           .foregroundStyle(DS.Palette.textPrimary)
         Text(
-          verbatim: tr(
-            "当前版本 \(currentVersion) · \(release.date) · \(ByteCountFormatter.string(fromByteCount: release.size, countStyle: .file))"
+          verbatim: L10n.translate(
+            "当前版本 \(currentVersion) · \(release.date) · \(ByteCountFormatter.string(fromByteCount: release.size, countStyle: .file))",
+            language: language
           )
         )
         .dsFont(.xs)
@@ -52,7 +53,8 @@ struct ReleaseSummary: View {
     let groups = release.noteGroups(since: currentVersion, languageCode: language.languageCode)
     let limit = groups.isEmpty ? nil : release.historyLimit(since: currentVersion)
     if groups.isEmpty {
-      Text(tr("更新内容")).dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textSecondary)
+      Text(verbatim: L10n.translate("更新内容", language: language))
+        .dsFont(.xs, weight: .medium).foregroundStyle(DS.Palette.textSecondary)
     }
     if let limit {
       let count = limit.formatted(.number.locale(L10n.locale(for: language)))
@@ -128,6 +130,7 @@ struct ReleaseSummary: View {
       Text("\(body)\(suffix)").fixedSize(horizontal: false, vertical: true)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
+    // 更新摘要仅含中英文，在阿拉伯语界面中仍从左到右阅读。
     .environment(\.layoutDirection, .leftToRight)
   }
 }

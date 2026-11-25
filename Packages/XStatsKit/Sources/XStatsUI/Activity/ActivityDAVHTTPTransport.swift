@@ -106,7 +106,15 @@ actor ActivityDAVHTTPTransport {
     var seen = Set<ActivityDAVIPAddress>()
     var network: ActivityDAVIPAddress.PrivateNetwork?
     for text in answers {
-      guard let address = ActivityDAVIPAddress(text), let scope = address.network,
+      let numeric = String(text.prefix { $0 != "%" })
+      let address = ActivityDAVIPAddress(numeric)
+      // 带作用域或链路本地的 IPv6 无法用普通数值地址连接；其他结果仍须整组通过校验。
+      if endpoint.host.hasSuffix(".local"), let address, address.family == .ipv6,
+        numeric != text || ("fe8"..."feb").contains(String(address.text.prefix(3)))
+      {
+        continue
+      }
+      guard numeric == text, let address, let scope = address.network,
         network == nil || network == scope
       else { throw ActivityDAVError.invalidAddress }
       network = scope

@@ -36,6 +36,7 @@ extension Translations {
     在其他 Mac 导入同一密钥，即可读取加密的活动记录。请妥善保存。	Import this key on your other Macs to read the encrypted activity records. Keep it somewhere safe.
     恢复密钥格式无效	Invalid recovery key format
     无法读取或保存活动密钥，请检查钥匙串	Could not read or save the activity key. Check your Keychain.
+    这台 Mac 的同步密钥已切换，但未能更新 iCloud 钥匙串。其他 Mac 需手动导入同一恢复密钥。	The sync key on this Mac has changed, but iCloud Keychain could not be updated. Manually import the same recovery key on your other Macs.
     无法验证同步数据，请核对恢复密钥和同步位置。	Could not verify the sync data. Check the recovery key and sync location.
     替换这台 Mac 的同步密钥？	Replace the sync key on this Mac?
     请先保存原恢复密钥，以便日后读取使用原密钥加密的云端记录。	Save the original recovery key first so you can still read cloud records encrypted with it.

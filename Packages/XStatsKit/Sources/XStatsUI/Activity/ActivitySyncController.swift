@@ -51,6 +51,8 @@ final class ActivitySyncController {
   private let repository: (any ActivitySyncRepository)?
   @ObservationIgnored private var engine: ActivitySyncEngine?
   private let keys: ActivitySyncKeys
+  private let sharedKeys: ActivitySharedKeys?
+  private static let importedKeyFingerprint = "activity.sync.importedKeyFingerprint"
   private(set) var changingKey = false
   @ObservationIgnored private var generation = UUID()
   @ObservationIgnored private var timer: Task<Void, Never>?
@@ -67,12 +69,14 @@ final class ActivitySyncController {
   init(
     store: ActivityStore, deviceID: UUID, defaults: UserDefaults,
     repository: (any ActivitySyncRepository)? = nil, settings: AppSettings? = nil,
-    deviceName: String? = nil
+    deviceName: String? = nil, sharedKeys: ActivitySharedKeys? = nil
   ) {
     self.store = store
     self.deviceID = deviceID
     self.defaults = defaults
     self.repository = repository
+    self.sharedKeys =
+      sharedKeys ?? (defaults === UserDefaults.standard ? ActivitySharedKeys.available : nil)
     preferenceStore = settings.map {
       SyncPreferences(settings: $0, deviceID: deviceID, deviceName: deviceName, defaults: defaults)
     }
@@ -287,9 +291,17 @@ final class ActivitySyncController {
     let imported = try ActivityKeys.decode(code)
     guard !changingKey else { throw ActivityKeys.Failure.unavailable }
     changingKey = true
-    if let activeKey = await engine?.authenticatedKey, activeKey != imported, !confirmExisting {
-      changingKey = false
-      throw ActivityKeys.Failure.replacementRequired
+    if !confirmExisting {
+      do {
+        let activeKey = await engine?.authenticatedKey
+        let sharedKey = try sharedKeys?.read("default")
+        if [activeKey, sharedKey].contains(where: { $0 != nil && $0 != imported }) {
+          throw ActivityKeys.Failure.replacementRequired
+        }
+      } catch {
+        changingKey = false
+        throw error
+      }
     }
     restart()
     await worker?.value
@@ -298,7 +310,16 @@ final class ActivitySyncController {
       restart()
     }
     try await keys.replace(with: code, confirmExisting: confirmExisting)
+    // 先保存本机导入意图。即使共享钥匙串暂时写入失败或应用重启，也不能回退到旧密钥。
+    defaults.set(
+      imported.withUnsafeBytes { ActivitySyncShard.checksum(Data($0)) },
+      forKey: Self.importedKeyFingerprint)
     engine = nil
+    do {
+      try sharedKeys?.replace("default", imported)
+    } catch {
+      throw ActivityKeys.Failure.sharedKeyUnavailable
+    }
   }
 
   func cancelManualSync() {
@@ -334,9 +355,11 @@ final class ActivitySyncController {
         } else {
           let key = try await keys.key()
           try Task.checkCancellation()
+          let explicitlyImported =
+            defaults.string(forKey: Self.importedKeyFingerprint)
+            == key.withUnsafeBytes { ActivitySyncShard.checksum(Data($0)) }
           engine = ActivitySyncEngine(
-            key: key,
-            sharedKeys: defaults === UserDefaults.standard ? ActivitySharedKeys.available : nil)
+            key: key, sharedKeys: sharedKeys, explicitlyImported: explicitlyImported)
           self.engine = engine
         }
         if let repository {

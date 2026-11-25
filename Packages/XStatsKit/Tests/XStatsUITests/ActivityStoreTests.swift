@@ -91,12 +91,34 @@ struct ActivityStoreTests {
 
     let reader = ActivityStore(url: url, keyProvider: { throw FixtureFailure.unexpectedKeyAccess })
     #expect(try await reader.deviceIDs().isEmpty)
-    let writer = ActivityStore(url: url, keyProvider: { Self.fixtureKey })
+    let writer = ActivityStore(
+      url: url,
+      localKey: { createIfMissing in
+        guard createIfMissing else { throw FixtureFailure.unexpectedKeyAccess }
+        return Self.fixtureKey
+      })
     let record = session(start: 1, end: 2)
     try await writer.insert([record])
 
     let reopened = ActivityStore(url: url, keyProvider: { Self.fixtureKey })
     #expect(try await reopened.deviceIDs() == [record.deviceID])
+  }
+
+  @Test func aNonemptyDamagedFileCannotBeInitializedWithANewKey() async throws {
+    let url = temporaryURL()
+    let directory = url.deletingLastPathComponent()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let damaged = Data(repeating: 0x5A, count: 512)
+    try damaged.write(to: url)
+    let store = ActivityStore(
+      url: url,
+      localKey: { _ in throw FixtureFailure.unexpectedKeyAccess })
+    let record = session(start: 1, end: 2)
+    await #expect(throws: ActivityStore.Failure.self) {
+      try await store.insert([record])
+    }
+    #expect(try Data(contentsOf: url) == damaged)
   }
 
   @Test func theWrongKeyCannotReadOrWriteAnExistingDatabase() async throws {

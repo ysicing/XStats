@@ -78,6 +78,34 @@ struct SyncPreferencesTests {
     #expect(left.settings.appearance == .dark)
   }
 
+  @Test func incomingMenuBarLayoutKeepsLocalMonitoringPreferences() throws {
+    let left = Peer()
+    let right = Peer()
+    defer {
+      left.clean()
+      right.clean()
+    }
+    var documents: [UUID: Data] = [:]
+    let (publisher, follower) = try joined(left, right, documents: &documents)
+    right.settings.enabledMonitoringModules = []
+    right.settings.audioEnabled = false
+    right.settings.aiUsageEnabled = false
+    var syncRequests = 0
+    follower.onNeedsSync = { syncRequests += 1 }
+
+    left.settings.menuBarLayout = .iconOnly
+    try exchange(publisher, in: &documents)
+    try exchange(follower, in: &documents)
+
+    #expect(right.settings.menuBarLayout == .iconOnly)
+    #expect(right.settings.enabledMonitoringModules.isEmpty)
+    #expect(!right.settings.audioEnabled && !right.settings.aiUsageEnabled)
+    #expect(syncRequests == 0)
+    let reopened = AppSettings(defaults: right.defaults)
+    #expect(reopened.menuBarLayout == .iconOnly)
+    #expect(reopened.enabledMonitoringModules.isEmpty)
+  }
+
   @Test(arguments: [false, true])
   func scopeChangeRevokesLateApplicationOnlyForTheRemovedField(reselectBeforeReadback: Bool) throws
   {

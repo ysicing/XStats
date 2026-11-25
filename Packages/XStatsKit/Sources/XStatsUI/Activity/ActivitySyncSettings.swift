@@ -46,7 +46,8 @@ struct ActivitySyncSettings: View {
           TextField(tr("用户名"), text: $username)
           SecureField(tr("密码或应用专用密码"), text: $secret)
           Text(tr("密码仅保存在这台 Mac 的钥匙串中")).font(.caption).foregroundStyle(.secondary)
-          if URLComponents(string: address)?.scheme?.lowercased() == "http" {
+          let trimmedAddress = address.trimmingCharacters(in: .whitespacesAndNewlines)
+          if URLComponents(string: trimmedAddress)?.scheme?.lowercased() == "http" {
             Text(tr("HTTP 仅限内网或 Tailscale，WebDAV 登录凭据会通过 HTTP 发送。"))
               .font(.caption).foregroundStyle(.secondary)
           }
@@ -178,6 +179,8 @@ private struct ActivityRecoverySheet: View {
       confirm = true
     } catch ActivityKeys.Failure.invalidRecoveryCode {
       failure = tr("恢复密钥格式无效")
+    } catch ActivityKeys.Failure.sharedKeyUnavailable {
+      failure = tr("这台 Mac 的同步密钥已切换，但未能更新 iCloud 钥匙串。其他 Mac 需手动导入同一恢复密钥。")
     } catch {
       failure = tr("无法读取或保存活动密钥，请检查钥匙串")
     }

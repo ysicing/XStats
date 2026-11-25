@@ -6,7 +6,7 @@ import Security
 
 enum ActivityKeys {
   enum Failure: Error {
-    case unavailable, invalidRecoveryCode, replacementRequired
+    case unavailable, invalidRecoveryCode, replacementRequired, sharedKeyUnavailable
   }
 
   static func localKey(createIfMissing: Bool) throws -> SymmetricKey {
@@ -123,6 +123,7 @@ actor ActivitySyncKeys {
 struct ActivitySharedKeys: Sendable {
   let read: @Sendable (String) throws -> SymmetricKey?
   let insert: @Sendable (String, SymmetricKey) throws -> SymmetricKey
+  let replace: @Sendable (String, SymmetricKey) throws -> Void
 
   private static func query(_ account: String) -> [String: Any] {
     [
@@ -147,18 +148,33 @@ struct ActivitySharedKeys: Sendable {
     return SymmetricKey(data: data)
   }
 
+  private static func add(_ key: SymmetricKey, account: String) -> OSStatus {
+    var item = query(account)
+    item[kSecValueData as String] = key.withUnsafeBytes { Data($0) }
+    item[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlocked
+    return SecItemAdd(item as CFDictionary, nil)
+  }
+
   static let keychain = Self(
     read: lookup,
     insert: { account, key in
-      var item = query(account)
-      item[kSecValueData as String] = key.withUnsafeBytes { Data($0) }
-      item[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlocked
-      let status = SecItemAdd(item as CFDictionary, nil)
+      let status = add(key, account: account)
       if status == errSecSuccess { return key }
       guard status == errSecDuplicateItem, let winner = try lookup(account) else {
         throw ActivityKeys.Failure.unavailable
       }
       return winner
+    },
+    replace: { account, key in
+      let item = query(account) as CFDictionary
+      let attributes = [kSecValueData as String: key.withUnsafeBytes { Data($0) }] as CFDictionary
+      var status = SecItemUpdate(item, attributes)
+      if status == errSecItemNotFound {
+        status = add(key, account: account)
+        // iCloud 可能在查询和新增之间送达旧项，显式替换仍须更新该项。
+        if status == errSecDuplicateItem { status = SecItemUpdate(item, attributes) }
+      }
+      guard status == errSecSuccess else { throw ActivityKeys.Failure.unavailable }
     })
 
   static var available: Self? {

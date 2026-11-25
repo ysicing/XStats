@@ -12,6 +12,7 @@ from pathlib import Path
 import plistlib
 import zipfile
 import subprocess
+import sys
 from urllib.parse import urlsplit
 import xml.etree.ElementTree as ET
 
@@ -118,12 +119,23 @@ def load_localized_notes(feed: dict, path: Path = ROOT / "docs/ReleaseNotes.json
 
 def archived_translations(version: str) -> dict[str, str]:
     # 旧版本的摘要曾放在仓库根目录；更早的发布只有中文。
+    failures = []
     for path in ("docs/ReleaseNotes.json", "ReleaseNotes.json"):
-        result = subprocess.run(["git", "show", f"v{version}:{path}"], cwd=ROOT, capture_output=True)
-        if result.returncode == 0:
+        ref = f"v{version}:{path}"
+        result = subprocess.run(["git", "show", ref], cwd=ROOT, capture_output=True)
+        if result.returncode != 0:
+            reason = " ".join(result.stderr.decode("utf-8", errors="replace").splitlines())
+            failures.append(f"{ref}（git show 退出码 {result.returncode}）：{reason}")
+            continue
+        try:
             source = json.loads(result.stdout)
-            if source["version"] == version:
-                return dict(zip(source["sourceNotes"], source["translations"]["en"], strict=True))
+            if source["version"] != version:
+                failures.append(f"{ref}：摘要版本不匹配")
+                continue
+            return dict(zip(source["sourceNotes"], source["translations"]["en"], strict=True))
+        except (ValueError, KeyError, TypeError) as error:
+            failures.append(f"{ref}：{' '.join(str(error).splitlines())}")
+    print(f"警告：无法读取 v{version} 的更新摘要。{'；'.join(failures)}", file=sys.stderr)
     return {}
 
 

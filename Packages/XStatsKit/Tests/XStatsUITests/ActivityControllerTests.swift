@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import AppKit
 import Foundation
 import Testing
 @testable import XStatsUI
@@ -82,6 +83,92 @@ struct ActivityControllerTests {
     await controller.stop()
     #expect(controller.isSampling == false)
     #expect(controller.sync.syncMode == nil)
+  }
+
+  @MainActor @Test(arguments: [false, true])
+  func samplingResumesWhenWindowServerBecomesAvailable(_ reenabling: Bool) async throws {
+    let suite = "ActivitySessionRecoveryTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    var available = false
+    let controller = ActivityController(
+      defaults: defaults, databaseURL: nil, enabled: !reenabling,
+      sessionAvailable: { available })
+    controller.sync.setIntervalMinutes(0)
+    controller.sync.setEnabled(true)
+    controller.start()
+    if reenabling {
+      controller.setEnabled(true)
+    } else {
+      controller.setPaused(true)
+      controller.setPaused(false)
+    }
+    #expect(!controller.isSampling && !controller.sync.active)
+    try await Task.sleep(for: .milliseconds(150))
+    #expect(!controller.isSampling && !controller.sync.active)
+    available = true
+
+    let deadline = ContinuousClock.now + .seconds(3)
+    while !controller.isSampling, ContinuousClock.now < deadline {
+      try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(controller.isSampling && controller.sync.active)
+    #expect(controller.screenObserver == nil)
+    await controller.stop()
+  }
+
+  @MainActor @Test func screenParametersChangeResumesRecordingAndSync() async throws {
+    let suite = "ActivityScreenChangeTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    var available = false
+    let controller = ActivityController(
+      defaults: defaults, databaseURL: nil, enabled: true, sessionAvailable: { available })
+    controller.sync.setIntervalMinutes(0)
+    controller.sync.setEnabled(true)
+    controller.start()
+    #expect(!controller.isSampling && !controller.sync.active)
+    #expect(controller.screenObserver != nil)
+
+    available = true
+    NotificationCenter.default.post(
+      name: NSApplication.didChangeScreenParametersNotification, object: nil)
+    #expect(controller.isSampling && controller.sync.active)
+    #expect(controller.screenObserver == nil)
+    await controller.stop()
+  }
+
+  @MainActor @Test(arguments: [false, true])
+  func pausingOrStoppingCancelsTheSessionRecheck(_ stopping: Bool) async throws {
+    let suite = "ActivitySessionCancellationTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    var checks = 0
+    var available = false
+    let controller = ActivityController(
+      defaults: defaults, databaseURL: nil, enabled: true,
+      sessionAvailable: {
+        checks += 1
+        return available
+      })
+    controller.sync.setIntervalMinutes(0)
+    controller.sync.setEnabled(true)
+    controller.start()
+    controller.setPaused(false)
+    #expect(controller.screenObserver != nil)
+    if stopping {
+      await controller.stop()
+    } else {
+      controller.setPaused(true)
+    }
+    let checksAfterCancellation = checks
+    #expect(controller.screenObserver == nil)
+    available = true
+    NotificationCenter.default.post(
+      name: NSApplication.didChangeScreenParametersNotification, object: nil)
+    try await Task.sleep(for: .milliseconds(250))
+    #expect(checks == checksAfterCancellation)
+    #expect(!controller.isSampling && !controller.sync.active)
   }
 
   private let first = ActivityApplication(

@@ -13,6 +13,7 @@ private final class ActivityDAVProtocol: URLProtocol, @unchecked Sendable {
     let status: Int
     var body = Data()
     var location: String?
+    var etag: String?
   }
 
   struct Script: Sendable {
@@ -68,6 +69,7 @@ private final class ActivityDAVProtocol: URLProtocol, @unchecked Sendable {
 
     var headers = ["Content-Length": String(exchange.body.count)]
     if let location = exchange.location { headers["Location"] = location }
+    if let etag = exchange.etag { headers["ETag"] = etag }
     guard
       let response = HTTPURLResponse(
         url: url, statusCode: exchange.status, httpVersion: "HTTP/1.1", headerFields: headers
@@ -100,7 +102,10 @@ struct ActivitySyncWebDAVTests {
       """
       <d:multistatus xmlns:d="DAV:">
         <d:response><d:href>\(day)</d:href></d:response>
-        <d:response><d:href>\(file)</d:href></d:response>
+        <d:response><d:href>\(file)</d:href><d:propstat>
+          <d:prop><d:getetag>"created"</d:getetag></d:prop>
+          <d:status>HTTP/1.1 200 OK</d:status>
+        </d:propstat></d:response>
         <d:response><d:href>https://other.test\(file)</d:href></d:response>
       </d:multistatus>
       """.utf8)
@@ -110,7 +115,7 @@ struct ActivitySyncWebDAVTests {
       .init(method: "MKCOL", path: root, status: 405),
       .init(method: "MKCOL", path: month, status: 201),
       .init(method: "MKCOL", path: day, status: 201),
-      .init(method: "PUT", path: file, status: 201),
+      .init(method: "PUT", path: file, status: 201, etag: #""created""#),
       .init(method: "PROPFIND", path: day, status: 207, body: listing),
       .init(method: "GET", path: file, status: 200, body: data),
       .init(method: "PUT", path: file, status: 412),
@@ -118,16 +123,47 @@ struct ActivitySyncWebDAVTests {
     ]) { (dav: ActivitySyncWebDAV) async throws in
       let emptyListing = try await dav.list([])
       #expect(emptyListing.isEmpty)
-      let created = try await dav.create(data, at: path)
-      #expect(created)
-      let objects = try await dav.list([monthToken, dayToken])
-      #expect(objects == [objectToken])
+      let created = try await dav.createWithVersion(data, at: path)
+      #expect(created.created)
+      let objects = try await dav.listActivityObjects([monthToken, dayToken])
+      #expect(objects.names == [objectToken])
+      #expect(created.version == #""created""#)
+      #expect(objects.versions[objectToken] == created.version)
       let stored = try await dav.read(path)
       #expect(stored == data)
       let createdAgain = try await dav.create(data, at: path)
       #expect(createdAgain == false)
       let missing = try await dav.read(path)
       #expect(missing == nil)
+    }
+  }
+
+  @Test func listingAllowsCommentsAndCDATAWithoutInterpretingDeclarationsInThem() async throws {
+    let marker = ActivitySyncRemotePath.marker
+    let data = Data(
+      """
+      <multistatus xmlns="DAV:">
+        <!-- <!DOCTYPE ignored> -->
+        <response><href><![CDATA[\(root)\(marker)]]></href></response>
+        <responsedescription><![CDATA[<!ENTITY ignored>]]></responsedescription>
+      </multistatus>
+      """.utf8)
+    try await withDAV([.init(method: "PROPFIND", path: root, status: 207, body: data)]) { dav in
+      let entries = try await dav.list([])
+      #expect(entries == [marker])
+    }
+  }
+
+  @Test(arguments: [
+    "<!DOCTYPE multistatus>",
+    "<!DOCTYPE multistatus [<!ENTITY fixture 'value'>]>",
+    "<!DoCtYpE multistatus>",
+    "<!eNtItY fixture 'value'>",
+  ])
+  func listingRejectsDTDAndEntityDeclarations(_ declaration: String) async throws {
+    let data = Data("\(declaration)<multistatus xmlns=\"DAV:\"/>".utf8)
+    try await withDAV([.init(method: "PROPFIND", path: root, status: 207, body: data)]) { dav in
+      await #expect(throws: ActivitySyncFailure.invalidListing) { try await dav.list([]) }
     }
   }
 
@@ -267,7 +303,7 @@ struct ActivitySyncWebDAVTests {
     let transport = ActivityDAVHTTPTransport(
       resolve: { host in
         #expect(host == "nas.local")
-        return ["192.168.2.3", "fd12::4"]
+        return ["fe80::1%en0", "febf::1", "192.168.1.10", "fd12::4"]
       },
       discoverTunnels: {
         Issue.record("LAN addresses must not discover Tailscale tunnels")
@@ -278,7 +314,7 @@ struct ActivitySyncWebDAVTests {
         #expect(connection.tunnel == nil)
         #expect(
           request.value(forHTTPHeaderField: "Authorization") == ActivityDAVProtocol.authorization)
-        #expect(connection.url.absoluteString == "http://192.168.2.3:8080\(expectedPath)")
+        #expect(connection.url.absoluteString == "http://192.168.1.10:8080\(expectedPath)")
         return WebDAVResponse(data: listing, status: 207)
       })
     let dav = ActivitySyncWebDAV(
@@ -290,6 +326,7 @@ struct ActivitySyncWebDAVTests {
   @Test(arguments: [
     ["93.184.216.34"], ["192.168.2.3", "2606:4700::1"], ["93.184.216.34", "fd12::4"],
     ["100.73.1.2", "192.168.2.3"], ["192.168.2.3", "::ffff:192.168.2.3"], [],
+    ["fe80::1%en0"], ["fe80::1%en0", "192.168.1.10", "93.184.216.34"],
   ])
   func rejectsWholeResolutionBeforeSendingCredentials(_ answers: [String]) async throws {
     let config = try ActivityDAVConfiguration(

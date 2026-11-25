@@ -71,6 +71,9 @@ final class ActivityController {
   @ObservationIgnored private let sessionAvailable: () -> Bool
   @ObservationIgnored private var started = false
   @ObservationIgnored private var paused = false
+  @ObservationIgnored private var externallyPaused = false
+  @ObservationIgnored private var sessionRetry: Task<Void, Never>?
+  @ObservationIgnored private(set) var screenObserver: NSObjectProtocol?
   @ObservationIgnored private var observer: NSObjectProtocol?
   @ObservationIgnored private var timer: Timer?
   @ObservationIgnored private var clock = ActivityClock()
@@ -111,6 +114,8 @@ final class ActivityController {
   }
 
   isolated deinit {
+    sessionRetry?.cancel()
+    removeScreenObserver()
     if let observer { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
     timer?.invalidate()
   }
@@ -124,27 +129,24 @@ final class ActivityController {
 
   func start() {
     started = true
-    paused = !sessionAvailable()
-    reconcile()
+    reconcileSession()
   }
 
   func setEnabled(_ value: Bool) {
     guard enabled != value else { return }
     enabled = value
     onEnabledChanged?(value)
-    reconcile()
+    if value { reconcileSession() } else { reconcile() }
   }
 
   func setPaused(_ value: Bool) {
-    let shouldPause = value || !sessionAvailable()
-    guard paused != shouldPause else { return }
-    paused = shouldPause
-    reconcile()
+    externallyPaused = value
+    reconcileSession()
   }
 
   @discardableResult func stop() async -> Bool {
     started = false
-    reconcile()
+    reconcileSession()
     await writer?.value
     if !pending.isEmpty {
       try? await Task.sleep(for: .milliseconds(250))
@@ -152,6 +154,43 @@ final class ActivityController {
       await writer?.value
     }
     return pending.isEmpty
+  }
+
+  private func reconcileSession() {
+    sessionRetry?.cancel()
+    sessionRetry = nil
+    paused = externallyPaused || (started && !sessionAvailable())
+    reconcile()
+    guard started, !externallyPaused, paused else {
+      removeScreenObserver()
+      return
+    }
+    if screenObserver == nil {
+      screenObserver = NotificationCenter.default.addObserver(
+        forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+      ) { [weak self] _ in MainActor.assumeIsolated { self?.reconcileSession() } }
+    }
+    // 解锁通知可能先于 WindowServer 更新。有界复检同时恢复录制与独立的同步会话。
+    sessionRetry = Task { [weak self] in
+      for delay in [100, 200, 400, 800, 1_600, 3_200, 6_400] {
+        do { try await Task.sleep(for: .milliseconds(delay)) } catch { return }
+        guard !Task.isCancelled, let self else { return }
+        if self.sessionAvailable() {
+          self.sessionRetry = nil
+          self.paused = false
+          self.removeScreenObserver()
+          self.reconcile()
+          return
+        }
+      }
+      self?.sessionRetry = nil
+    }
+  }
+
+  private func removeScreenObserver() {
+    guard let screenObserver else { return }
+    NotificationCenter.default.removeObserver(screenObserver)
+    self.screenObserver = nil
   }
 
   private func reconcile() {

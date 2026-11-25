@@ -25,7 +25,10 @@ struct ActivityPeriodChart: View {
     return max(1, ceil(peak / (4 * unit))) * unit
   }
 
-  private var cursor: Int? { selected ?? hovered }
+  private var cursor: Int? {
+    guard let index = selected ?? hovered, buckets.indices.contains(index) else { return nil }
+    return index
+  }
 
   var body: some View {
     let step = step
@@ -52,7 +55,7 @@ struct ActivityPeriodChart: View {
             let x = width * (Double(index) + (hourly ? 0 : 0.5)) / Double(max(1, buckets.count))
             Text(axisDate(at: index))
               .lineLimit(1)
-              .frame(width: 32)
+              .fixedSize(horizontal: true, vertical: false)
               .position(x: max(16, min(width - 16, x)), y: 8)
           }
         }

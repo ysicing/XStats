@@ -8,6 +8,7 @@ import Testing
 
 private actor Shards: ActivitySyncRepository {
   let key: SymmetricKey
+  let createdVersion: String?
   var files: [[String]: Data] = [:]
   var writes = 0
   var reads = 0
@@ -15,7 +16,10 @@ private actor Shards: ActivitySyncRepository {
   var concurrentCreation = false
   var versions: [[String]: String] = [:]
 
-  init(key: SymmetricKey) { self.key = key }
+  init(key: SymmetricKey, createdVersion: String? = nil) {
+    self.key = key
+    self.createdVersion = createdVersion
+  }
 
   func list(_ path: [String]) -> Set<String> {
     Set(
@@ -39,7 +43,7 @@ private actor Shards: ActivitySyncRepository {
         }))
   }
 
-  func setVersion(_ version: String, at path: [String], replacing data: Data? = nil) {
+  func setVersion(_ version: String?, at path: [String], replacing data: Data? = nil) {
     versions[path] = version
     if let data { files[path] = data }
   }
@@ -60,6 +64,14 @@ private actor Shards: ActivitySyncRepository {
     }
     files[path] = data
     return true
+  }
+
+  func createWithVersion(_ data: Data, at path: [String]) async throws
+    -> (created: Bool, version: String?)
+  {
+    guard try create(data, at: path) else { return (false, nil) }
+    versions[path] = createdVersion
+    return (true, createdVersion)
   }
 
   func simulateConcurrentCreation() { concurrentCreation = true }
@@ -97,7 +109,8 @@ struct ActivitySyncTests {
   @Test func sharedKeychainFailureDoesNotModifyAnEmptyRepository() async throws {
     let keychain = ActivitySharedKeys(
       read: { _ in throw ActivityKeys.Failure.unavailable },
-      insert: { _, _ in throw ActivityKeys.Failure.unavailable })
+      insert: { _, _ in throw ActivityKeys.Failure.unavailable },
+      replace: { _, _ in throw ActivityKeys.Failure.unavailable })
     let repository = Shards(key: key)
     let engine = ActivitySyncEngine(key: key, sharedKeys: keychain)
     await #expect(throws: ActivityKeys.Failure.unavailable) {
@@ -112,7 +125,8 @@ struct ActivitySyncTests {
     let otherKey = SymmetricKey(size: .bits256)
     let keychain = ActivitySharedKeys(
       read: { _ in otherKey },
-      insert: { _, key in key })
+      insert: { _, key in key },
+      replace: { _, _ in })
     let repository = Shards(key: key)
     let store = ActivityStore(url: nil)
     let device = UUID()
@@ -139,14 +153,15 @@ struct ActivitySyncTests {
           items[account] = candidate
           return candidate
         }
-      })
+      },
+      replace: { account, key in shared.withLock { $0[account] = key } })
     let keyIsVisible = OSAllocatedUnfairLock(initialState: false)
     let secondKeychain = ActivitySharedKeys(
       read: { account in
         guard keyIsVisible.withLock({ $0 }) else { return nil }
         return try keychain.read(account)
       },
-      insert: keychain.insert)
+      insert: keychain.insert, replace: keychain.replace)
     let source = ActivityStore(url: nil)
     let destination = ActivityStore(url: nil)
     let sourceDevice = UUID()
@@ -176,7 +191,8 @@ struct ActivitySyncTests {
     let accountKey = SymmetricKey(size: .bits256)
     let keychain = ActivitySharedKeys(
       read: { account in account == "default" ? accountKey : nil },
-      insert: { _, key in key })
+      insert: { _, key in key },
+      replace: { _, _ in })
     for _ in 0..<2 {
       let local = SymmetricKey(size: .bits256)
       let engine = ActivitySyncEngine(key: local, sharedKeys: keychain)
@@ -188,6 +204,33 @@ struct ActivitySyncTests {
       #expect(throws: ActivitySyncFailure.self) {
         try ActivitySyncCipher(key: local).authenticateMarker(bytes)
       }
+    }
+  }
+
+  @Test(arguments: [false, true])
+  func explicitlyImportedKeyCannotFallBackToAStaleSharedKey(_ hasOldMarker: Bool) async throws {
+    let oldKey = SymmetricKey(size: .bits256)
+    let keychain = ActivitySharedKeys(
+      read: { _ in oldKey },
+      insert: { _, key in key },
+      replace: { _, _ in })
+    let engine = ActivitySyncEngine(key: key, sharedKeys: keychain, explicitlyImported: true)
+    let repository = Shards(key: hasOldMarker ? oldKey : key)
+    let store = ActivityStore(url: nil)
+    let device = UUID()
+    if hasOldMarker {
+      _ = try await repository.fixtureCipher()
+      let original = await repository.files
+      await #expect(throws: ActivitySyncFailure.authenticationFailed) {
+        try await engine.run(store: store, device: device, repository: repository, now: now)
+      }
+      #expect(await repository.files == original)
+      #expect(await engine.authenticatedKey == nil)
+    } else {
+      try await engine.run(store: store, device: device, repository: repository, now: now)
+      let bytes = try #require(await repository.read([ActivitySyncRemotePath.marker]))
+      try ActivitySyncCipher(key: key).authenticateMarker(bytes)
+      #expect(await engine.authenticatedKey == key)
     }
   }
 
@@ -493,6 +536,29 @@ struct ActivitySyncTests {
     #expect(await repository.reads == 2)
   }
 
+  @Test(arguments: ["original", nil] as [String?])
+  func createdShardsOnlyNeedReadingWhenTheirVersionChanges(_ version: String?) async throws {
+    let repository = Shards(key: key, createdVersion: version)
+    let device = UUID()
+    let store = ActivityStore(url: nil)
+    let engine = ActivitySyncEngine(key: key)
+    try await store.insert([session(device, offset: 0)])
+
+    try await engine.run(store: store, device: device, repository: repository, now: now)
+    try await engine.run(store: store, device: device, repository: repository, now: now)
+    #expect(await repository.reads == 0)
+    let paths = await repository.files.keys.filter(ActivitySyncRemotePath.validActivityObject)
+    let path = try #require(paths.first)
+    await repository.setVersion("updated", at: path)
+    try await engine.run(store: store, device: device, repository: repository, now: now)
+    #expect(await repository.reads == 1)
+    await repository.setVersion(nil, at: path)
+    try await engine.run(store: store, device: device, repository: repository, now: now)
+    try await engine.run(store: store, device: device, repository: repository, now: now)
+    #expect(await repository.reads == 2)
+    #expect(await repository.writes == 1)
+  }
+
   @Test func busyDaysRotateEncryptedDevicePartitionsWithoutDroppingFlatHistory() async throws {
     let repository = Shards(key: key)
     let source = UUID()
@@ -711,7 +777,13 @@ struct ActivitySyncTests {
     let canonical = directory.appendingPathComponent(name)
     let placeholder = directory.appendingPathComponent(".\(name).icloud")
     try Data().write(to: placeholder)
-    try await confirmation("Requested cloud content") { requested in
+    let folder = ActivitySyncFolder(root: root)
+    let markerPath = [ActivitySyncRemotePath.marker]
+    let marker = await repository.read(markerPath)
+    let markerBytes = try #require(marker)
+    let markerCreated = try await folder.create(markerBytes, at: markerPath)
+    #expect(markerCreated)
+    try await confirmation("Requested cloud content", expectedCount: 2) { requested in
       let folder = ActivitySyncFolder(root: root, isICloud: true) { url in
         #expect(url.path == canonical.path)
         requested()
@@ -719,9 +791,13 @@ struct ActivitySyncTests {
       let listed = try await folder.list(path)
       #expect(listed == [name])
       await #expect(throws: ActivitySyncFailure.downloadRequested) { try await folder.read(object) }
+      let engine = ActivitySyncEngine(key: key)
+      await #expect(throws: ActivitySyncFailure.downloadRequested) {
+        try await engine.run(
+          store: ActivityStore(url: nil), device: UUID(), repository: folder, now: now)
+      }
     }
     try FileManager.default.removeItem(at: placeholder)
-    let folder = ActivitySyncFolder(root: root)
     let stored = await repository.read(object)
     let bytes = try #require(stored)
     let created = try await folder.create(bytes, at: object)
@@ -730,6 +806,58 @@ struct ActivitySyncTests {
     #expect(!collided)
     let result = try await folder.read(object)
     #expect(result == bytes)
+  }
+
+  @Test(arguments: [false, true])
+  func receiptedCloudPlaceholdersDoNotBlockNewUploads(_ ownPartitioned: Bool) async throws {
+    let files = FileManager.default
+    let root = files.temporaryDirectory.resolvingSymlinksInPath()
+      .appendingPathComponent(UUID().uuidString)
+    try files.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? files.removeItem(at: root) }
+    let device = UUID()
+    let own = session(device, offset: 0)
+    let peer = session(UUID(), offset: 1)
+    let repository = Shards(key: key)
+    let ownPath = try await repository.seed([own], page: ownPartitioned ? 0 : nil)
+    let peerPath = try await repository.seed([peer], page: ownPartitioned ? nil : 0)
+    let localFolder = ActivitySyncFolder(root: root)
+    for (path, bytes) in await repository.files {
+      let created = try await localFolder.create(bytes, at: path)
+      #expect(created)
+    }
+    let store = ActivityStore(url: nil, keyProvider: { [key] in key })
+    let engine = ActivitySyncEngine(key: key)
+    try await engine.run(
+      store: store, device: device, repository: localFolder, mode: .manual, now: now)
+    let imported = try await store.sessions(in: DateInterval(start: now, duration: 60))
+    #expect(Set(imported.map(\.id)) == [own.id, peer.id])
+
+    for path in [ownPath, peerPath] {
+      let canonical = ([ActivitySyncRemotePath.namespace] + path).reduce(root) {
+        $0.appendingPathComponent($1)
+      }
+      let placeholder = canonical.deletingLastPathComponent()
+        .appendingPathComponent(".\(canonical.lastPathComponent).icloud")
+      try files.removeItem(at: canonical)
+      try Data().write(to: placeholder)
+    }
+
+    try await confirmation(expectedCount: 0) { requested in
+      let folder = ActivitySyncFolder(root: root, isICloud: true) { _ in requested() }
+      let parent = Array(ownPath.dropLast())
+      var published = try await folder.list(parent)
+      for (offset, mode) in [ActivitySyncMode.automatic, .manual].enumerated() {
+        let row = session(device, offset: offset + 2)
+        try await store.insert([row])
+        try await engine.run(store: store, device: device, repository: folder, mode: mode, now: now)
+        let uploaded = try await repository.seed([row], page: ownPartitioned ? 0 : nil)
+        let name = try #require(uploaded.last)
+        published.insert(name)
+        let listed = try await folder.list(parent)
+        #expect(listed == published)
+      }
+    }
   }
 
   @MainActor @Test func recordingAloneDoesNotEnableSync() throws {

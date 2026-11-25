@@ -3,7 +3,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 import base64
+from contextlib import redirect_stderr
 import hashlib
+import io
 import json
 import plistlib
 import shutil
@@ -16,10 +18,43 @@ import unittest
 from unittest.mock import patch
 import xml.etree.ElementTree as ET
 
-from sparkle_appcast import NOTE_LANGUAGES, ROOT, SPARKLE, XML_LANG, XSTATS, load_localized_notes, load_manifest, make_feed, release_history, verify_feed
+from sparkle_appcast import NOTE_LANGUAGES, ROOT, SPARKLE, XML_LANG, XSTATS, archived_translations, load_localized_notes, load_manifest, make_feed, release_history, verify_feed
 
 
 class SparkleAppcastTests(unittest.TestCase):
+    def test_archived_notes_fall_back_to_legacy_path_without_warning(self):
+        missing = subprocess.CompletedProcess(
+            ["git", "show"], 128, stderr=b"fatal: path not found\nadditional detail\n"
+        )
+        legacy = subprocess.CompletedProcess(
+            ["git", "show"], 0,
+            stdout=b'{"version":"0.5.4","sourceNotes":["source"],"translations":{"en":["English"]}}',
+        )
+        warnings = io.StringIO()
+        with patch("sparkle_appcast.subprocess.run", side_effect=[missing, legacy]), redirect_stderr(warnings):
+            self.assertEqual(archived_translations("0.5.4"), {"source": "English"})
+        self.assertEqual(warnings.getvalue(), "")
+
+    def test_missing_archived_notes_warn_once_with_both_reasons(self):
+        missing_docs = subprocess.CompletedProcess(
+            ["git", "show"], 128, stderr=b"fatal: path not found\nadditional detail\n"
+        )
+        missing_legacy = subprocess.CompletedProcess(
+            ["git", "show"], 1, stderr=b"fatal: invalid object\n"
+        )
+        warnings = io.StringIO()
+        with (
+            patch("sparkle_appcast.subprocess.run", side_effect=[missing_docs, missing_legacy]),
+            redirect_stderr(warnings),
+        ):
+            self.assertEqual(archived_translations("0.5.4"), {})
+        lines = warnings.getvalue().splitlines()
+        self.assertEqual(len(lines), 1)
+        self.assertIn("v0.5.4:docs/ReleaseNotes.json", lines[0])
+        self.assertIn("path not found additional detail", lines[0])
+        self.assertIn("v0.5.4:ReleaseNotes.json", lines[0])
+        self.assertIn("invalid object", lines[0])
+
     def test_signed_history_keeps_categories_source_order_and_target_boundary(self):
         changelog = """## 未发布
 ### 新增

@@ -9,6 +9,9 @@ struct ActivitySyncFolder: ActivitySyncRepository {
   var requestDownload: @Sendable (URL) throws -> Void = {
     try FileManager.default.startDownloadingUbiquitousItem(at: $0)
   }
+  var exclusiveRename: @Sendable (Int32, String, String) -> Int32 = { directory, temporary, name in
+    renameatx_np(directory, temporary, directory, name, UInt32(RENAME_EXCL)) == 0 ? 0 : errno
+  }
   private var rootComponents: [String] {
     ActivitySyncRemotePath.defaultRootComponents(for: root.lastPathComponent)
   }
@@ -71,15 +74,14 @@ struct ActivitySyncFolder: ActivitySyncRepository {
           if errno == ENOENT { continue }
           throw ActivitySyncFailure.folderUnavailable
         }
-        let file = ActivitySyncRemotePath.validObject(path + [name]) || placeholder
-        guard info.st_mode & S_IFMT == (file ? S_IFREG : S_IFDIR) else {
+        let object = ActivitySyncRemotePath.validObject(path + [name])
+        guard info.st_mode & S_IFMT == (object || placeholder ? S_IFREG : S_IFDIR) else {
           throw ActivitySyncFailure.invalidListing
         }
         result.names.insert(name)
-        if !placeholder, ActivitySyncRemotePath.validActivityObject(path + [name]) {
-          result.versions[name] =
-            "\(info.st_ino)/\(info.st_size)/\(info.st_mtimespec.tv_sec)/\(info.st_mtimespec.tv_nsec)"
-            + "/\(info.st_ctimespec.tv_sec)/\(info.st_ctimespec.tv_nsec)"
+        if placeholder { result.placeholders.insert(name) }
+        if !placeholder, object {
+          result.versions[name] = Self.version(of: info)
         }
       }
       return result
@@ -125,6 +127,12 @@ struct ActivitySyncFolder: ActivitySyncRepository {
   }
 
   func create(_ data: Data, at path: [String]) async throws -> Bool {
+    try await createWithVersion(data, at: path).created
+  }
+
+  func createWithVersion(_ data: Data, at path: [String]) async throws
+    -> (created: Bool, version: String?)
+  {
     guard ActivitySyncRemotePath.validObject(path),
       !ActivitySyncRemotePath.validMetadataObject(path)
     else { throw ActivitySyncFailure.invalidListing }
@@ -138,7 +146,9 @@ struct ActivitySyncFolder: ActivitySyncRepository {
     _ = try await write(data, at: path, replacing: true)
   }
 
-  private func write(_ data: Data, at path: [String], replacing: Bool) async throws -> Bool {
+  private func write(_ data: Data, at path: [String], replacing: Bool) async throws
+    -> (created: Bool, version: String?)
+  {
     guard let name = path.last else { throw ActivitySyncFailure.invalidListing }
     let limit = ActivitySyncRemotePath.objectByteLimit(path)
     guard data.count <= limit else { throw ActivitySyncFailure.limit }
@@ -153,7 +163,7 @@ struct ActivitySyncFolder: ActivitySyncRepository {
       var metadata = stat()
       if fstatat(directory, name, &metadata, AT_SYMLINK_NOFOLLOW) == 0 {
         guard metadata.st_mode & S_IFMT == S_IFREG else { throw ActivitySyncFailure.invalidListing }
-        if !replacing { return false }
+        if !replacing { return (false, nil) }
       } else if errno != ENOENT {
         throw ActivitySyncFailure.folderUnavailable
       }
@@ -164,21 +174,44 @@ struct ActivitySyncFolder: ActivitySyncRepository {
       guard file >= 0 else { throw ActivitySyncFailure.folderUnavailable }
       defer { unlinkat(directory, temporary, 0) }
       let handle = FileHandle(fileDescriptor: file, closeOnDealloc: true)
+      defer { try? handle.close() }
       try handle.write(contentsOf: data)
+      var written = stat()
+      let canVersion = !replacing && fstat(file, &written) == 0
       try handle.close()
       try Task.checkCancellation()
       if replacing {
         guard renameat(directory, temporary, directory, name) == 0 else {
           throw ActivitySyncFailure.folderUnavailable
         }
-        return true
+        return (true, nil)
       }
-      if renameatx_np(directory, temporary, directory, name, UInt32(RENAME_EXCL)) == 0 {
-        return true
+      switch exclusiveRename(directory, temporary, name) {
+      case 0: break
+      case EEXIST: return (false, nil)
+      case ENOTSUP, EINVAL, ENOSYS:
+        // 在同一个协调写入范围内复查目标，兼容不支持独占重命名的文件系统。
+        if fstatat(directory, name, &metadata, AT_SYMLINK_NOFOLLOW) == 0 { return (false, nil) }
+        guard errno == ENOENT, renameat(directory, temporary, directory, name) == 0 else {
+          throw ActivitySyncFailure.folderUnavailable
+        }
+      default:
+        throw ActivitySyncFailure.folderUnavailable
       }
-      if errno == EEXIST { return false }
-      throw ActivitySyncFailure.folderUnavailable
+      // SMB 等文件系统需要先关闭文件再重命名；只有目标仍对应这次写入时才缓存版本。
+      guard canVersion, fstatat(directory, name, &metadata, AT_SYMLINK_NOFOLLOW) == 0,
+        metadata.st_dev == written.st_dev, metadata.st_ino == written.st_ino,
+        metadata.st_size == written.st_size,
+        metadata.st_mtimespec.tv_sec == written.st_mtimespec.tv_sec,
+        metadata.st_mtimespec.tv_nsec == written.st_mtimespec.tv_nsec
+      else { return (true, nil) }
+      return (true, Self.version(of: metadata))
     }
+  }
+
+  private static func version(of info: stat) -> String {
+    "\(info.st_ino)/\(info.st_size)/\(info.st_mtimespec.tv_sec)/\(info.st_mtimespec.tv_nsec)"
+      + "/\(info.st_ctimespec.tv_sec)/\(info.st_ctimespec.tv_nsec)"
   }
 
   private func location(_ components: [String], isDirectory: Bool = false) -> URL {

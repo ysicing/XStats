@@ -2,6 +2,7 @@
 
 import CryptoKit
 import Foundation
+import os
 import Testing
 @testable import XStatsUI
 
@@ -61,5 +62,62 @@ struct ActivityKeysTests {
     let shared = SymmetricKey(size: .bits256)
     try await keys.replace(with: ActivityKeys.recoveryCode(for: shared), confirmExisting: false)
     #expect(try await keys.key() == shared)
+  }
+
+  @MainActor @Test func confirmedImportReplacesTheSharedDefaultKey() async throws {
+    let suite = "ActivitySharedKeyImportTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let oldKey = SymmetricKey(size: .bits256)
+    let newKey = SymmetricKey(size: .bits256)
+    let shared = OSAllocatedUnfairLock(initialState: oldKey)
+    let keychain = ActivitySharedKeys(
+      read: { _ in shared.withLock { $0 } },
+      insert: { _, _ in shared.withLock { $0 } },
+      replace: { account, key in
+        #expect(account == "default")
+        shared.withLock { $0 = key }
+      })
+    let controller = ActivitySyncController(
+      store: ActivityStore(url: nil), deviceID: UUID(), defaults: defaults, sharedKeys: keychain)
+    let code = ActivityKeys.recoveryCode(for: newKey)
+
+    await #expect(throws: ActivityKeys.Failure.replacementRequired) {
+      try await controller.importRecoveryCode(code)
+    }
+    #expect(shared.withLock { $0 } == oldKey)
+    try await controller.importRecoveryCode(code, confirmExisting: true)
+    #expect(shared.withLock { $0 } == newKey)
+    #expect(try await controller.recoveryCode() == code)
+  }
+
+  @MainActor @Test func sharedKeychainWriteFailureKeepsTheImportedLocalKey() async throws {
+    let suite = "ActivitySharedKeyImportFailureTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let oldKey = SymmetricKey(size: .bits256)
+    let newKey = SymmetricKey(size: .bits256)
+    let keychain = ActivitySharedKeys(
+      read: { _ in oldKey },
+      insert: { _, _ in oldKey },
+      replace: { account, key in
+        #expect(account == "default")
+        #expect(key == newKey)
+        throw ActivityKeys.Failure.unavailable
+      })
+    let controller = ActivitySyncController(
+      store: ActivityStore(url: nil), deviceID: UUID(), defaults: defaults, sharedKeys: keychain)
+    let originalCode = try await controller.recoveryCode()
+    let code = ActivityKeys.recoveryCode(for: newKey)
+    #expect(originalCode != code)
+
+    await #expect(throws: ActivityKeys.Failure.sharedKeyUnavailable) {
+      try await controller.importRecoveryCode(code, confirmExisting: true)
+    }
+    let localCode = try await controller.recoveryCode()
+    #expect(localCode == code)
+    let fingerprint = newKey.withUnsafeBytes { ActivitySyncShard.checksum(Data($0)) }
+    #expect(defaults.string(forKey: "activity.sync.importedKeyFingerprint") == fingerprint)
+    #expect(!controller.changingKey)
   }
 }

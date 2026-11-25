@@ -77,17 +77,26 @@ protocol ActivitySyncRepository: Sendable {
   func listActivityObjects(_ directory: [String]) async throws -> ActivitySyncListing
   func read(_ path: [String]) async throws -> Data?
   func create(_ data: Data, at path: [String]) async throws -> Bool
+  func createWithVersion(_ data: Data, at path: [String]) async throws
+    -> (created: Bool, version: String?)
   func replaceMetadata(_ data: Data, at path: [String]) async throws
 }
 
 struct ActivitySyncListing: Sendable {
   var names: Set<String> = []
   var versions: [String: String] = [:]
+  var placeholders: Set<String> = []
 }
 
 extension ActivitySyncRepository {
   func listActivityObjects(_ directory: [String]) async throws -> ActivitySyncListing {
     try await ActivitySyncListing(names: list(directory))
+  }
+
+  func createWithVersion(_ data: Data, at path: [String]) async throws
+    -> (created: Bool, version: String?)
+  {
+    (try await create(data, at: path), nil)
   }
 
   func replaceMetadata(_ data: Data, at path: [String]) async throws {
@@ -106,6 +115,7 @@ actor ActivitySyncEngine {
   var authenticatedKey: SymmetricKey? { authenticatedDataset ? key : nil }
   private(set) var datasetIdentifier: String? = nil
   private let sharedKeys: ActivitySharedKeys?
+  private let explicitlyImported: Bool
   private var publishedMarker: Data?
   private let localSyncKey: SymmetricKey
   private var authenticatedDataset = false
@@ -114,14 +124,15 @@ actor ActivitySyncEngine {
   private var cursors: [String: String] = [:]
   private var importedRecords = false
   private(set) var continuationDay: String?
-  /// 按强 ETag 缓存已验证的设置元数据，空闲轮次无需重新下载并解密所有设备的文档。
+  /// 按强 ETag 或文件版本缓存已验证的设置元数据，空闲轮次无需重新下载并解密设备文档。
   /// 只用于发布前的读取；发布后的回读校验始终读取远端。数据集变化时清空。
   private var metadataCache: [String: (version: String, device: UUID, data: Data)] = [:]
 
-  init(key: SymmetricKey, sharedKeys: ActivitySharedKeys? = nil) {
+  init(key: SymmetricKey, sharedKeys: ActivitySharedKeys? = nil, explicitlyImported: Bool = false) {
     self.key = key
     self.localSyncKey = key
     self.sharedKeys = sharedKeys
+    self.explicitlyImported = explicitlyImported
     cipher = ActivitySyncCipher(key: key)
   }
 
@@ -303,7 +314,7 @@ actor ActivitySyncEngine {
     let root = try await repository.list([])
     if root.isEmpty {
       try Task.checkCancellation()
-      if let sharedKeys {
+      if let sharedKeys, !explicitlyImported {
         let preferred = try sharedKeys.read("default") ?? sharedKeys.insert("default", key)
         key = preferred
         cipher = ActivitySyncCipher(key: preferred)
@@ -330,7 +341,9 @@ actor ActivitySyncEngine {
       let account = ActivitySyncShard.checksum(bytes)
       if identifier == nil {
         // 已经使用过的目标不能被另一份数据集静默替换；只有首次加入才从钥匙串选择匹配的密钥。
-        guard !authenticatedDataset else { throw ActivitySyncFailure.authenticationFailed }
+        guard !authenticatedDataset, !explicitlyImported else {
+          throw ActivitySyncFailure.authenticationFailed
+        }
         let candidates = [
           localSyncKey, try sharedKeys.read(account), try sharedKeys.read("default"),
         ]
@@ -379,6 +392,7 @@ actor ActivitySyncEngine {
     let entries = listing.names
     var shards: [[String]: ActivitySyncShard] = [:]
     var versions: [[String]: String] = [:]
+    var placeholders = Set<[String]>()
     var ownPage: (number: UInt16, count: Int)?
     var failure: (any Error)?
     var ownListingFailed = false
@@ -398,6 +412,7 @@ actor ActivitySyncEngine {
           let path = parent + [name]
           shards[path] = try cipher.shard(from: name, day: day, in: parent)
           versions[path] = listing.versions[name]
+          if listing.placeholders.contains(name) { placeholders.insert(path) }
         }
       } catch {
         failure = error
@@ -422,6 +437,7 @@ actor ActivitySyncEngine {
           let path = directory + [child]
           shards[path] = shard
           versions[path] = children.versions[child]
+          if children.placeholders.contains(child) { placeholders.insert(path) }
         }
       } catch {
         try Task.checkCancellation()
@@ -434,8 +450,12 @@ actor ActivitySyncEngine {
     var published = Set<UUID>()
     var pending = [String: [String]]()
     for (path, shard) in shards {
+      let version = versions[path]
+      // iCloud 释放本地副本后仍可复用回执。普通文件缺失版本时仍按原规则校验。
       if let receipt = receipts[path],
-        versions[path].map({ $0 == receipt.version }) ?? (mode != .manual || shard.device != device)
+        placeholders.contains(path)
+          || (receipt.version == version
+            && (version != nil || mode != .manual || shard.device != device))
       {
         published.formUnion(receipt.ownRecords)
       } else {
@@ -503,14 +523,16 @@ actor ActivitySyncEngine {
         let name = try cipher.shardName(shard, in: writeDirectory)
         let path = writeDirectory + [name]
         let ciphertext = try cipher.seal(plaintext, at: path)
-        let created = try await repository.create(ciphertext, at: path)
-        if !created {
+        let result = try await repository.createWithVersion(ciphertext, at: path)
+        if !result.created {
           guard let existing = try await repository.read(path),
             try cipher.open(existing, at: path) == plaintext
           else { throw ActivitySyncFailure.invalidShard }
         }
         try await store.insert(
-          [], receipt: .init(dataset: dataset, path: path, ownRecords: batch.map(\.id)))
+          [],
+          receipt: .init(
+            dataset: dataset, path: path, ownRecords: batch.map(\.id), version: result.version))
       }
     }
     if let failure { throw failure }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import CryptoKit
+import Darwin
 import Foundation
 import os
 import Testing
@@ -38,10 +39,50 @@ struct ActivitySyncMetadataTests {
       await engine.datasetIdentifier
         == (try ActivitySyncCipher(key: key).authenticateMarker(authenticatedMarker)))
     let path = try ActivitySyncCipher(key: key).metadataPath(for: device)
+    let name = try #require(path.last)
+    let listing = try await folder.listActivityObjects(directory)
+    #expect(listing.names == [name])
+    #expect(listing.versions[name] != nil)
     let file = path.reduce(canonical) { $0.appendingPathComponent($1) }
     #expect(FileManager.default.fileExists(atPath: file.path))
     #expect(
       !FileManager.default.fileExists(atPath: canonical.appendingPathComponent("XStats").path))
+  }
+
+  @Test(arguments: [ENOTSUP, EINVAL, ENOSYS], [false, true])
+  func folderFallsBackFromExclusiveRename(_ error: Int32, _ destinationAppears: Bool)
+    async throws
+  {
+    let base = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(at: base) }
+    let existing = Data([11])
+    let incoming = Data([27])
+    let repository = ActivitySyncFolder(
+      root: base,
+      exclusiveRename: { directory, _, name in
+        if destinationAppears {
+          let file = openat(directory, name, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o600)
+          guard file >= 0 else { return errno }
+          let handle = FileHandle(fileDescriptor: file, closeOnDealloc: true)
+          do {
+            try handle.write(contentsOf: existing)
+            try handle.close()
+          } catch {
+            Issue.record("无法创建并发写入的测试文件：\(error)")
+            return EIO
+          }
+        }
+        return error
+      })
+    let result = try await repository.createWithVersion(incoming, at: marker)
+    #expect(result.created == !destinationAppears)
+    #expect(try await repository.read(marker) == (destinationAppears ? existing : incoming))
+    if result.created {
+      let listing = try await repository.listActivityObjects([])
+      let name = try #require(marker.first)
+      #expect(result.version != nil)
+      #expect(result.version == listing.versions[name])
+    }
   }
 
   @Test func exchangesAuthenticatedSnapshotsAndOnlyOverwritesTheCallingDevice() async throws {

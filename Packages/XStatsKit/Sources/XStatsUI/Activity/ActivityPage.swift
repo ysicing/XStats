@@ -135,7 +135,7 @@ struct ActivityPage: View {
       }
     }
     .task(id: isVisible && refreshPending) {
-      guard isVisible, refreshPending else { return }
+      guard isVisible, refreshPending, !Task.isCancelled else { return }
       do {
         try await Task.sleep(for: .seconds(period == .day ? 2 : 10), tolerance: .milliseconds(500))
       } catch { return }
@@ -143,6 +143,11 @@ struct ActivityPage: View {
       refreshPending = false
       refresh &+= 1
     }
+    .onChange(of: isVisible) { _, visible in
+      // 重新显示时会重新加载，隐藏期间无需保留未完成的防抖刷新。
+      if !visible { refreshPending = false }
+    }
+    .onDisappear { refreshPending = false }
     .onChange(of: recordingRevision) { previous, _ in
       if isVisible, previous >= 0 { refreshPending = true }
     }
