@@ -4,7 +4,8 @@ import CryptoKit
 import Foundation
 
 enum ActivitySyncFailure: Error, Equatable {
-  case cloudPending, folderUnavailable, invalidShard, limit, invalidListing, authenticationFailed,
+  case cloudUnavailable, downloadRequested, folderUnavailable, invalidShard, limit, invalidListing,
+    authenticationFailed,
     busy, keyPending
 }
 

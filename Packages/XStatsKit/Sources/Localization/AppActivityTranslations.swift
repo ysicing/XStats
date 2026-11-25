@@ -22,7 +22,9 @@ extension Translations {
     共享文件夹	Shared Folder
     选择文件夹	Choose Folder
     立即同步	Sync Now
-    等待 iCloud 云盘就绪	Waiting for iCloud Drive
+    暂时无法访问 iCloud 云盘，请在系统设置中确认已开启“同步此 Mac”。	iCloud Drive is unavailable. Check that “Sync this Mac” is on in System Settings.
+    已请求下载同步文件，请稍后重试。	A download has been requested for the sync files. Try again later.
+    已请求下载同步文件，XStats 会自动重试。	A download has been requested for the sync files. XStats will retry automatically.
     正在等待 iCloud 钥匙串同步活动密钥	Waiting for iCloud Keychain to sync the activity key
     活动同步失败，将自动重试	Activity sync failed. It will retry automatically.
     本轮同步完成	Sync complete

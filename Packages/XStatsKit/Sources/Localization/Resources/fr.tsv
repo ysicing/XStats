@@ -3034,7 +3034,9 @@ Google Drive 共享文件夹	Dossier partagé Google Drive
 共享文件夹	Dossier partagé
 选择文件夹	Choisir un dossier
 立即同步	Synchroniser maintenant
-等待 iCloud 云盘就绪	En attente d’iCloud Drive
+暂时无法访问 iCloud 云盘，请在系统设置中确认已开启“同步此 Mac”。	iCloud Drive est indisponible. Vérifiez que « Synchroniser ce Mac » est activé dans Réglages Système.
+已请求下载同步文件，请稍后重试。	Le téléchargement des fichiers de synchronisation a été demandé. Réessayez plus tard.
+已请求下载同步文件，XStats 会自动重试。	Le téléchargement des fichiers de synchronisation a été demandé. XStats réessaiera automatiquement.
 正在等待 iCloud 钥匙串同步活动密钥	En attente de la synchronisation de la clé d’activité par le trousseau iCloud
 活动同步失败，将自动重试	La synchronisation de l’activité a échoué. Une nouvelle tentative aura lieu automatiquement.
 本轮同步完成	Synchronisation terminée

@@ -3034,7 +3034,9 @@ Google Drive 共享文件夹	Carpeta compartida de Google Drive
 共享文件夹	Carpeta compartida
 选择文件夹	Elegir carpeta
 立即同步	Sincronizar ahora
-等待 iCloud 云盘就绪	Esperando a que iCloud Drive esté disponible
+暂时无法访问 iCloud 云盘，请在系统设置中确认已开启“同步此 Mac”。	iCloud Drive no está disponible. Comprueba que «Sincronizar este Mac» esté activado en Ajustes del Sistema.
+已请求下载同步文件，请稍后重试。	Se ha solicitado la descarga de los archivos de sincronización. Vuelve a intentarlo más tarde.
+已请求下载同步文件，XStats 会自动重试。	Se ha solicitado la descarga de los archivos de sincronización. XStats volverá a intentarlo automáticamente.
 正在等待 iCloud 钥匙串同步活动密钥	Esperando a que el llavero de iCloud sincronice la clave de actividad
 活动同步失败，将自动重试	No se pudo sincronizar la actividad. Se volverá a intentar automáticamente.
 本轮同步完成	Sincronización completada

@@ -27,7 +27,21 @@ final class ActivitySyncController {
   }
   private(set) var syncMode: ActivitySyncMode?
   var syncing: Bool { syncMode != nil }
-  private(set) var message: String?
+  private enum SyncMessage {
+    case text(String)
+    case downloadRequested
+  }
+  private var lastMessage: SyncMessage?
+  var message: String? {
+    switch lastMessage {
+    case .downloadRequested:
+      intervalMinutes > 0
+        ? tr("已请求下载同步文件，XStats 会自动重试。")
+        : tr("已请求下载同步文件，请稍后重试。")
+    case .text(let text): text
+    case nil: nil
+    }
+  }
   private(set) var address: String
   private(set) var username: String
   private(set) var folderName: String
@@ -100,7 +114,7 @@ final class ActivitySyncController {
     restart()
     if !value {
       do { try revokePendingPreferences() } catch {
-        message = tr("无法更改设置同步")
+        lastMessage = .text(tr("无法更改设置同步"))
       }
     }
     if value, preferenceStore != nil, preferences == nil {
@@ -148,7 +162,7 @@ final class ActivitySyncController {
       try await loadPreferences()
       if active, worker == nil, timer == nil { startSync(.automatic) }
     } catch {
-      if !Task.isCancelled { message = tr("无法读取或保存活动密钥，请检查钥匙串") }
+      if !Task.isCancelled { lastMessage = .text(tr("无法读取或保存活动密钥，请检查钥匙串")) }
     }
   }
 
@@ -279,7 +293,7 @@ final class ActivitySyncController {
     guard syncMode == .manual else { return }
     defaults.set(true, forKey: "sync.revoke." + scope)
     do { try revokePendingPreferences() } catch {
-      message = tr("无法更改设置同步")
+      lastMessage = .text(tr("无法更改设置同步"))
     }
     worker?.cancel()
   }
@@ -293,10 +307,10 @@ final class ActivitySyncController {
     let ticket = generation
     let selected = provider
     syncMode = mode
-    if mode == .manual { message = nil }
+    if mode == .manual { lastMessage = nil }
     worker = Task { [weak self] in
       guard let self else { return }
-      var errorMessage: String?
+      var errorMessage: SyncMessage?
       do {
         try Task.checkCancellation()
         let engine: ActivitySyncEngine
@@ -340,17 +354,19 @@ final class ActivitySyncController {
           }
         }
       } catch is ActivityKeys.Failure {
-        errorMessage = tr("无法读取或保存活动密钥，请检查钥匙串")
+        errorMessage = .text(tr("无法读取或保存活动密钥，请检查钥匙串"))
       } catch ActivitySyncFailure.keyPending {
-        errorMessage = tr("正在等待 iCloud 钥匙串同步活动密钥")
+        errorMessage = .text(tr("正在等待 iCloud 钥匙串同步活动密钥"))
       } catch ActivitySyncFailure.authenticationFailed {
-        errorMessage = tr("无法验证同步数据，请核对恢复密钥和同步位置。")
-      } catch ActivitySyncFailure.cloudPending {
-        errorMessage = tr("等待 iCloud 云盘就绪")
+        errorMessage = .text(tr("无法验证同步数据，请核对恢复密钥和同步位置。"))
+      } catch ActivitySyncFailure.cloudUnavailable {
+        errorMessage = .text(tr("暂时无法访问 iCloud 云盘，请在系统设置中确认已开启“同步此 Mac”。"))
+      } catch ActivitySyncFailure.downloadRequested {
+        errorMessage = .downloadRequested
       } catch let error as ActivityDAVError {
-        errorMessage = error.errorDescription
+        errorMessage = error.errorDescription.map(SyncMessage.text)
       } catch {
-        errorMessage = (error as? WebDAVError)?.errorDescription ?? tr("同步失败")
+        errorMessage = .text((error as? WebDAVError)?.errorDescription ?? tr("同步失败"))
       }
       if ticket == generation { preferences?.discardPrepared() }
       worker = nil
@@ -373,7 +389,7 @@ final class ActivitySyncController {
         }
       }
       retrying = errorMessage != nil
-      message = errorMessage ?? tr("本轮同步完成")
+      lastMessage = errorMessage ?? .text(tr("本轮同步完成"))
       schedule()
     }
   }
@@ -430,7 +446,7 @@ final class ActivitySyncController {
     worker?.cancel()
     requestedSync = false
     retrying = false
-    message = nil
+    lastMessage = nil
     if worker == nil { startSync(.automatic) }
   }
 

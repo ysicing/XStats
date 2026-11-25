@@ -20,7 +20,7 @@ struct ActivitySyncFolder: ActivitySyncRepository {
     var info = stat()
     guard lstat(root.path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR,
       manager.ubiquityIdentityToken != nil || manager.isUbiquitousItem(at: root)
-    else { throw ActivitySyncFailure.cloudPending }
+    else { throw ActivitySyncFailure.cloudUnavailable }
     return Self(root: root, isICloud: true)
   }
 
@@ -200,7 +200,7 @@ struct ActivitySyncFolder: ActivitySyncRepository {
           throw error
         }
       }
-      throw ActivitySyncFailure.cloudPending
+      throw ActivitySyncFailure.downloadRequested
     }
   }
 

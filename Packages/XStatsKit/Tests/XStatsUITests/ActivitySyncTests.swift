@@ -606,7 +606,7 @@ struct ActivitySyncTests {
       }
       let listed = try await folder.list(path)
       #expect(listed == [name])
-      await #expect(throws: ActivitySyncFailure.cloudPending) { try await folder.read(object) }
+      await #expect(throws: ActivitySyncFailure.downloadRequested) { try await folder.read(object) }
     }
     try FileManager.default.removeItem(at: placeholder)
     let folder = ActivitySyncFolder(root: root)

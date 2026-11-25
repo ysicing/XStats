@@ -3,6 +3,7 @@
 import AppKit
 import CryptoKit
 import Foundation
+import Localization
 import SwiftUI
 import Testing
 @testable import XStatsUI
@@ -46,6 +47,30 @@ struct SyncScheduleTests {
     #expect(controller.intervalMinutes == minutes)
     let reopened = ActivitySyncController(store: store, deviceID: deviceID, defaults: defaults)
     #expect(reopened.intervalMinutes == minutes)
+  }
+
+  @Test(arguments: [ActivitySyncFailure.cloudUnavailable, .downloadRequested])
+  func cloudHintReflectsFailureAndCurrentSchedule(failure: ActivitySyncFailure) async throws {
+    let suite = "ActivitySyncCloudHintTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let controller = ActivitySyncController(
+      store: ActivityStore(url: nil), deviceID: UUID(), defaults: defaults,
+      repository: ScheduleRepository(readFailure: failure))
+    controller.setIntervalMinutes(0)
+    controller.setEnabled(true)
+    controller.setSession(available: true, recordsActivity: true)
+    defer { controller.setSession(available: false, recordsActivity: false) }
+    controller.syncNow()
+    try await waitUntilIdle(controller)
+
+    let unavailable = tr("暂时无法访问 iCloud 云盘，请在系统设置中确认已开启“同步此 Mac”。")
+    #expect(
+      controller.message == (failure == .cloudUnavailable ? unavailable : tr("已请求下载同步文件，请稍后重试。")))
+    controller.setIntervalMinutes(5)
+    #expect(
+      controller.message
+        == (failure == .cloudUnavailable ? unavailable : tr("已请求下载同步文件，XStats 会自动重试。")))
   }
 
   @Test func optionalFeatureRegistersThisMacWithoutOptingIntoActivityOrPreferences() async throws {
@@ -200,7 +225,7 @@ struct SyncScheduleTests {
     #expect(await repository.publishedSettingsCount == 2)
     #expect(await repository.publishedActivityCount == 0)
 
-    let marker = await repository.read([ActivitySyncRemotePath.marker])
+    let marker = try await repository.read([ActivitySyncRemotePath.marker])
     let originalMarker = try #require(marker)
     let cipher = ActivitySyncCipher(key: try ActivityKeys.decode(recoveryCode))
     let replacement = try cipher.makeMarker()
@@ -404,6 +429,10 @@ struct SyncScheduleTests {
 }
 
 private actor ScheduleRepository: ActivitySyncRepository {
+  private let readFailure: ActivitySyncFailure?
+  init(readFailure: ActivitySyncFailure? = nil) {
+    self.readFailure = readFailure
+  }
   private var files: [[String]: Data] = [:]
   private var corruptActivity = false
   private(set) var accessCount = 0
@@ -420,8 +449,9 @@ private actor ScheduleRepository: ActivitySyncRepository {
       })
   }
 
-  func read(_ path: [String]) -> Data? {
+  func read(_ path: [String]) throws -> Data? {
     accessCount += 1
+    if let readFailure { throw readFailure }
     if corruptActivity, path.count == 3, files[path] != nil { return Data() }
     return files[path]
   }
