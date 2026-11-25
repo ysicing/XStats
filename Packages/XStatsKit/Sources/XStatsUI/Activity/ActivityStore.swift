@@ -12,8 +12,9 @@ struct ActivitySession: Codable, Sendable, Identifiable, Equatable {
   let appName: String
   let category: String
   let start: Date
-  let end: Date
+  var end: Date
   var deviceName: String?
+  var subcategory: String?
 }
 
 actor ActivityStore {
@@ -357,6 +358,12 @@ actor ActivityStore {
   }
 
   private func validSession(_ session: ActivitySession) -> Bool {
+    if let detail = session.subcategory {
+      let bytes = detail.utf8
+      guard !bytes.isEmpty, bytes.prefix(33).count <= 32,
+        bytes.allSatisfy({ (97...122).contains($0) })
+      else { return false }
+    }
     let start = session.start.timeIntervalSinceReferenceDate
     let end = session.end.timeIntervalSinceReferenceDate
     return start >= Self.firstSupportedDay && end <= Self.afterLastSupportedDay && start < end

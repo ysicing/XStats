@@ -23,6 +23,10 @@ struct ActivityPageRenderTests {
           longTitle, direction: direction, locale: locale, width: width))
       #expect(longRow.width == Int(width))
       #expect(longRow.height > shortRow.height)
+      let expanded = try #require(
+        renderRank(longTitle, direction: direction, locale: locale, width: width, expanded: true))
+      #expect(expanded.width == Int(width))
+      #expect(expanded.height > longRow.height)
     }
   }
 
@@ -99,15 +103,16 @@ struct ActivityPageRenderTests {
     let localID = UUID()
     let remoteID = UUID()
     let apps = [
-      ("Xcode", "work"), ("Safari", "browsing"), ("Terminal", "work"),
-      ("Messages", "communication"), ("Music", "entertainment"), ("Finder", "other"),
+      ("Xcode", "com.apple.dt.Xcode", "work"), ("Safari", "com.apple.Safari", "browsing"),
+      ("Pages", "com.apple.iWork.Pages", "work"), ("Messages", "com.apple.iChat", "communication"),
+      ("Music", "com.apple.Music", "entertainment"), ("Finder", "com.apple.finder", "other"),
     ]
     var sessions = try (0..<25).flatMap { day in
       try apps.enumerated().map { index, app in
         let start = try #require(
           calendar.date(from: DateComponents(year: 2026, month: 11, day: day + 1, hour: 8 + index)))
         return ActivitySession(
-          id: UUID(), deviceID: localID, appID: app.0, appName: app.0, category: app.1,
+          id: UUID(), deviceID: localID, appID: app.1, appName: app.0, category: app.2,
           start: start,
           end: start.addingTimeInterval(Double(3_540 - (day * 211 + index * 613) % 2_820)))
       }
@@ -116,7 +121,8 @@ struct ActivityPageRenderTests {
       calendar.date(bySettingHour: 10, minute: 15, second: 0, of: date))
     sessions.append(
       ActivitySession(
-        id: UUID(), deviceID: remoteID, appID: "Safari", appName: "Safari", category: "browsing",
+        id: UUID(), deviceID: remoteID, appID: "com.apple.Safari", appName: "Safari",
+        category: "browsing",
         start: overlapStart, end: overlapStart.addingTimeInterval(3_000)))
     let report = try ActivityPageAnalytics.make(
       sessions: sessions, interval: interval, period: period, calendar: calendar, deviceID: nil)
@@ -142,7 +148,9 @@ struct ActivityPageRenderTests {
             )
             .font(.headline)
           }
-          ActivityPageRankings(report: report, locale: locale) { _ in }
+          ActivityPageRankings(
+            report: report, locale: locale, openApp: { _ in },
+            expandedCategories: [.work, .other, .entertainment])
         }
         .padding(DS.Space.s4)
         .frame(width: CGFloat(width))
@@ -166,12 +174,18 @@ struct ActivityPageRenderTests {
 
   @MainActor
   private func renderRank(
-    _ title: String, direction: LayoutDirection, locale: Locale, width: CGFloat
+    _ title: String, direction: LayoutDirection, locale: Locale, width: CGFloat,
+    expanded: Bool = false
   ) -> CGImage? {
     let renderer = ImageRenderer(
       content: ActivityPageRank(
-        entries: [.init(id: .work, title: title, color: .indigo, seconds: 4_200)],
-        total: 7_200, locale: locale, stacksDuration: false
+        entries: [
+          .init(
+            id: .work, title: title, color: .indigo, seconds: 4_200,
+            breakdown: [.programming: 3_000, .learning: 1_200])
+        ],
+        total: 7_200, locale: locale, stacksDuration: false,
+        expanded: .constant(expanded ? [.work] : [])
       )
       .frame(width: width)
       .environment(\.locale, locale)

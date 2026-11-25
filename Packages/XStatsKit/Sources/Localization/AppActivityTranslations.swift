@@ -64,6 +64,14 @@ extension Translations {
     查看当天	View Day
     最常用应用	Most Used Apps
     分类占比	Category Breakdown
+    编程	Programming
+    办公	Office
+    设计	Design
+    学习	Learning
+    音乐与视频	Music and Video
+    系统工具	System Utilities
+    待分类	Uncategorized
+    未细分	Unspecified
     查看全部应用	View All Apps
     工作	Work
     娱乐	Entertainment

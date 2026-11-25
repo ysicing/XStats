@@ -9,6 +9,26 @@ struct ActivityPageAnalyticsTests {
   private let remote = UUID()
   private let midnight = Date(timeIntervalSinceReferenceDate: 0)
 
+  @Test func currentRulesReclassifyHistoryAcrossDevicesAndRetainCapturedSubcategories() throws {
+    let interval = try #require(utcCalendar.dateInterval(of: .day, for: midnight))
+    var learning = session(appID: "school.app", category: "work", from: 120, to: 180)
+    learning.subcategory = "learning"
+    let sessions = [
+      session(appID: "com.apple.finder", category: "work", from: 0, to: 60),
+      session(on: remote, appID: "com.apple.finder", category: "other", from: 0, to: 60),
+      session(on: remote, appID: "com.valvesoftware.steam", category: "other", from: 60, to: 150),
+      session(appID: "unknown.editor", category: "work", from: 60, to: 120),
+      learning,
+    ]
+    let report = try ActivityPageAnalytics.make(
+      sessions: sessions, interval: interval, period: .day, calendar: utcCalendar, deviceID: nil)
+    #expect(report.categories.first { $0.id == .work }?.breakdown == [.work: 60, .learning: 60])
+    #expect(report.categories.first { $0.id == .other }?.breakdown == [.utilities: 120])
+    #expect(report.categories.first { $0.id == .entertainment }?.breakdown == [.games: 90])
+    #expect(report.hours.first?.secondsByCategory == [.other: 120, .entertainment: 90, .work: 120])
+    #expect(report.seconds == 330)
+  }
+
   @Test func clipsBothEdgesAndIgnoresSessionsTouchingTheDay() throws {
     let calendar = utcCalendar
     let interval = try #require(calendar.dateInterval(of: .day, for: midnight))

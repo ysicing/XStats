@@ -8,32 +8,7 @@ import SystemConfiguration
 struct ActivityApplication: Equatable {
   let id: String
   let name: String
-  let category: String
-
-  static func category(for id: String, storeCategory: String?) -> String {
-    switch id.lowercased() {
-    case "com.apple.safari", "com.google.chrome", "org.mozilla.firefox", "com.microsoft.edgemac",
-      "company.thebrowser.browser", "com.brave.browser":
-      return "browsing"
-    case "com.apple.mail", "com.apple.ichat", "com.tinyspeck.slackmacgap", "com.tencent.xinwechat",
-      "com.alibaba.dingtalkmac", "com.microsoft.teams2", "us.zoom.xos":
-      return "communication"
-    case "com.apple.terminal", "com.googlecode.iterm2", "com.apple.dt.xcode",
-      "com.microsoft.vscode", "com.apple.notes":
-      return "work"
-    default: break
-    }
-    let category = storeCategory?.replacingOccurrences(of: "public.app-category.", with: "") ?? ""
-    if category.hasSuffix("games") { return "entertainment" }
-    switch category {
-    case "entertainment", "music", "video", "sports": return "entertainment"
-    case "social-networking": return "communication"
-    case "productivity", "business", "developer-tools", "graphics-design", "education",
-      "reference", "finance":
-      return "work"
-    default: return "other"
-    }
-  }
+  let classification: ActivityClassification
 }
 
 struct ActivityClock {
@@ -66,8 +41,10 @@ struct ActivityClock {
       let start = wasIdle ? now.addingTimeInterval(-idle) : now
       startUptime = uptime - now.timeIntervalSince(start)
       current = ActivitySession(
-        id: UUID(), deviceID: deviceID, appID: app.id, appName: app.name, category: app.category,
-        start: start, end: start)
+        id: UUID(), deviceID: deviceID, appID: app.id, appName: app.name,
+        category: app.classification.category.rawValue, start: start, end: start,
+        subcategory: app.classification.rawValue == app.classification.category.rawValue
+          ? nil : app.classification.rawValue)
     }
     wasIdle = inactive
     guard let previous, end > previous.start else { return nil }
@@ -75,9 +52,9 @@ struct ActivityClock {
   }
 
   static func ending(_ session: ActivitySession, at end: Date) -> ActivitySession {
-    ActivitySession(
-      id: session.id, deviceID: session.deviceID, appID: session.appID, appName: session.appName,
-      category: session.category, start: session.start, end: end)
+    var closed = session
+    closed.end = end
+    return closed
   }
 }
 
@@ -222,7 +199,7 @@ final class ActivityController {
         }
         application = ActivityApplication(
           id: id, name: name ?? id,
-          category: ActivityApplication.category(for: id, storeCategory: category))
+          classification: .automatic(appID: id, storeCategory: category))
       }
     } else {
       application = nil

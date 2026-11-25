@@ -179,6 +179,7 @@ struct ActivityPageRankings: View {
   let locale: Locale
   let openApp: (ActivityPageAnalytics.App) -> Void
   @State private var showsAllApps = false
+  @State var expandedCategories = Set<ActivityPageAnalytics.Category>()
 
   var body: some View {
     ViewThatFits(in: .horizontal) {
@@ -217,18 +218,22 @@ struct ActivityPageRankings: View {
 
   private var categories: some View {
     let entries = report.categories.map {
-      ActivityPageRank.Entry(id: $0.id, title: $0.id.title, color: $0.id.color, seconds: $0.seconds)
+      ActivityPageRank.Entry(
+        id: $0.id, title: $0.id.title, color: $0.id.color, seconds: $0.seconds,
+        breakdown: $0.breakdown)
     }
     return Card(spacing: DS.Space.s2) {
       Text(tr("分类占比")).font(.headline).accessibilityAddTraits(.isHeader)
       Divider()
       ViewThatFits(in: .horizontal) {
         ActivityPageRank(
-          entries: entries, total: report.seconds, locale: locale, stacksDuration: false
+          entries: entries, total: report.seconds, locale: locale, stacksDuration: false,
+          expanded: $expandedCategories
         )
         .frame(minWidth: 330)
         ActivityPageRank(
-          entries: entries, total: report.seconds, locale: locale, stacksDuration: true)
+          entries: entries, total: report.seconds, locale: locale, stacksDuration: true,
+          expanded: $expandedCategories)
       }
     }
   }
@@ -272,12 +277,14 @@ struct ActivityPageRank: View {
     let title: String
     let color: Color
     let seconds: TimeInterval
+    var breakdown: [ActivityClassification: TimeInterval] = [:]
   }
 
   let entries: [Entry]
   let total: TimeInterval
   let locale: Locale
   let stacksDuration: Bool
+  @Binding var expanded: Set<ActivityPageAnalytics.Category>
 
   var body: some View {
     Grid(alignment: .leading, horizontalSpacing: DS.Space.s3, verticalSpacing: DS.Space.s2) {
@@ -286,10 +293,33 @@ struct ActivityPageRank: View {
         let percentage = fraction.formatted(.percent.precision(.fractionLength(0)).locale(locale))
         let duration = ActivityPageFormat.duration(entry.seconds, locale: locale)
         GridRow {
-          Text(verbatim: entry.title)
-            .fontWeight(.medium)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: 116, alignment: .leading)
+          Group {
+            if !entry.breakdown.isEmpty && entry.id != .communication && entry.id != .browsing {
+              Button {
+                if expanded.contains(entry.id) {
+                  expanded.remove(entry.id)
+                } else {
+                  expanded.insert(entry.id)
+                }
+              } label: {
+                HStack(spacing: DS.Space.s1) {
+                  Image(
+                    systemName: expanded.contains(entry.id) ? "chevron.down" : "chevron.forward"
+                  )
+                  .font(.caption2).foregroundStyle(.secondary).accessibilityHidden(true)
+                  Text(verbatim: entry.title)
+                }
+                .contentShape(Rectangle())
+              }
+              .buttonStyle(.plain)
+              .accessibilityHint(expanded.contains(entry.id) ? tr("收起") : tr("展开"))
+            } else {
+              Text(verbatim: entry.title)
+            }
+          }
+          .fontWeight(.medium)
+          .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: 116, alignment: .leading)
           GeometryReader { proxy in
             Capsule().fill(.secondary.opacity(0.12)).overlay(alignment: .leading) {
               Capsule().fill(entry.color).frame(width: proxy.size.width * fraction)
@@ -312,6 +342,26 @@ struct ActivityPageRank: View {
               .foregroundStyle(.secondary)
               .fixedSize()
               .gridColumnAlignment(.trailing)
+          }
+        }
+        if expanded.contains(entry.id) {
+          ForEach(
+            entry.breakdown.keys.sorted {
+              let lhs = entry.breakdown[$0, default: 0]
+              let rhs = entry.breakdown[$1, default: 0]
+              return lhs == rhs ? $0.rawValue < $1.rawValue : lhs > rhs
+            }, id: \.self
+          ) { detail in
+            HStack {
+              Text(detail.title)
+              Spacer()
+              Text(ActivityPageFormat.duration(entry.breakdown[detail, default: 0], locale: locale))
+                .fixedSize()
+            }
+            .font(.caption).foregroundStyle(.secondary)
+            .padding(.leading, DS.Space.s4)
+            .gridCellColumns(stacksDuration ? 3 : 4)
+            .accessibilityElement(children: .combine)
           }
         }
       }
@@ -436,6 +486,23 @@ extension ActivityPageAnalytics.Category {
     case .communication: .indigo
     case .browsing: .teal
     case .other: .gray
+    }
+  }
+}
+
+extension ActivityClassification {
+  var title: String {
+    switch self {
+    case .programming: tr("编程")
+    case .office: tr("办公")
+    case .design: tr("设计")
+    case .learning: tr("学习")
+    case .games: tr("游戏")
+    case .media: tr("音乐与视频")
+    case .utilities: tr("系统工具")
+    case .other: tr("待分类")
+    case .work, .entertainment: tr("未细分")
+    case .communication, .browsing: category.title
     }
   }
 }

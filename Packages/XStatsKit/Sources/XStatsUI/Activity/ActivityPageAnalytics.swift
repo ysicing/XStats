@@ -46,6 +46,7 @@ struct ActivityPageAnalytics: Sendable {
   struct CategoryTotal: Identifiable, Sendable {
     let id: Category
     let seconds: TimeInterval
+    let breakdown: [ActivityClassification: TimeInterval]
   }
 
   struct Bucket: Identifiable, Sendable {
@@ -95,7 +96,7 @@ struct ActivityPageAnalytics: Sendable {
     }
 
     var seconds: TimeInterval = 0
-    var secondsByCategory: [Category: TimeInterval] = [:]
+    var breakdown: [Category: [ActivityClassification: TimeInterval]] = [:]
     var apps: [String: AppAccumulator] = [:]
     var deviceIDs: Set<UUID> = []
 
@@ -107,14 +108,19 @@ struct ActivityPageAnalytics: Sendable {
       let start = session.start
       let end = session.end
       guard let firstDay = dayIndices[calendar.startOfDay(for: start)] else { continue }
-      let category = Category(rawValue: session.category) ?? .other
+      // 在查询时应用现行规则，让本机和远端的历史记录获得相同的归类。
+      let classification =
+        ActivityClassification.knownApplication(session.appID)
+        ?? session.subcategory.flatMap(ActivityClassification.init(rawValue:))
+        ?? ActivityClassification(rawValue: session.category) ?? .other
+      let category = classification.category
       let segment = Segment(
         sessionID: session.id, deviceID: session.deviceID, start: start, end: end,
         category: category)
 
       // 不同设备分别计时。总计、排行和日柱都使用解析后的前台片段。
       seconds += segment.seconds
-      secondsByCategory[category, default: 0] += segment.seconds
+      breakdown[category, default: [:]][classification, default: 0] += segment.seconds
       deviceIDs.insert(session.deviceID)
       apps[session.appID, default: AppAccumulator()].append(segment, name: session.appName)
       for index in firstDay..<days.count {
@@ -180,8 +186,8 @@ struct ActivityPageAnalytics: Sendable {
       return lhs.seconds > rhs.seconds
     }
 
-    var categories: [CategoryTotal] = secondsByCategory.map { id, seconds in
-      CategoryTotal(id: id, seconds: seconds)
+    var categories: [CategoryTotal] = breakdown.map { id, details in
+      CategoryTotal(id: id, seconds: details.values.reduce(0, +), breakdown: details)
     }
     categories.sort { lhs, rhs in
       if lhs.seconds == rhs.seconds {
@@ -252,7 +258,7 @@ struct ActivityPageAnalytics: Sendable {
         foreground.append(
           ActivitySession(
             id: latest.id, deviceID: latest.deviceID, appID: latest.appID, appName: latest.appName,
-            category: latest.category, start: cursor, end: end))
+            category: latest.category, start: cursor, end: end, subcategory: latest.subcategory))
         cursor = end
       }
     }

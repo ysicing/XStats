@@ -271,7 +271,10 @@ struct ActivityStoreTests {
   @Test func invalidAndOversizedImportsLeaveTheStoreUnchanged() async throws {
     let store = ActivityStore(url: nil)
     let valid = session(start: 0, end: 10)
+    var invalidSubcategory = valid
+    invalidSubcategory.subcategory = String(repeating: "a", count: 33)
     let invalidSessions = [
+      invalidSubcategory,
       session(start: 10, end: 10),
       session(start: 0, end: .infinity),
       session(start: 0, end: 10, appName: String(repeating: "名", count: 400)),

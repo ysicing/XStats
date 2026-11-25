@@ -84,9 +84,10 @@ struct ActivityControllerTests {
     #expect(controller.sync.syncMode == nil)
   }
 
-  private let first = ActivityApplication(id: "test.first", name: "Editor", category: "work")
+  private let first = ActivityApplication(
+    id: "test.first", name: "Editor", classification: .programming)
   private let second = ActivityApplication(
-    id: "test.second", name: "Game", category: "entertainment")
+    id: "test.second", name: "Game", classification: .games)
   private let device = UUID()
   private let start = Date(timeIntervalSince1970: 1_800_000_000)
 
@@ -101,7 +102,8 @@ struct ActivityControllerTests {
       defaults: defaults, databaseURL: directory.appending(path: "activity.sqlite"))
     let session = ActivitySession(
       id: UUID(), deviceID: controller.deviceID, appID: first.id,
-      appName: first.name, category: first.category, start: start, end: start + 30)
+      appName: first.name, category: first.classification.category.rawValue, start: start,
+      end: start + 30)
     controller.enqueue(session)
     #expect(await controller.stop() == false)
     #expect(controller.writeFailed)
@@ -140,6 +142,8 @@ struct ActivityControllerTests {
     let switched = try #require(switchSample)
     let stopped = try #require(stopSample)
     #expect(checkpoint.end == switched.start && switched.end == stopped.start)
+    #expect(checkpoint.subcategory == "programming" && switched.subcategory == "programming")
+    #expect(stopped.subcategory == "games")
     #expect(
       checkpoint.appID == first.id && switched.appID == first.id && stopped.appID == second.id)
     #expect(Set([checkpoint.id, switched.id, stopped.id]).count == 3)
@@ -155,13 +159,29 @@ struct ActivityControllerTests {
   }
 
   @Test func classificationsUseBundleIdentityAndDeclaredAppCategory() {
-    #expect(ActivityApplication.category(for: "com.apple.Safari", storeCategory: nil) == "browsing")
     #expect(
-      ActivityApplication.category(
-        for: "test.game", storeCategory: "public.app-category.board-games") == "entertainment")
+      ActivityClassification.automatic(appID: "com.apple.Safari", storeCategory: nil) == .browsing)
     #expect(
-      ActivityApplication.category(
-        for: "test.editor", storeCategory: "public.app-category.productivity") == "work")
-    #expect(ActivityApplication.category(for: "test.unknown", storeCategory: nil) == "other")
+      ActivityClassification.automatic(
+        appID: "test.game", storeCategory: "public.app-category.board-games") == .games)
+    #expect(
+      ActivityClassification.automatic(
+        appID: "test.editor", storeCategory: "public.app-category.productivity") == .office)
+    #expect(ActivityClassification.automatic(appID: "test.unknown", storeCategory: nil) == .other)
+    #expect(
+      ActivityClassification.automatic(
+        appID: "com.apple.Finder", storeCategory: "public.app-category.productivity") == .utilities)
+  }
+
+  @Test(arguments: [
+    "com.ysicing.xsourcetree", "work.12306.xstats.app", "work.12306.xstats.capture",
+    "work.12306.xstats.networkmonitor",
+  ])
+  func recognizedToolsUseUtilitiesEvenWithoutSystemMetadata(appID: String) {
+    #expect(ActivityClassification.knownApplication(appID) == .utilities)
+    #expect(ActivityClassification.automatic(appID: appID, storeCategory: nil) == .utilities)
+    #expect(
+      ActivityClassification.automatic(
+        appID: appID, storeCategory: "public.app-category.developer-tools") == .utilities)
   }
 }

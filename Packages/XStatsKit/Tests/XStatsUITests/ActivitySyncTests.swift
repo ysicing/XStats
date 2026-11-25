@@ -194,6 +194,7 @@ struct ActivitySyncTests {
     let secondEngine = ActivitySyncEngine(key: key)
     let folder = ActivitySyncFolder(root: shared)
     var firstRows = [session(firstDevice, offset: 0), session(firstDevice, offset: 5)]
+    firstRows[0].subcategory = "design"
     firstRows[0].deviceName = "before-rename (MacBook Air)"
     let deviceName = "studio-laptop (MacBook Air)"
     firstRows[1].deviceName = deviceName
