@@ -17,7 +17,9 @@ struct ActivityControllerTests {
     #expect(AppDeepLink.page(.activity, settings: settings) == .settingsFeatures)
     model.setActivityFeatureEnabled(true)
     #expect(AppDeepLink.page(.activity, settings: settings) == .activity)
-    #expect(model.activity.enabled && !model.activity.sync.active)
+    #expect(model.activity.enabled)
+    #expect(!model.activity.sync.enabled)
+    #expect(model.activity.sync.syncMode == nil)
     settings.panelTab = .activity
     #expect(AppSettings(defaults: defaults).panelTab == .activity)
     #expect(AppModel(settings: AppSettings(defaults: defaults), historyURL: nil).activity.enabled)
@@ -49,36 +51,37 @@ struct ActivityControllerTests {
     #expect(AppSettings(defaults: defaults).activityFeatureEnabled == !wasRecording)
   }
 
-  @MainActor @Test func samplingAndSyncFollowRecordingAndSessionLifetime() async throws {
+  @MainActor @Test func samplingFollowsRecordingWhileSyncPreferenceIsIndependent() async throws {
     let suite = "ActivityControllerTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let initial = ActivityController(defaults: defaults, databaseURL: nil)
-    #expect(!initial.enabled && initial.sync.provider == .iCloud)
-    defaults.set(ActivitySyncProvider.local.rawValue, forKey: "activity.sync.provider")
     var available = true
     let controller = ActivityController(
       defaults: defaults, databaseURL: nil, sessionAvailable: { available })
-    #expect(controller.deviceID == initial.deviceID)
+    let reopened = ActivityController(defaults: defaults, databaseURL: nil)
+    #expect(controller.deviceID == reopened.deviceID)
+    controller.sync.setEnabled(false)
     controller.start()
+    #expect(controller.isSampling == false)
+    controller.setEnabled(true)
+    #expect(controller.isSampling)
+    #expect(controller.sync.enabled == false)
+    controller.setPaused(true)
+    #expect(controller.isSampling == false)
+    available = false
     controller.setPaused(false)
-    #expect(!controller.isSampling && !controller.sync.active)
-    controller.setEnabled(true)
-    for _ in 0..<5 {
-      #expect(controller.isSampling && controller.sync.active)
-      controller.setPaused(true)
-      #expect(!controller.isSampling && !controller.sync.active)
-      available = false
-      controller.setPaused(false)
-      #expect(!controller.isSampling && !controller.sync.active)
-      available = true
-      controller.setPaused(false)
-    }
+    #expect(controller.isSampling == false)
+    available = true
+    controller.setPaused(false)
+    #expect(controller.isSampling)
     controller.setEnabled(false)
-    #expect(!controller.isSampling && !controller.sync.active)
-    controller.setEnabled(true)
+    controller.sync.setIntervalMinutes(0)
+    controller.sync.setEnabled(true)
+    #expect(controller.isSampling == false)
+    #expect(controller.sync.enabled)
     await controller.stop()
-    #expect(!controller.isSampling && !controller.sync.active)
+    #expect(controller.isSampling == false)
+    #expect(controller.sync.syncMode == nil)
   }
 
   private let first = ActivityApplication(id: "test.first", name: "Editor", category: "work")

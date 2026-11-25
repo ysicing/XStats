@@ -157,7 +157,8 @@ public final class AppModel {
   init(
     settings: AppSettings, historyURL: URL?,
     magpieClient: (any MagpieFetching)?,
-    networkCacheDefaults: UserDefaults, fanControl: (any FanControlClient)?
+    networkCacheDefaults: UserDefaults, fanControl: (any FanControlClient)?,
+    activityDeviceName: String? = nil
   ) {
     let store = MetricsStore()
     let helper = HelperClient()
@@ -212,8 +213,9 @@ public final class AppModel {
       defaults: settings.activityDefaults,
       databaseURL: historyURL != nil && settings.activityDefaults === UserDefaults.standard
         ? URL.applicationSupportDirectory.appending(path: "XStats/activity.sqlite") : nil,
-      deviceName: ActivityController.localDeviceName(model: store.system.modelName),
-      enabled: settings.activityFeatureEnabled)
+      deviceName: activityDeviceName
+        ?? ActivityController.localDeviceName(model: store.system.modelName),
+      enabled: settings.activityFeatureEnabled, settings: settings)
     activity.onEnabledChanged = { [weak settings] enabled in
       settings?.activityFeatureEnabled = enabled
     }

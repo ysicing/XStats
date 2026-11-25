@@ -85,7 +85,7 @@ private final class ActivityDAVProtocol: URLProtocol, @unchecked Sendable {
 }
 
 struct ActivitySyncWebDAVTests {
-  private let root = "/share/XStats-Activity-v2/"
+  private let root = "/share/XStats/"
 
   @Test func createsCollectionsPublishesConditionallyAndReadsThroughURLSession() async throws {
     let data = Data("fixture shard bytes".utf8)
@@ -131,10 +131,62 @@ struct ActivitySyncWebDAVTests {
     }
   }
 
+  @Test(arguments: [201, 405])
+  func initializesDirectlyConfiguredDatasetRoot(_ collectionStatus: Int) async throws {
+    let file = root + ActivitySyncRemotePath.marker
+    let data = Data("fixture dataset marker".utf8)
+    try await withDAV(
+      [
+        .init(method: "PUT", path: file, status: 409),
+        .init(method: "MKCOL", path: root, status: collectionStatus),
+        .init(method: "PUT", path: file, status: 201),
+      ], basePath: root
+    ) { dav in
+      let created = try await dav.create(data, at: [ActivitySyncRemotePath.marker])
+      #expect(created)
+    }
+  }
+
+  @Test func listsMetadataUnderPercentEncodedBaseAndRejectsUnrelatedHrefs() async throws {
+    let base = "/share/100%25/caf%C3%A9/"
+    let directory = base + "XStats/metadata/"
+    let listedDirectory = "/share/100%25/caf%c3%a9/XStats/metadata/"
+    let fullPathName = String(repeating: "a", count: 64)
+    let relativeName = String(repeating: "b", count: 64)
+    let rejected = String(repeating: "c", count: 64)
+    let hrefs = [
+      listedDirectory + fullPathName,
+      relativeName,
+      "https://other.test" + directory + rejected,
+      "/share/100%25/caf%C3%A9/XStats/metadata-copy/" + rejected,
+      "/share/100%2525/caf%C3%A9/XStats/metadata/" + rejected,
+      directory + "nested/" + rejected,
+      directory + "%2e/" + rejected,
+      directory + "%2F" + rejected,
+      directory + "%5C" + rejected,
+      directory + "%2563" + String(rejected.dropFirst()),
+      directory + rejected + "/",
+      directory + rejected + "?query=1",
+      directory + rejected + "#fragment",
+    ]
+    let responses = hrefs.map { "<response><href>\($0)</href></response>" }.joined()
+    let listing = Data("<multistatus xmlns=\"DAV:\">\(responses)</multistatus>".utf8)
+    try await withDAV(
+      [
+        .init(method: "PROPFIND", path: directory, status: 207, body: listing)
+      ], basePath: base
+    ) { dav in
+      let names = try await dav.list([ActivitySyncRemotePath.metadata])
+      #expect(names == [fullPathName, relativeName])
+    }
+  }
+
   @Test func reportsAuthenticationFailureAndRefusesRedirectResponses() async throws {
     try await withDAV([
       .init(method: "PROPFIND", path: root, status: 401),
-      .init(method: "PROPFIND", path: root, status: 307, location: "https://other.test/share/"),
+      .init(
+        method: "PROPFIND", path: root, status: 307,
+        location: "https://other.test/share/"),
     ]) { dav in
       await #expect(throws: WebDAVError.unauthorized) { try await dav.list([]) }
       await #expect(throws: WebDAVError.redirect) { try await dav.list([]) }
@@ -222,11 +274,11 @@ struct ActivitySyncWebDAVTests {
         return []
       },
       exchange: { request, connection, _ in
-        #expect(connection.url.absoluteString == "http://192.168.2.3:8080\(expectedPath)")
         #expect(connection.authority == "nas.local:8080")
         #expect(connection.tunnel == nil)
         #expect(
           request.value(forHTTPHeaderField: "Authorization") == ActivityDAVProtocol.authorization)
+        #expect(connection.url.absoluteString == "http://192.168.2.3:8080\(expectedPath)")
         return WebDAVResponse(data: listing, status: 207)
       })
     let dav = ActivitySyncWebDAV(
@@ -313,6 +365,7 @@ struct ActivitySyncWebDAVTests {
 
   private func withDAV(
     _ exchanges: [ActivityDAVProtocol.Exchange],
+    basePath: String = "/share/",
     _ operation: (ActivitySyncWebDAV) async throws -> Void
   ) async throws {
     let host = "sync-\(UUID().uuidString.lowercased()).test"
@@ -325,7 +378,7 @@ struct ActivitySyncWebDAVTests {
       }
     }
     let configuration = try ActivityDAVConfiguration(
-      address: "https://\(host)/share/", username: "fixture-user")
+      address: "https://\(host)\(basePath)", username: "fixture-user")
     let dav = ActivitySyncWebDAV(configuration: configuration, password: "fixture-secret") {
       let options = URLSessionConfiguration.ephemeral
       options.protocolClasses = [ActivityDAVProtocol.self]

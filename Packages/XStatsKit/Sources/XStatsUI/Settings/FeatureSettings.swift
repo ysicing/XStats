@@ -50,7 +50,6 @@ struct FeatureSettings: View {
   @State private var managesNetworkComponent = false
   @State private var enablesAfterComponentInstall = false
   @State private var showsAppCloneRisk = false
-  @State private var showsActivitySettings = false
 
   @Environment(\.isSnapshot) private var isSnapshot
 
@@ -132,6 +131,21 @@ struct FeatureSettings: View {
       SettingsGroup {
         GroupRow(showsDivider: false) {
           CaptureFeatureSettings()
+        }
+        GroupRow {
+          SettingRow(title: tr("同步"), icon: PanelTab.settingsSync.symbol) {
+            HStack(spacing: DS.Space.s2) {
+              if model.activity.sync.enabled {
+                Button(tr("设置")) { settings.panelTab = .settingsSync }
+                  .buttonStyle(DSButtonStyle(kind: .secondary))
+                  .accessibilityLabel(tr("同步设置"))
+              }
+              DSToggle(
+                isOn: Binding(
+                  get: { model.activity.sync.enabled }, set: model.activity.sync.setEnabled),
+                label: tr("同步"))
+            }
+          }
         }
       }
       SettingsGroup {
@@ -281,18 +295,10 @@ struct FeatureSettings: View {
       SettingsGroup {
         GroupRow(showsDivider: false) {
           SettingRow(title: tr("应用活动"), icon: PanelTab.activity.symbol) {
-            HStack(spacing: DS.Space.s2) {
-              Button(tr("设置")) { showsActivitySettings = true }
-                .buttonStyle(DSButtonStyle(kind: .secondary))
-                .accessibilityLabel(tr("存储设置"))
-                .sheet(isPresented: $showsActivitySettings) {
-                  ActivitySyncSettings(controller: model.activity.sync)
-                }
-              DSToggle(
-                isOn: Binding(
-                  get: { settings.activityFeatureEnabled }, set: model.setActivityFeatureEnabled),
-                label: tr("应用活动"))
-            }
+            DSToggle(
+              isOn: Binding(
+                get: { settings.activityFeatureEnabled }, set: model.setActivityFeatureEnabled),
+              label: tr("应用活动"))
           }
         }
       }

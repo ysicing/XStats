@@ -104,6 +104,7 @@ final class ActivityController {
 
   init(
     defaults: UserDefaults, databaseURL: URL?, deviceName: String? = nil, enabled: Bool = false,
+    settings: AppSettings? = nil,
     sessionAvailable: @escaping () -> Bool = {
       guard let session = CGSessionCopyCurrentDictionary() as? [String: Any] else { return false }
       return session["CGSSessionScreenIsLocked"] as? Bool != true
@@ -126,7 +127,9 @@ final class ActivityController {
       let isolatedKey = SymmetricKey(size: .bits256)
       store = ActivityStore(url: databaseURL, keyProvider: { isolatedKey })
     }
-    sync = ActivitySyncController(store: store, deviceID: deviceID, defaults: defaults)
+    sync = ActivitySyncController(
+      store: store, deviceID: deviceID, defaults: defaults,
+      settings: settings, deviceName: deviceName)
   }
 
   isolated deinit {
@@ -170,7 +173,7 @@ final class ActivityController {
 
   private func reconcile() {
     let active = started && enabled && !paused
-    sync.setActive(active)
+    sync.setSession(available: started && !paused, recordsActivity: enabled)
     if active && !isSampling {
       observer = NSWorkspace.shared.notificationCenter.addObserver(
         forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
@@ -247,7 +250,6 @@ final class ActivityController {
           try await store.insert(batch)
           pending.removeFirst(batch.count)
           writeFailed = false
-          sync.dataChanged()
         } catch {
           if !writeFailed { Self.logger.error("Activity database write failed") }
           writeFailed = true

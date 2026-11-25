@@ -9,6 +9,9 @@ struct ActivitySyncFolder: ActivitySyncRepository {
   var requestDownload: @Sendable (URL) throws -> Void = {
     try FileManager.default.startDownloadingUbiquitousItem(at: $0)
   }
+  private var rootComponents: [String] {
+    ActivitySyncRemotePath.defaultRootComponents(for: root.lastPathComponent)
+  }
 
   static func iCloudDrive() throws -> Self {
     let manager = FileManager.default
@@ -25,7 +28,7 @@ struct ActivitySyncFolder: ActivitySyncRepository {
     guard ActivitySyncRemotePath.validDirectory(path) else {
       throw ActivitySyncFailure.invalidListing
     }
-    let components = [ActivitySyncRemotePath.namespace] + path
+    let components = rootComponents + path
     let directory = location(components, isDirectory: true)
     guard let parent = try openDirectory(components) else { return [] }
     defer { close(parent) }
@@ -64,7 +67,7 @@ struct ActivitySyncFolder: ActivitySyncRepository {
           if errno == ENOENT { continue }
           throw ActivitySyncFailure.folderUnavailable
         }
-        let file = path.count == 2 || name == ActivitySyncRemotePath.marker || placeholder
+        let file = ActivitySyncRemotePath.validObject(path + [name]) || placeholder
         guard info.st_mode & S_IFMT == (file ? S_IFREG : S_IFDIR) else {
           throw ActivitySyncFailure.invalidListing
         }
@@ -77,7 +80,8 @@ struct ActivitySyncFolder: ActivitySyncRepository {
   func read(_ path: [String]) async throws -> Data? {
     guard ActivitySyncRemotePath.validObject(path), let name = path.last
     else { throw ActivitySyncFailure.invalidListing }
-    let components = [ActivitySyncRemotePath.namespace] + path
+    let limit = ActivitySyncRemotePath.objectByteLimit(path)
+    let components = rootComponents + path
     let url = location(components)
     guard let directory = try openDirectory(Array(components.dropLast())) else { return nil }
     defer { close(directory) }
@@ -86,11 +90,9 @@ struct ActivitySyncFolder: ActivitySyncRepository {
     guard present || errno == ENOENT else { throw ActivitySyncFailure.folderUnavailable }
     if present {
       guard metadata.st_mode & S_IFMT == S_IFREG else { throw ActivitySyncFailure.invalidListing }
-      guard metadata.st_size <= ActivitySyncRemotePath.maximumBytes else {
-        throw ActivitySyncFailure.limit
-      }
+      guard metadata.st_size <= limit else { throw ActivitySyncFailure.limit }
     }
-    try materialize(url, isObject: true)
+    try materialize(url, byteLimit: limit)
     guard present else { return nil }
     return try await coordinated(at: url, writing: false) {
       let file = openat(directory, name, O_RDONLY | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
@@ -99,12 +101,12 @@ struct ActivitySyncFolder: ActivitySyncRepository {
       defer { try? handle.close() }
       var info = stat()
       guard fstat(file, &info) == 0, info.st_mode & S_IFMT == S_IFREG,
-        info.st_size <= ActivitySyncRemotePath.maximumBytes
+        info.st_size <= limit
       else { throw ActivitySyncFailure.limit }
       var data = Data()
       while let chunk = try handle.read(upToCount: 64 * 1024), !chunk.isEmpty {
         try Task.checkCancellation()
-        guard chunk.count <= ActivitySyncRemotePath.maximumBytes - data.count else {
+        guard chunk.count <= limit - data.count else {
           throw ActivitySyncFailure.limit
         }
         data.append(chunk)
@@ -114,10 +116,24 @@ struct ActivitySyncFolder: ActivitySyncRepository {
   }
 
   func create(_ data: Data, at path: [String]) async throws -> Bool {
-    guard ActivitySyncRemotePath.validObject(path), let name = path.last
+    guard ActivitySyncRemotePath.validObject(path),
+      !ActivitySyncRemotePath.validMetadataObject(path)
     else { throw ActivitySyncFailure.invalidListing }
-    guard data.count <= ActivitySyncRemotePath.maximumBytes else { throw ActivitySyncFailure.limit }
-    let components = [ActivitySyncRemotePath.namespace] + Array(path.dropLast())
+    return try await write(data, at: path, replacing: false)
+  }
+
+  func replaceMetadata(_ data: Data, at path: [String]) async throws {
+    guard ActivitySyncRemotePath.validMetadataObject(path) else {
+      throw ActivitySyncFailure.invalidListing
+    }
+    _ = try await write(data, at: path, replacing: true)
+  }
+
+  private func write(_ data: Data, at path: [String], replacing: Bool) async throws -> Bool {
+    guard let name = path.last else { throw ActivitySyncFailure.invalidListing }
+    let limit = ActivitySyncRemotePath.objectByteLimit(path)
+    guard data.count <= limit else { throw ActivitySyncFailure.limit }
+    let components = rootComponents + Array(path.dropLast())
     try await ensureDirectory(components)
     guard let directory = try openDirectory(components) else {
       throw ActivitySyncFailure.folderUnavailable
@@ -128,10 +144,11 @@ struct ActivitySyncFolder: ActivitySyncRepository {
       var metadata = stat()
       if fstatat(directory, name, &metadata, AT_SYMLINK_NOFOLLOW) == 0 {
         guard metadata.st_mode & S_IFMT == S_IFREG else { throw ActivitySyncFailure.invalidListing }
-        return false
+        if !replacing { return false }
+      } else if errno != ENOENT {
+        throw ActivitySyncFailure.folderUnavailable
       }
-      guard errno == ENOENT else { throw ActivitySyncFailure.folderUnavailable }
-      try materialize(url, isObject: true)
+      try materialize(url, byteLimit: limit)
       let temporary = ".\(UUID().uuidString).tmp"
       let file = openat(
         directory, temporary, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
@@ -141,6 +158,12 @@ struct ActivitySyncFolder: ActivitySyncRepository {
       try handle.write(contentsOf: data)
       try handle.close()
       try Task.checkCancellation()
+      if replacing {
+        guard renameat(directory, temporary, directory, name) == 0 else {
+          throw ActivitySyncFailure.folderUnavailable
+        }
+        return true
+      }
       if renameatx_np(directory, temporary, directory, name, UInt32(RENAME_EXCL)) == 0 {
         return true
       }
@@ -157,14 +180,14 @@ struct ActivitySyncFolder: ActivitySyncRepository {
     return result
   }
 
-  private func materialize(_ url: URL, isObject: Bool = false) throws {
+  private func materialize(_ url: URL, byteLimit: Int? = nil) throws {
     guard isICloud else { return }
     let placeholder = url.deletingLastPathComponent().appendingPathComponent(
       ".\(url.lastPathComponent).icloud")
     let values = try? url.resourceValues(forKeys: [
       .ubiquitousItemDownloadingStatusKey, .fileSizeKey,
     ])
-    if isObject, let size = values?.fileSize, size > ActivitySyncRemotePath.maximumBytes {
+    if let byteLimit, let size = values?.fileSize, size > byteLimit {
       throw ActivitySyncFailure.limit
     }
     if values?.ubiquitousItemDownloadingStatus == .notDownloaded

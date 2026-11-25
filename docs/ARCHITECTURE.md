@@ -24,7 +24,8 @@ Detailed product guides are indexed in [README.md](README.md).
 | `AudioControl`, `AudioDSP` | Core Audio control, per-application routing and real-time processing |
 | `NetworkObservation` | Network component discovery, authenticated IPC and connection models |
 | `CaptureCore`, `CaptureUI` | Shared capture engine and workspace for both hosts |
-| `Updates`, `WebDAVSync`, `Localization` | Updates, explicit settings synchronization and translations |
+| `Updates`, `WebDAVSync`, `Localization` | Updates, legacy HTTPS settings backups and translations |
+| `ActivityDAVHTTP` | Native HTTP transport for private-network sync endpoints |
 | `server/api` | Regional update API, signed-feed forwarding and legacy JSON compatibility |
 
 Module names in the table refer to `Packages/XStatsKit/Sources` unless a full path
@@ -384,13 +385,11 @@ release details and historical validation limits.
 
 ## App Activity
 
-App Activity is opt-in under Settings → Features → Experimental. Its single switch
-enables recording, automatic sync and the read-only monitor page together. Storage
-settings remain accessible alongside the switch before enabling the feature.
-Disabling the feature stops recording and automatic sync, hides the page,
-and preserves history. The unified preference takes precedence over the legacy
-switches; upgrades remain enabled only if both legacy switches were enabled.
-When recording is enabled, it records foreground app identifiers,
+App Activity is opt-in under Settings → Features → Experimental. Its switch
+controls local recording and visibility of the read-only monitor page.
+Disabling recording preserves existing history. For upgrades from separate
+recording and page switches, both older switches must have been enabled to carry
+forward the recording preference. When enabled, it stores foreground app identifiers,
 names, categories and usage interval timestamps as encrypted records in local SQLite.
 New records include the local hostname and Mac model in the encrypted payload.
 Device filters and activity details use the latest known name for each stable device
@@ -398,29 +397,83 @@ UUID. Older devices with no reported name fall back to their short ID.
 It pauses counting after five minutes of inactivity. Encryption is part of the
 initial storage and sync formats for App Activity.
 
-When recording is enabled, activity syncs automatically through iCloud Drive by
-default. Users can choose WebDAV, a shared folder synced by Google Drive for desktop,
-or local-only storage. Activity WebDAV permits HTTP only for internal or Tailscale
-servers and requires HTTPS for other destinations.
-
-On macOS 15 and later, connecting to a local WebDAV server may prompt for Local
-Network access. Users can manage this permission in System Settings >
-Privacy & Security > Local Network.
+The device selector shows either one device or the sum across all devices.
+Each Mac contributes its own active time to the combined view.
 
 Each Mac encrypts its local records with a device-specific key. A separate recovery
 key shared across the user's Macs encrypts synchronized activity. Both keys are
 stored in Keychain. The signed app uses iCloud Keychain to join an existing dataset
 on another trusted Mac on the same Apple Account, including when the activity
-files are stored on WebDAV. A valid legacy key is published after authenticating
-the existing dataset marker. A Mac that receives the files before the key waits
-and retries. Recovery-code import remains available for different Apple Accounts
+files are stored on WebDAV. A Mac that receives the files before the shared key
+waits and retries. Recovery-code import remains available for different Apple Accounts
 or systems without shared Keychain access. Storage providers can still see the size
 and modification time of synced files.
 
-The device selector shows either one device or the sum across all devices.
-Overlapping sessions contribute time from each device to the combined view.
+## Cross-device sync
 
-## Updates, synchronization and diagnostics
+Settings → Sync brings together storage, scheduling, sync status and participating
+devices. Sync is off by default. The **Sync** switch in Settings → Features →
+Optional Features starts or stops participation on this Mac. Local
+App Activity recording remains controlled by the experimental feature switch.
+Feature Settings sync is a separate opt-in per destination. Activity recording
+consent, system permissions, connection details, credentials and the sync controls
+are local to each Mac. Automatic runs can be scheduled every 5, 10, 30 or 60
+minutes, with 10 minutes as the default. **Manual Only** disables the timer.
+**Sync Now** and explicit settings enrollment or confirmation can still request
+an exchange. `ActivitySyncController` routes both modes through the same worker
+while sync is enabled and the session is available. A Mac with neither activity
+recording nor preference sync enabled can still register its encrypted device
+metadata and discover peers.
+
+The storage choices are iCloud Drive, WebDAV and a folder managed by Google Drive
+for desktop. iCloud Drive is the default. Sync uses the `XStats`
+directory under the storage location. A selected directory already named `XStats`
+is used directly.
+
+Activity shards retain their authenticated, encrypted format. The shared dataset
+marker is authenticated before reading or writing device metadata. The authenticated
+dataset identity remains stable when cloud storage replaces a marker with another
+valid marker made from the same shared key. The randomized marker's ciphertext hash
+is used only for shared-key lookup. Device metadata exchange is attempted separately
+when activity import fails, without advancing the reported activity success time.
+Encrypted metadata lives under `metadata`, in a deterministic slot for each device UUID.
+The repository reads the device snapshots and updates only the calling Mac's
+slot. Device details show separately reported success times for activity and
+preference synchronization.
+HTTPS uses normal certificate validation. HTTP is restricted to approved private
+LAN or Tailscale endpoints and connects to verified numeric addresses. WebDAV login
+credentials sent over HTTP are outside the dataset encryption. On macOS 15 and later,
+a local WebDAV connection may require Local Network access in System Settings.
+
+`SyncPreferences` uses an allowlist for appearance, menu bar layout, the built-in
+rest sound and the rest-reminder switch. It tracks a per-field causal version with
+device counters and an encrypted local baseline for each destination. Changes to
+different fields can merge independently. Concurrent proposals for the same field
+with different values require the user to choose. The first exchange requests
+confirmation for fields that differ from local values. In the absence of differences,
+the initial settings exchange can complete directly. A choice is tied to the field
+values and versions reviewed. A change to those inputs during review or publication
+can invalidate the choice. The controller applies a published choice after verifying
+its write and the reviewed field state against a fresh authenticated snapshot.
+Device registration can complete while first-use settings differences await a choice.
+Cancelling a pending choice prevents local application even if its write has already
+reached storage; it does not roll back changes another Mac may have read. The local
+encrypted state retains the reviewed candidates for the next confirmation.
+
+**Import Legacy Settings Backup…** on the Sync page opens a local JSON file picker.
+`LegacySettingsBackupImport` reads a user-selected legacy backup such as
+`xstats-settings.json` with a 1 MiB limit and validates its format and schema version.
+After confirmation, it applies the backup's supported settings to this Mac,
+overwriting the corresponding preferences. The compatibility entry is read-only
+with respect to backup files. Cross-device sync writes encrypted device documents to
+the authenticated dataset.
+
+The earlier `WebDAVSettings` and `SyncController` workflow handled explicit
+upload and download of plaintext `xstats-settings.json` over HTTPS. Its retained
+client uses normal certificate validation, rejects redirects, bounds transfers to
+1 MiB and stores endpoint credentials in the local Keychain.
+
+## Updates and diagnostics
 
 `UpdateController` owns one long-lived Sparkle updater and custom user driver.
 Sparkle owns scheduling, skipped versions, signature verification and confirmed
@@ -450,14 +503,6 @@ Update requests include the product version and hashed installation identifier.
 Existing random identities remain stable; new ones hash the local serial or use a
 saved random fallback. Raw serials are not sent and identifiers are excluded from
 settings backups. Main-app, Capture and component update lifecycles remain separate.
-
-WebDAV settings synchronization is an explicit, single in-flight HTTPS GET/PUT of an
-allowlisted settings envelope. Requests reject redirects, bound downloads to 1 MiB
-and use normal certificate validation. Upload confirmation overwrites without merging
-or automatic retry. Downloads are validated and confirmed before preferences are
-applied. Cancellation or failure leaves settings intact. Endpoint credentials stay
-in local Keychain. Settings documents contain no connection credentials or
-monitoring history.
 
 User-facing strings use `Localization` and the application locale for dates/numbers,
 including RTL layouts. Tests prefer explicit translation tables; changes affecting

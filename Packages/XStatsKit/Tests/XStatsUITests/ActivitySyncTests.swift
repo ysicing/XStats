@@ -108,7 +108,7 @@ struct ActivitySyncTests {
     #expect(await engine.authenticatedKey == key)
   }
 
-  @Test func secondMacWaitsForTheAuthenticatedLegacyKeyThenJoinsAutomatically() async throws {
+  @Test func secondMacWaitsForTheSharedKeyThenJoinsAutomatically() async throws {
     let shared = OSAllocatedUnfairLock(initialState: [String: SymmetricKey]())
     let keychain = ActivitySharedKeys(
       read: { account in shared.withLock { $0[account] } },
@@ -119,6 +119,13 @@ struct ActivitySyncTests {
           return candidate
         }
       })
+    let keyIsVisible = OSAllocatedUnfairLock(initialState: false)
+    let secondKeychain = ActivitySharedKeys(
+      read: { account in
+        guard keyIsVisible.withLock({ $0 }) else { return nil }
+        return try keychain.read(account)
+      },
+      insert: keychain.insert)
     let source = ActivityStore(url: nil)
     let destination = ActivityStore(url: nil)
     let sourceDevice = UUID()
@@ -126,18 +133,18 @@ struct ActivitySyncTests {
     let row = session(sourceDevice, offset: 0)
     try await source.insert([row])
     let repository = Shards(key: key)
-    try await ActivitySyncEngine(key: key).run(
+    try await ActivitySyncEngine(key: key, sharedKeys: keychain).run(
       store: source, device: sourceDevice, repository: repository, now: now)
     let originalFiles = await repository.files
-    let second = ActivitySyncEngine(key: SymmetricKey(size: .bits256), sharedKeys: keychain)
+    let originalKeys = shared.withLock { $0 }
+    let second = ActivitySyncEngine(key: SymmetricKey(size: .bits256), sharedKeys: secondKeychain)
     await #expect(throws: ActivitySyncFailure.keyPending) {
       try await second.run(
         store: destination, device: secondDevice, repository: repository, now: now)
     }
     #expect(await repository.files == originalFiles)
-    #expect(shared.withLock { $0.isEmpty })
-    let upgraded = ActivitySyncEngine(key: key, sharedKeys: keychain)
-    try await upgraded.run(store: source, device: sourceDevice, repository: repository, now: now)
+    #expect(shared.withLock { $0 } == originalKeys)
+    keyIsVisible.withLock { $0 = true }
     try await second.run(store: destination, device: secondDevice, repository: repository, now: now)
     #expect(try await destination.sessions(in: DateInterval(start: now, duration: 60)) == [row])
     #expect(await second.authenticatedKey == key)
@@ -300,8 +307,10 @@ struct ActivitySyncTests {
     let secondMarker = try #require(secondMarkerBytes)
     #expect(firstMarker != secondMarker)
     let cipher = ActivitySyncCipher(key: key)
-    try cipher.authenticateMarker(firstMarker)
-    try cipher.authenticateMarker(secondMarker)
+    let identifier = try cipher.authenticateMarker(firstMarker)
+    #expect(try cipher.authenticateMarker(secondMarker) == identifier)
+    #expect(await firstEngine.datasetIdentifier == identifier)
+    #expect(await secondEngine.datasetIdentifier == identifier)
     let markerCreated = try await mergedFolder.create(secondMarker, at: markerPath)
     #expect(markerCreated)
     let markerConflict = try await mergedFolder.create(firstMarker, at: markerPath)
@@ -335,6 +344,7 @@ struct ActivitySyncTests {
     #expect(secondRows == firstRows)
     #expect(names.count == 2)
     #expect(marker == secondMarker)
+    #expect(await firstEngine.datasetIdentifier == identifier)
   }
 
   @Test func concurrentCreationAcceptsDifferentCiphertextForSameShardAndRetryAddsNothing()
@@ -610,21 +620,19 @@ struct ActivitySyncTests {
     #expect(result == bytes)
   }
 
-  @MainActor @Test func localModeUsesOnlyTheInjectedPreferencesAndCanPause() throws {
+  @MainActor @Test func recordingAloneDoesNotEnableSync() throws {
     let suite = "ActivitySyncTests.\(UUID().uuidString)"
     let defaults = try #require(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
     let store = ActivityStore(url: nil)
-    #expect(
-      ActivitySyncController(store: store, deviceID: UUID(), defaults: defaults).provider == .iCloud
-    )
-    defaults.set("local", forKey: "activity.sync.provider")
-    let controller = ActivitySyncController(store: store, deviceID: UUID(), defaults: defaults)
-    controller.setActive(true)
-    controller.dataChanged()
+    let controller = ActivitySyncController(
+      store: store, deviceID: UUID(), defaults: defaults, repository: Shards(key: key))
+    #expect(controller.provider == .iCloud)
+    #expect(controller.enabled == false)
+    controller.setSession(available: true, recordsActivity: true)
     controller.syncNow()
-    #expect(controller.active && !controller.syncing && controller.message == nil)
-    controller.setActive(false)
-    #expect(!controller.active)
+    #expect(controller.syncMode == nil)
+    #expect(controller.message == nil)
+    controller.setSession(available: false, recordsActivity: false)
   }
 }

@@ -15,7 +15,7 @@ extension Translations {
       hardwareDetailsEnglish, aiCleanupEnglish, networkPresentationEnglish, trioEnglish,
       portsEnglish, appServicesEnglish, maintenancePreviewEnglish, commandBarEnglish,
       designAuditEnglish, dnsBenchmarkEnglish, homebrewImpactEnglish, finderDocumentEnglish,
-      dockIconEnglish, launcherEnglish, dashboardEnglish, appActivityEnglish,
+      dockIconEnglish, launcherEnglish, dashboardEnglish, appActivityEnglish, syncEnglish,
     ]
   }
 

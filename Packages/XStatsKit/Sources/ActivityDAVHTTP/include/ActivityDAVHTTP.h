@@ -9,3 +9,9 @@ bool ActivityDAVHTTPPerform(const char *numericURL, const char *method, const ch
                             size_t bodyLength, const char *tunnel, const char *localAddress,
                             long *status, bool *connectionFailed,
                             bool (^receive)(const unsigned char *, size_t), bool (^cancelled)(void));
+
+bool ActivityDAVHTTPPutMetadata(const char *numericURL, const char *hostHeader,
+                               const char *authorizationHeader, const unsigned char *body,
+                               size_t bodyLength, const char *tunnel, const char *localAddress,
+                               long *status, bool *connectionFailed,
+                               bool (^receive)(const unsigned char *, size_t), bool (^cancelled)(void));

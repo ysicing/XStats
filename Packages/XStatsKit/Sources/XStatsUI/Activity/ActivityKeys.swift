@@ -17,6 +17,10 @@ enum ActivityKeys {
     try key(account: "sync", createIfMissing: true)
   }
 
+  static func preferencesKey(createIfMissing: Bool) throws -> SymmetricKey {
+    try key(account: "settings-state", createIfMissing: createIfMissing)
+  }
+
   private static func query(_ account: String) -> [String: Any] {
     [
       kSecClass as String: kSecClassGenericPassword,

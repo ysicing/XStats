@@ -3,7 +3,7 @@
 import Foundation
 import WebDAVSync
 
-struct ActivitySyncWebDAV: ActivitySyncRepository {
+actor ActivitySyncWebDAV: ActivitySyncRepository {
   let configuration: ActivityDAVConfiguration
   private let password: String
   private let httpTransport: ActivityDAVHTTPTransport
@@ -20,16 +20,17 @@ struct ActivitySyncWebDAV: ActivitySyncRepository {
     self.makeSessionConfiguration = makeSessionConfiguration
   }
 
-  private var root: URL {
-    configuration.directoryURL.appendingPathComponent(
-      ActivitySyncRemotePath.namespace, isDirectory: true)
+  private var syncRoot: URL {
+    let base = configuration.directoryURL
+    return directoryURL(
+      ActivitySyncRemotePath.defaultRootComponents(for: base.lastPathComponent), under: base)
   }
 
   func list(_ directory: [String]) async throws -> Set<String> {
     guard ActivitySyncRemotePath.validDirectory(directory) else {
       throw ActivitySyncFailure.invalidListing
     }
-    let url = directoryURL(directory)
+    let url = directoryURL(directory, under: syncRoot)
     let response = try await request("PROPFIND", url)
     if response.status == 404 { return [] }
     try require(response.status, in: [207])
@@ -40,34 +41,53 @@ struct ActivitySyncWebDAV: ActivitySyncRepository {
     guard ActivitySyncRemotePath.validObject(path), let name = path.last else {
       throw ActivitySyncFailure.invalidShard
     }
-    let url = directoryURL(path.dropLast()).appendingPathComponent(name)
-    let response = try await request("GET", url)
+    let url = directoryURL(path.dropLast(), under: syncRoot).appendingPathComponent(name)
+    let limit = ActivitySyncRemotePath.objectByteLimit(path)
+    let response = try await request("GET", url, limit: limit)
     if response.status == 404 { return nil }
     try require(response.status, in: [200])
+    guard response.data.count <= limit else { throw ActivitySyncFailure.limit }
     return response.data
   }
 
   func create(_ data: Data, at path: [String]) async throws -> Bool {
-    guard ActivitySyncRemotePath.validObject(path), let name = path.last else {
+    guard ActivitySyncRemotePath.validObject(path),
+      !ActivitySyncRemotePath.validMetadataObject(path)
+    else { throw ActivitySyncFailure.invalidShard }
+    return try await write(data, at: path, creating: true)
+  }
+
+  func replaceMetadata(_ data: Data, at path: [String]) async throws {
+    guard ActivitySyncRemotePath.validMetadataObject(path) else {
       throw ActivitySyncFailure.invalidShard
     }
-    guard data.count <= ActivitySyncRemotePath.maximumBytes else { throw ActivitySyncFailure.limit }
+    _ = try await write(data, at: path, creating: false)
+  }
+
+  private func write(_ data: Data, at path: [String], creating: Bool) async throws -> Bool {
+    guard let name = path.last else {
+      throw ActivitySyncFailure.invalidShard
+    }
+    guard data.count <= ActivitySyncRemotePath.objectByteLimit(path)
+    else { throw ActivitySyncFailure.limit }
+    let root = syncRoot
     let parent = path.dropLast()
-    let destination = directoryURL(parent).appendingPathComponent(name)
-    var status = try await request("PUT", destination, body: data).status
+    let destination = directoryURL(parent, under: root).appendingPathComponent(name)
+    var status = try await request("PUT", destination, body: data, creating: creating).status
     if status == 409 || status == 404 {
-      for depth in 0...parent.count {
-        let creation = try await request("MKCOL", directoryURL(parent.prefix(depth)))
+      for depth in 0...parent.count
+      where depth > 0 || parent.isEmpty || root != configuration.directoryURL {
+        let creation = try await request("MKCOL", directoryURL(parent.prefix(depth), under: root))
         try require(creation.status, in: [201, 405])
       }
-      status = try await request("PUT", destination, body: data).status
+      status = try await request("PUT", destination, body: data, creating: creating).status
     }
-    if status == 412 { return false }
+    if creating && status == 412 { return false }
     try require(status, in: [200, 201, 204])
     return true
   }
 
-  private func directoryURL(_ path: some Sequence<String>) -> URL {
+  private func directoryURL(_ path: some Sequence<String>, under root: URL) -> URL {
     path.reduce(root) { $0.appendingPathComponent($1, isDirectory: true) }
   }
 
@@ -84,7 +104,10 @@ struct ActivitySyncWebDAV: ActivitySyncRepository {
     }
   }
 
-  private func request(_ method: String, _ url: URL, body: Data? = nil)
+  private func request(
+    _ method: String, _ url: URL, body: Data? = nil, creating: Bool = false,
+    limit: Int = ActivitySyncRemotePath.maximumBytes
+  )
     async throws -> WebDAVResponse
   {
     try Task.checkCancellation()
@@ -99,10 +122,11 @@ struct ActivitySyncWebDAV: ActivitySyncRepository {
       request.httpBody = Data(
         #"<propfind xmlns="DAV:"><prop><resourcetype/></prop></propfind>"#.utf8)
     } else if method == "PUT" {
-      request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-      request.setValue("*", forHTTPHeaderField: "If-None-Match")
+      request.setValue(
+        creating ? "application/json" : "application/octet-stream",
+        forHTTPHeaderField: "Content-Type")
+      if creating { request.setValue("*", forHTTPHeaderField: "If-None-Match") }
     }
-    let limit = method == "GET" ? ActivitySyncRemotePath.maximumBytes : 1_048_576
     if configuration.endpoint.scheme == "http" {
       return try await httpTransport.send(request, endpoint: configuration.endpoint, limit: limit)
     }
@@ -225,20 +249,43 @@ final class ActivitySyncDAVListing: NSObject, XMLParserDelegate {
 
   static func child(_ href: String, of directory: URL, path: [String]) -> String? {
     let text = href.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !text.isEmpty, !text.contains("\\"), !text.contains("%25"),
+    guard !text.isEmpty, !text.contains("\\"),
       !text.lowercased().contains("%2f"), !text.lowercased().contains("%5c"),
       let decoded = text.removingPercentEncoding,
       !decoded.split(separator: "/").contains(where: { $0 == "." || $0 == ".." }),
       let url = URL(string: text, relativeTo: directory)?.absoluteURL,
       let parts = URLComponents(url: url, resolvingAgainstBaseURL: true),
+      let base = URLComponents(url: directory, resolvingAgainstBaseURL: true),
       let origin = ActivityDAVEndpoint(directory), ActivityDAVEndpoint(url) == origin,
       parts.query == nil, parts.fragment == nil
     else { return nil }
-    let prefix = directory.path.hasSuffix("/") ? directory.path : directory.path + "/"
-    guard parts.path.hasPrefix(prefix) else { return nil }
-    var name = String(parts.path.dropFirst(prefix.count))
-    if name.hasSuffix("/") { name.removeLast() }
-    guard ActivitySyncRemotePath.validChild(name, in: path) else { return nil }
+    let basePath = base.percentEncodedPath
+    let prefix = basePath.hasSuffix("/") ? basePath : basePath + "/"
+    let resolvedPath = parts.percentEncodedPath
+    guard hasEncodedPrefix(resolvedPath, prefix: prefix) else { return nil }
+    var childPath = String(decoding: resolvedPath.utf8.dropFirst(prefix.utf8.count), as: UTF8.self)
+    if childPath.hasSuffix("/") {
+      childPath.removeLast()
+      guard path != [ActivitySyncRemotePath.metadata] else { return nil }
+    }
+    guard let name = childPath.removingPercentEncoding,
+      ActivitySyncRemotePath.validChild(name, in: path)
+    else { return nil }
     return name
+  }
+
+  private static func hasEncodedPrefix(_ path: String, prefix: String) -> Bool {
+    guard path.utf8.count >= prefix.utf8.count else { return false }
+    var escapeDigits = 0
+    for (actual, expected) in zip(path.utf8, prefix.utf8) {
+      if escapeDigits > 0 {
+        guard (actual | 0x20) == (expected | 0x20) else { return false }
+        escapeDigits -= 1
+      } else {
+        guard actual == expected else { return false }
+        if expected == 0x25 { escapeDigits = 2 }
+      }
+    }
+    return true
   }
 }

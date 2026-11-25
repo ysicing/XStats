@@ -25,6 +25,7 @@ enum AppDeepLink: Equatable, Sendable {
     "settings/general": .settingsGeneral,
     "settings/shortcuts": .settingsShortcuts,
     "settings/features": .settingsFeatures, "settings/menu-bar": .settingsMenuBar,
+    "settings/sync": .settingsSync,
     "settings/notifications": .settingsNotifications,
     "settings/helper": .settingsHelper, "settings/about": .settingsAbout,
   ]

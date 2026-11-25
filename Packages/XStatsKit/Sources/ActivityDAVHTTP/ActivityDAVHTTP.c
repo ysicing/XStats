@@ -70,14 +70,38 @@ static bool addDAVHeader(struct curl_slist **headers, const char *line) {
     return true;
 }
 
-bool ActivityDAVHTTPPerform(const char *numericURL, const char *method, const char *hostHeader,
-                            const char *authorizationHeader, const unsigned char *body,
-                            size_t bodyLength, const char *tunnel, const char *localAddress,
-                            long *status, bool *connectionFailed,
-                            ActivityDAVReceive receive, ActivityDAVCancelled cancelled) {
+static bool isMetadataURL(const char *url) {
+    const char prefix[] = "http://";
+    const char directory[] = "/metadata/";
+    if (strncmp(url, prefix, sizeof(prefix) - 1) != 0 || strpbrk(url, "?#\r\n")) return false;
+    const char *path = strchr(url + sizeof(prefix) - 1, '/');
+    if (!path) return false;
+    size_t pathLength = strlen(path);
+    size_t directoryLength = sizeof(directory) - 1;
+    const size_t nameLength = 64;
+    if (pathLength < directoryLength + nameLength) return false;
+    const char *name = path + pathLength - nameLength;
+    return memcmp(name - directoryLength, directory, directoryLength) == 0
+        && strspn(name, "0123456789abcdef") == nameLength;
+}
+
+static bool hasDAVHeaderValue(const char *line, const char *prefix) {
+    size_t length = strlen(prefix);
+    return strncmp(line, prefix, length) == 0 && line[length] != '\0' && !strpbrk(line, "\r\n");
+}
+
+static bool performDAV(const char *numericURL, const char *method, bool replaceMetadata,
+                       const char *hostHeader, const char *authorizationHeader,
+                       const unsigned char *body, size_t bodyLength, const char *tunnel,
+                       const char *localAddress, long *status, bool *connectionFailed,
+                       ActivityDAVReceive receive, ActivityDAVCancelled cancelled) {
     *status = 0;
     *connectionFailed = false;
     if (cancelled()) return false;
+    if (replaceMetadata && (!isMetadataURL(numericURL) || bodyLength > 64 * 1024
+        || (bodyLength && !body)
+        || !hasDAVHeaderValue(hostHeader, "Host: ")
+        || !hasDAVHeaderValue(authorizationHeader, "Authorization: Basic "))) return false;
     CURL *handle = curl_easy_init();
     if (!handle) return false;
     struct curl_slist *headers = NULL;
@@ -92,8 +116,10 @@ bool ActivityDAVHTTPPerform(const char *numericURL, const char *method, const ch
         && addDAVHeader(&headers, "Expect:")
         && (!propfind || (addDAVHeader(&headers, "Depth: 1")
                          && addDAVHeader(&headers, "Content-Type: application/xml; charset=utf-8")))
-        && (!put || (addDAVHeader(&headers, "If-None-Match: *")
-                    && addDAVHeader(&headers, "Content-Type: application/json")))
+        && (!put || (replaceMetadata
+            ? addDAVHeader(&headers, "Content-Type: application/octet-stream")
+            : (addDAVHeader(&headers, "If-None-Match: *")
+               && addDAVHeader(&headers, "Content-Type: application/json"))))
         && curl_easy_setopt(handle, CURLOPT_URL, numericURL) == CURLE_OK
         && curl_easy_setopt(handle, CURLOPT_PROTOCOLS_STR, "http") == CURLE_OK
         && curl_easy_setopt(handle, CURLOPT_PROXY, "") == CURLE_OK
@@ -123,4 +149,22 @@ bool ActivityDAVHTTPPerform(const char *numericURL, const char *method, const ch
     curl_easy_cleanup(handle);
     curl_slist_free_all(headers);
     return result == CURLE_OK || (result == CURLE_WRITE_ERROR && response.ignoredBody);
+}
+
+bool ActivityDAVHTTPPerform(const char *numericURL, const char *method, const char *hostHeader,
+                            const char *authorizationHeader, const unsigned char *body,
+                            size_t bodyLength, const char *tunnel, const char *localAddress,
+                            long *status, bool *connectionFailed,
+                            ActivityDAVReceive receive, ActivityDAVCancelled cancelled) {
+    return performDAV(numericURL, method, false, hostHeader, authorizationHeader, body, bodyLength,
+                      tunnel, localAddress, status, connectionFailed, receive, cancelled);
+}
+
+bool ActivityDAVHTTPPutMetadata(const char *numericURL, const char *hostHeader,
+                               const char *authorizationHeader, const unsigned char *body,
+                               size_t bodyLength, const char *tunnel, const char *localAddress,
+                               long *status, bool *connectionFailed,
+                               ActivityDAVReceive receive, ActivityDAVCancelled cancelled) {
+    return performDAV(numericURL, "PUT", true, hostHeader, authorizationHeader, body, bodyLength,
+                      tunnel, localAddress, status, connectionFailed, receive, cancelled);
 }

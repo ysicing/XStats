@@ -1,19 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
+import CryptoKit
 import Localization
 import Observation
 import OSLog
 import WebDAVSync
 
 enum ActivitySyncProvider: String, CaseIterable {
-  case iCloud, webDAV, googleDrive, local
+  case iCloud, webDAV, googleDrive
 }
 
 @MainActor @Observable
 final class ActivitySyncController {
   private(set) var provider: ActivitySyncProvider
-  private(set) var active = false
+  private(set) var enabled: Bool
+  private(set) var intervalMinutes: Int
+  private(set) var preferences: SyncPreferences?
+  @ObservationIgnored private let preferenceStore: SyncPreferences?
+  @ObservationIgnored private var preparedScope: String?
+  @ObservationIgnored private var localKey: SymmetricKey?
+  private var sessionAvailable = false
+  private var recordsActivity = false
+  var active: Bool {
+    enabled && sessionAvailable
+  }
   private(set) var syncMode: ActivitySyncMode?
   var syncing: Bool { syncMode != nil }
   private(set) var message: String?
@@ -23,30 +34,45 @@ final class ActivitySyncController {
   private let store: ActivityStore
   private let deviceID: UUID
   private let defaults: UserDefaults
+  private let repository: (any ActivitySyncRepository)?
   @ObservationIgnored private var engine: ActivitySyncEngine?
   private let keys: ActivitySyncKeys
   private(set) var changingKey = false
   @ObservationIgnored private var generation = UUID()
   @ObservationIgnored private var timer: Task<Void, Never>?
   @ObservationIgnored private var worker: Task<Void, Never>?
-  @ObservationIgnored private var changed = false
-  @ObservationIgnored private var waitingForChange = false
+  @ObservationIgnored private var requestedSync = false
   @ObservationIgnored private var retrying = false
   private let logger = Logger(subsystem: "work.12306.xstats", category: "ActivitySync")
 
-  init(store: ActivityStore, deviceID: UUID, defaults: UserDefaults) {
+  init(
+    store: ActivityStore, deviceID: UUID, defaults: UserDefaults,
+    repository: (any ActivitySyncRepository)? = nil, settings: AppSettings? = nil,
+    deviceName: String? = nil
+  ) {
     self.store = store
     self.deviceID = deviceID
     self.defaults = defaults
-    keys = ActivitySyncKeys(persistent: defaults === UserDefaults.standard)
-    if let raw = defaults.string(forKey: "activity.sync.provider") {
-      provider = ActivitySyncProvider(rawValue: raw) ?? .local
-    } else {
-      provider = .iCloud
+    self.repository = repository
+    preferenceStore = settings.map {
+      SyncPreferences(settings: $0, deviceID: deviceID, deviceName: deviceName, defaults: defaults)
     }
+    keys = ActivitySyncKeys(persistent: defaults === UserDefaults.standard)
+    provider =
+      defaults.string(forKey: "activity.sync.provider")
+      .flatMap(ActivitySyncProvider.init(rawValue:)) ?? .iCloud
+    enabled = defaults.bool(forKey: "sync.enabled")
+    let minutes = defaults.object(forKey: "sync.intervalMinutes") as? Int
+    intervalMinutes = minutes.flatMap { [0, 5, 10, 30, 60].contains($0) ? $0 : nil } ?? 10
     address = defaults.string(forKey: "activity.sync.address") ?? ""
     username = defaults.string(forKey: "activity.sync.username") ?? ""
     folderName = defaults.string(forKey: "activity.sync.folderName") ?? ""
+    if defaults.string(forKey: "sync.googleFolderID") == nil,
+      let bookmark = defaults.data(forKey: "activity.sync.bookmark")
+    {
+      defaults.set(Self.digest(bookmark), forKey: "sync.googleFolderID")
+    }
+    preferenceStore?.onNeedsSync = { [weak self] in self?.preferenceRequest() }
   }
 
   deinit {
@@ -54,21 +80,176 @@ final class ActivitySyncController {
     worker?.cancel()
   }
 
-  func setActive(_ active: Bool) {
-    guard self.active != active else { return }
-    self.active = active
+  func setSession(available: Bool, recordsActivity: Bool) {
+    guard sessionAvailable != available || self.recordsActivity != recordsActivity else { return }
+    sessionAvailable = available
+    self.recordsActivity = recordsActivity
     restart()
+    if available, enabled, preferences == nil, preferenceStore != nil,
+      SyncPreferences.hasSavedState(scope, deviceID: deviceID, defaults: defaults)
+    {
+      Task { await preparePreferences() }
+    }
   }
 
-  func dataChanged() {
-    guard active, provider != .local else { return }
-    changed = true
-    guard worker == nil, !waitingForChange, !retrying else { return }
-    schedule(after: 60, forChange: true)
+  func setEnabled(_ value: Bool) {
+    guard enabled != value else { return }
+    if !value { defaults.set(true, forKey: "sync.revoke." + scope) }
+    enabled = value
+    defaults.set(value, forKey: "sync.enabled")
+    restart()
+    if !value {
+      do { try revokePendingPreferences() } catch {
+        message = tr("无法更改设置同步")
+      }
+    }
+    if value, preferenceStore != nil, preferences == nil {
+      Task { await preparePreferences() }
+    }
+  }
+
+  func setIntervalMinutes(_ value: Int) {
+    guard [0, 5, 10, 30, 60].contains(value), intervalMinutes != value else { return }
+    intervalMinutes = value
+    defaults.set(value, forKey: "sync.intervalMinutes")
+    timer?.cancel()
+    timer = nil
+    if value == 0, syncMode == .automatic {
+      restart()
+    } else if worker == nil {
+      schedule()
+    }
   }
 
   func syncNow() {
     startSync(.manual)
+  }
+
+  var destinationID: String {
+    switch provider {
+    case .googleDrive:
+      return "googleDrive." + (defaults.string(forKey: "sync.googleFolderID") ?? "")
+    case .webDAV: return "webDAV." + Self.digest(Data("\(address)\n\(username)".utf8))
+    case .iCloud: return "iCloud"
+    }
+  }
+
+  private static func digest(_ bytes: Data) -> String {
+    SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+  }
+
+  private var scope: String {
+    let id = destinationID
+    return id + (defaults.string(forKey: "sync.scope." + id) ?? "")
+  }
+
+  func preparePreferences() async {
+    do {
+      try await loadPreferences()
+      if active, worker == nil, timer == nil { startSync(.automatic) }
+    } catch {
+      if !Task.isCancelled { message = tr("无法读取或保存活动密钥，请检查钥匙串") }
+    }
+  }
+
+  private func loadPreferences() async throws {
+    let id = scope
+    guard let preferenceStore else { return }
+    if preparedScope == id {
+      try revokePendingPreferences()
+      return
+    }
+    if localKey == nil {
+      let persistent = defaults === UserDefaults.standard
+      let key = try await Task.detached {
+        persistent
+          ? try ActivityKeys.preferencesKey(createIfMissing: true) : SymmetricKey(size: .bits256)
+      }.value
+      if localKey == nil { localKey = key }
+    }
+    try Task.checkCancellation()
+    guard id == scope, let localKey else { throw CancellationError() }
+    guard preparedScope != id else { return }
+    try preferenceStore.selectDestination(id, key: localKey)
+    preparedScope = id
+    preferences = preferenceStore
+    try revokePendingPreferences()
+  }
+
+  private func revokePendingPreferences() throws {
+    let key = "sync.revoke." + scope
+    guard defaults.bool(forKey: key), let preferences else { return }
+    try preferences.cancel()
+    defaults.removeObject(forKey: key)
+  }
+
+  private func preferenceRequest() {
+    // 用户确认首轮设置或解决冲突时立即交换；仅手动模式不启动后续定时轮询。
+    generation = UUID()
+    worker?.cancel()
+    timer?.cancel()
+    timer = nil
+    requestedSync = preferences?.wantsSync == true
+    if worker == nil {
+      if requestedSync {
+        requestedSync = false
+        startSync(.manual)
+      } else {
+        schedule()
+      }
+    }
+  }
+
+  private func synchronize(
+    _ engine: ActivitySyncEngine, repository: any ActivitySyncRepository,
+    mode: ActivitySyncMode, ticket: UUID
+  ) async throws {
+    var activityDate: Date?
+    var activityFailure: (any Error)?
+    if recordsActivity {
+      do {
+        try await engine.run(store: store, device: deviceID, repository: repository, mode: mode)
+        activityDate = Date()
+      } catch { activityFailure = error }
+    }
+    try Task.checkCancellation()
+    guard ticket == generation else { throw CancellationError() }
+    try await loadPreferences()
+    if let preferences {
+      let completedActivity = activityDate
+      let verified = try await engine.exchangeMetadata(device: deviceID, repository: repository) {
+        documents in
+        let identifier = await engine.datasetIdentifier
+        return try await self.prepareMetadata(
+          documents, identifier: identifier, activityDate: completedActivity, ticket: ticket)
+      }
+      try Task.checkCancellation()
+      guard ticket == generation else { throw CancellationError() }
+      if let verified { try preferences.didPublish(verified) }
+    }
+    if let activityFailure { throw activityFailure }
+  }
+
+  private func prepareMetadata(
+    _ documents: [UUID: Data], identifier: String?, activityDate: Date?, ticket: UUID
+  ) async throws -> Data? {
+    try Task.checkCancellation()
+    guard generation == ticket, let identifier else { throw CancellationError() }
+    let markerKey = "sync.marker." + destinationID
+    if let previous = defaults.string(forKey: markerKey), previous != identifier {
+      defaults.set("." + identifier, forKey: "sync.scope." + destinationID)
+      clearPreferences()
+      try await loadPreferences()
+    }
+    defaults.set(identifier, forKey: markerKey)
+    guard generation == ticket else { throw CancellationError() }
+    return try preferences?.prepare(documents, activitySyncedAt: activityDate)
+  }
+
+  private func clearPreferences() {
+    preferenceStore?.clearDestination()
+    preparedScope = nil
+    preferences = nil
   }
 
   func recoveryCode() async throws -> String {
@@ -96,15 +277,19 @@ final class ActivitySyncController {
 
   func cancelManualSync() {
     guard syncMode == .manual else { return }
+    defaults.set(true, forKey: "sync.revoke." + scope)
+    do { try revokePendingPreferences() } catch {
+      message = tr("无法更改设置同步")
+    }
     worker?.cancel()
   }
 
   private func startSync(_ mode: ActivitySyncMode) {
-    guard active, provider != .local, worker == nil, !changingKey else { return }
+    guard active, worker == nil, !changingKey,
+      mode == .manual || intervalMinutes > 0
+    else { return }
     timer?.cancel()
     timer = nil
-    waitingForChange = false
-    changed = false
     let ticket = generation
     let selected = provider
     syncMode = mode
@@ -112,7 +297,6 @@ final class ActivitySyncController {
     worker = Task { [weak self] in
       guard let self else { return }
       var errorMessage: String?
-      var hasBacklog = false
       do {
         try Task.checkCancellation()
         let engine: ActivitySyncEngine
@@ -126,31 +310,35 @@ final class ActivitySyncController {
             sharedKeys: defaults === UserDefaults.standard ? ActivitySharedKeys.available : nil)
           self.engine = engine
         }
-        switch selected {
-        case .local: break
-        case .iCloud:
-          try await engine.runInFolder(store: store, device: deviceID, bookmark: nil, mode: mode)
-        case .googleDrive:
-          guard let bookmark = defaults.data(forKey: "activity.sync.bookmark") else {
-            throw ActivitySyncFailure.folderUnavailable
+        if let repository {
+          try await synchronize(engine, repository: repository, mode: mode, ticket: ticket)
+        } else {
+          switch selected {
+          case .iCloud, .googleDrive:
+            let bookmark =
+              selected == .googleDrive ? defaults.data(forKey: "activity.sync.bookmark") : nil
+            guard selected != .googleDrive || bookmark != nil else {
+              throw ActivitySyncFailure.folderUnavailable
+            }
+            let refreshed = try await ActivitySyncFolder.withFolder(bookmark) { folder in
+              try await self.synchronize(engine, repository: folder, mode: mode, ticket: ticket)
+            }
+            if ticket == generation, let refreshed {
+              defaults.set(refreshed, forKey: "activity.sync.bookmark")
+            }
+          case .webDAV:
+            let config = try ActivityDAVConfiguration(address: address, username: username)
+            guard
+              let secret = try KeychainWebDAVPasswordStore().read(
+                account: "activity." + config.credentialAccount),
+              !secret.isEmpty
+            else { throw WebDAVError.missingPassword }
+            try await synchronize(
+              engine,
+              repository: ActivitySyncWebDAV(configuration: config, password: secret), mode: mode,
+              ticket: ticket)
           }
-          let refreshed = try await engine.runInFolder(
-            store: store, device: deviceID, bookmark: bookmark, mode: mode)
-          if ticket == generation, let refreshed {
-            defaults.set(refreshed, forKey: "activity.sync.bookmark")
-          }
-        case .webDAV:
-          let config = try ActivityDAVConfiguration(address: address, username: username)
-          guard
-            let secret = try KeychainWebDAVPasswordStore().read(
-              account: "activity." + config.credentialAccount),
-            !secret.isEmpty
-          else { throw WebDAVError.missingPassword }
-          try await engine.run(
-            store: store, device: deviceID,
-            repository: ActivitySyncWebDAV(configuration: config, password: secret), mode: mode)
         }
-        hasBacklog = await engine.continuationDay != nil
       } catch is ActivityKeys.Failure {
         errorMessage = tr("无法读取或保存活动密钥，请检查钥匙串")
       } catch ActivitySyncFailure.keyPending {
@@ -162,16 +350,19 @@ final class ActivitySyncController {
       } catch let error as ActivityDAVError {
         errorMessage = error.errorDescription
       } catch {
-        errorMessage = (error as? WebDAVError)?.errorDescription ?? tr("活动同步失败，将自动重试")
+        errorMessage = (error as? WebDAVError)?.errorDescription ?? tr("同步失败")
       }
+      if ticket == generation { preferences?.discardPrepared() }
       worker = nil
       syncMode = nil
       guard ticket == generation else {
-        startSync(.automatic)
+        let next: ActivitySyncMode = requestedSync ? .manual : .automatic
+        requestedSync = false
+        startSync(next)
         return
       }
       if Task.isCancelled {
-        schedule(after: retrying ? 180 : (changed ? 60 : 600), forChange: changed)
+        schedule()
         return
       }
       if retrying != (errorMessage != nil) {
@@ -183,13 +374,14 @@ final class ActivitySyncController {
       }
       retrying = errorMessage != nil
       message = errorMessage ?? tr("本轮同步完成")
-      schedule(after: retrying ? 180 : (changed || hasBacklog ? 60 : 600), forChange: changed)
+      schedule()
     }
   }
 
   func save(
     provider: ActivitySyncProvider, address: String, username: String, secret: String, folder: URL?
   ) throws {
+    let previousDestination = destinationID
     if provider == .webDAV {
       let config = try ActivityDAVConfiguration(address: address, username: username)
       let account = "activity." + config.credentialAccount
@@ -214,6 +406,8 @@ final class ActivitySyncController {
         let bookmark =
           try (try? folder.bookmarkData(options: .withSecurityScope)) ?? folder.bookmarkData()
         defaults.set(bookmark, forKey: "activity.sync.bookmark")
+        defaults.set(
+          Self.digest(Data(folder.standardizedFileURL.path.utf8)), forKey: "sync.googleFolderID")
         folderName = folder.lastPathComponent
         defaults.set(folderName, forKey: "activity.sync.folderName")
       } else if defaults.data(forKey: "activity.sync.bookmark") == nil {
@@ -223,24 +417,30 @@ final class ActivitySyncController {
     self.provider = provider
     defaults.set(provider.rawValue, forKey: "activity.sync.provider")
     engine = nil
+    if previousDestination != destinationID { clearPreferences() }
     restart()
+    if previousDestination != destinationID { Task { await preparePreferences() } }
   }
 
   private func restart() {
     generation = UUID()
+    preferences?.discardPrepared()
     timer?.cancel()
     timer = nil
     worker?.cancel()
-    changed = false
+    requestedSync = false
     retrying = false
-    waitingForChange = false
     message = nil
     if worker == nil { startSync(.automatic) }
   }
 
-  private func schedule(after seconds: Int, forChange: Bool) {
+  private func schedule() {
     timer?.cancel()
-    waitingForChange = forChange
+    guard intervalMinutes > 0, active else {
+      timer = nil
+      return
+    }
+    let seconds = intervalMinutes * 60
     timer = Task { [weak self] in
       do { try await Task.sleep(for: .seconds(seconds), tolerance: .seconds(5)) } catch { return }
       self?.startSync(.automatic)
@@ -248,15 +448,13 @@ final class ActivitySyncController {
   }
 }
 
-extension ActivitySyncEngine {
-  @discardableResult
-  func runInFolder(
-    store: ActivityStore, device: UUID, bookmark: Data?, mode: ActivitySyncMode
+extension ActivitySyncFolder {
+  static func withFolder(
+    _ bookmark: Data?, action: @Sendable (Self) async throws -> Void
   ) async throws -> Data? {
     try Task.checkCancellation()
     guard let bookmark else {
-      try await run(
-        store: store, device: device, repository: ActivitySyncFolder.iCloudDrive(), mode: mode)
+      try await action(iCloudDrive())
       return nil
     }
     var stale = false
@@ -272,8 +470,7 @@ extension ActivitySyncEngine {
     defer { if scoped { url.stopAccessingSecurityScopedResource() } }
     let renewed =
       stale ? try url.bookmarkData(options: scopedURL == nil ? [] : .withSecurityScope) : nil
-    try await run(
-      store: store, device: device, repository: ActivitySyncFolder(root: url), mode: mode)
+    try await action(Self(root: url))
     return renewed
   }
 }

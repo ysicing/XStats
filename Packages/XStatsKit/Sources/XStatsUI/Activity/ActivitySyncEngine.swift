@@ -75,6 +75,13 @@ protocol ActivitySyncRepository: Sendable {
   func list(_ directory: [String]) async throws -> Set<String>
   func read(_ path: [String]) async throws -> Data?
   func create(_ data: Data, at path: [String]) async throws -> Bool
+  func replaceMetadata(_ data: Data, at path: [String]) async throws
+}
+
+extension ActivitySyncRepository {
+  func replaceMetadata(_ data: Data, at path: [String]) async throws {
+    throw ActivitySyncFailure.folderUnavailable
+  }
 }
 
 enum ActivitySyncMode: Equatable, Sendable {
@@ -86,6 +93,7 @@ actor ActivitySyncEngine {
   private var cipher: ActivitySyncCipher
   private var key: SymmetricKey
   var authenticatedKey: SymmetricKey? { authenticatedDataset ? key : nil }
+  private(set) var datasetIdentifier: String? = nil
   private let sharedKeys: ActivitySharedKeys?
   private var publishedMarker: Data?
   private let localSyncKey: SymmetricKey
@@ -119,7 +127,8 @@ actor ActivitySyncEngine {
     try await authenticateDataset(repository: repository)
     try Task.checkCancellation()
     let root = try await repository.list([])
-    let remote = try listedDirectories(root.subtracting([ActivitySyncRemotePath.marker]), in: [])
+    let remote = try listedDirectories(
+      root.subtracting([ActivitySyncRemotePath.marker, ActivitySyncRemotePath.metadata]), in: [])
     let days = try await store.localDays(deviceID: device)
     let months = Set(remote.keys)
       .union(days.map { String($0.prefix(7)) })
@@ -188,6 +197,66 @@ actor ActivitySyncEngine {
     if let failure { throw failure }
   }
 
+  @discardableResult
+  func exchangeMetadata(
+    device: UUID, repository: any ActivitySyncRepository,
+    transform: @Sendable ([UUID: Data]) async throws -> Data?
+  ) async throws -> [UUID: Data]? {
+    try Task.checkCancellation()
+    guard !running else { throw ActivitySyncFailure.busy }
+    running = true
+    defer { running = false }
+
+    try await authenticateDataset(repository: repository)
+    let verifiedMarker = publishedMarker
+    try Task.checkCancellation()
+    let snapshot = try await readMetadata(repository: repository)
+    let updated = try await transform(snapshot)
+    try Task.checkCancellation()
+    guard let updated else { return nil }
+    guard snapshot[device] != nil || snapshot.count < ActivitySyncRemotePath.maximumMetadataEntries
+    else { throw ActivitySyncFailure.limit }
+    let path = try cipher.metadataPath(for: device)
+    let ciphertext = try cipher.sealMetadata(updated, at: path)
+    try await authenticateDataset(repository: repository)
+    guard publishedMarker == verifiedMarker else {
+      throw ActivitySyncFailure.authenticationFailed
+    }
+    try Task.checkCancellation()
+    try await repository.replaceMetadata(ciphertext, at: path)
+
+    try Task.checkCancellation()
+    try await authenticateDataset(repository: repository)
+    guard publishedMarker == verifiedMarker else {
+      throw ActivitySyncFailure.authenticationFailed
+    }
+    let verified = try await readMetadata(repository: repository)
+    guard verified[device] == updated else { throw ActivitySyncFailure.authenticationFailed }
+    return verified
+  }
+
+  private func readMetadata(repository: any ActivitySyncRepository) async throws -> [UUID: Data] {
+    let directory = [ActivitySyncRemotePath.metadata]
+    let entries = try await repository.list(directory)
+    guard entries.count <= ActivitySyncRemotePath.maximumMetadataEntries else {
+      throw ActivitySyncFailure.limit
+    }
+    var snapshot: [UUID: Data] = [:]
+    for name in entries {
+      try Task.checkCancellation()
+      let path = directory + [name]
+      guard ActivitySyncRemotePath.validMetadataObject(path),
+        let ciphertext = try await repository.read(path)
+      else { throw ActivitySyncFailure.invalidListing }
+      let metadata = try cipher.openMetadata(ciphertext, at: path)
+      guard snapshot.updateValue(metadata.data, forKey: metadata.device) == nil else {
+        throw ActivitySyncFailure.invalidListing
+      }
+    }
+    try Task.checkCancellation()
+    return snapshot
+  }
+
   private func authenticateDataset(repository: any ActivitySyncRepository) async throws {
     let path = [ActivitySyncRemotePath.marker]
     if let bytes = try await repository.read(path) {
@@ -220,30 +289,34 @@ actor ActivitySyncEngine {
   }
 
   private func acceptMarker(_ bytes: Data) throws {
-    guard let sharedKeys else {
-      try cipher.authenticateMarker(bytes)
-      authenticatedDataset = true
-      return
-    }
     guard bytes.count == 60 else { throw ActivitySyncFailure.authenticationFailed }
     if publishedMarker == bytes { return }
-    let account = ActivitySyncShard.checksum(bytes)
-    if (try? cipher.authenticateMarker(bytes)) == nil {
-      // 已经使用过的目标不能被另一份数据集静默替换；只有首次加入才从钥匙串选择匹配的密钥。
-      guard !authenticatedDataset else { throw ActivitySyncFailure.authenticationFailed }
-      let candidates = [localSyncKey, try sharedKeys.read(account), try sharedKeys.read("default")]
-      guard
-        let match = candidates.compactMap({ $0 }).first(where: {
-          (try? ActivitySyncCipher(key: $0).authenticateMarker(bytes)) != nil
-        })
-      else { throw ActivitySyncFailure.keyPending }
-      key = match
-      cipher = ActivitySyncCipher(key: match)
+    var identifier = try? cipher.authenticateMarker(bytes)
+    if let sharedKeys {
+      let account = ActivitySyncShard.checksum(bytes)
+      if identifier == nil {
+        // 已经使用过的目标不能被另一份数据集静默替换；只有首次加入才从钥匙串选择匹配的密钥。
+        guard !authenticatedDataset else { throw ActivitySyncFailure.authenticationFailed }
+        let candidates = [
+          localSyncKey, try sharedKeys.read(account), try sharedKeys.read("default"),
+        ]
+        for candidate in candidates.compactMap({ $0 }) {
+          let candidateCipher = ActivitySyncCipher(key: candidate)
+          guard let match = try? candidateCipher.authenticateMarker(bytes) else { continue }
+          key = candidate
+          cipher = candidateCipher
+          identifier = match
+          break
+        }
+        guard identifier != nil else { throw ActivitySyncFailure.keyPending }
+      }
+      guard try sharedKeys.insert(account, key) == key else {
+        throw ActivitySyncFailure.authenticationFailed
+      }
     }
-    guard try sharedKeys.insert(account, key) == key else {
-      throw ActivitySyncFailure.authenticationFailed
-    }
+    guard let identifier else { throw ActivitySyncFailure.authenticationFailed }
     publishedMarker = bytes
+    datasetIdentifier = identifier
     authenticatedDataset = true
   }
 

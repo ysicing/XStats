@@ -10,6 +10,7 @@ struct ActivitySyncCipher: Sendable {
   private let datasetIdentity: Data
   private let markerKey: SymmetricKey
   private let encryptionKey: SymmetricKey
+  private let metadataKey: SymmetricKey
   private let nameKey: SymmetricKey
 
   init(key: SymmetricKey) {
@@ -19,6 +20,7 @@ struct ActivitySyncCipher: Sendable {
     datasetIdentity = identity
     markerKey = Self.derive(key, salt: Data(), info: "XStats.Activity.v2/marker")
     encryptionKey = Self.derive(key, salt: identity, info: "XStats.Activity.v2/payload")
+    metadataKey = Self.derive(key, salt: identity, info: "XStats.Activity.v2/metadata")
     nameKey = Self.derive(key, salt: identity, info: "XStats.Activity.v2/name")
   }
 
@@ -26,22 +28,26 @@ struct ActivitySyncCipher: Sendable {
     try Self.seal(datasetIdentity, key: markerKey, context: Self.markerContext)
   }
 
-  func authenticateMarker(_ bytes: Data) throws {
+  @discardableResult
+  func authenticateMarker(_ bytes: Data) throws -> String {
     guard bytes.count == Self.datasetLength + Self.overhead,
       try Self.open(bytes, key: markerKey, context: Self.markerContext) == datasetIdentity
     else { throw ActivitySyncFailure.authenticationFailed }
+    return ActivitySyncShard.checksum(datasetIdentity)
   }
 
   func directoryName(_ logical: String, in parent: [String]) throws -> String {
     let isMonth = parent.isEmpty
     let validDate =
       isMonth ? ActivitySyncShard.validMonth(logical) : ActivitySyncShard.validDay(logical)
-    guard validDate, parent.count < 2, ActivitySyncRemotePath.validDirectory(parent)
+    guard validDate, parent.count < 2, ActivitySyncRemotePath.validShardDirectory(parent)
     else { throw ActivitySyncFailure.invalidListing }
     return try wrap(Data(logical.utf8), tag: isMonth ? 1 : 2, length: 16, parent: parent)
   }
 
   func directoryName(from remote: String, in parent: [String]) throws -> String {
+    guard parent.count < 2, ActivitySyncRemotePath.validShardDirectory(parent)
+    else { throw ActivitySyncFailure.invalidListing }
     let isMonth = parent.isEmpty
     let bytes = try unwrap(remote, tag: isMonth ? 1 : 2, length: isMonth ? 7 : 10, parent: parent)
     let logical = String(decoding: bytes, as: UTF8.self)
@@ -51,7 +57,7 @@ struct ActivitySyncCipher: Sendable {
   }
 
   func shardName(_ shard: ActivitySyncShard, in parent: [String]) throws -> String {
-    guard parent.count == 2, ActivitySyncRemotePath.validDirectory(parent),
+    guard parent.count == 2, ActivitySyncRemotePath.validShardDirectory(parent),
       shard.digest.utf8.prefix(65).count == 64, let digest = Self.unhex(shard.digest)
     else { throw ActivitySyncFailure.invalidShard }
     var uuid = shard.device.uuid
@@ -61,13 +67,11 @@ struct ActivitySyncCipher: Sendable {
   }
 
   func shard(from remote: String, day: String, in parent: [String]) throws -> ActivitySyncShard {
+    guard parent.count == 2, ActivitySyncRemotePath.validShardDirectory(parent)
+    else { throw ActivitySyncFailure.invalidListing }
     let bytes = try unwrap(remote, tag: 3, length: 48, parent: parent)
-    let device = UUID(
-      uuid: (
-        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-        bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
-      ))
-    return ActivitySyncShard(day: day, device: device, digest: Self.hex(bytes.dropFirst(16)))
+    return ActivitySyncShard(
+      day: day, device: Self.device(from: bytes), digest: Self.hex(bytes.dropFirst(16)))
   }
 
   func path(for shard: ActivitySyncShard) throws -> [String] {
@@ -92,6 +96,47 @@ struct ActivitySyncCipher: Sendable {
       throw ActivitySyncFailure.limit
     }
     return try Self.open(ciphertext, key: encryptionKey, context: context(for: path))
+  }
+
+  func metadataPath(for device: UUID) throws -> [String] {
+    let directory = [ActivitySyncRemotePath.metadata]
+    let bytes = withUnsafeBytes(of: device.uuid) { Data($0) }
+    let name = try wrap(bytes, tag: 4, length: 24, parent: directory)
+    return directory + [name]
+  }
+
+  func sealMetadata(_ plaintext: Data, at path: [String]) throws -> Data {
+    guard ActivitySyncRemotePath.validMetadataObject(path) else {
+      throw ActivitySyncFailure.invalidListing
+    }
+    guard plaintext.count <= ActivitySyncRemotePath.maximumMetadataBytes - Self.overhead else {
+      throw ActivitySyncFailure.limit
+    }
+    return try Self.seal(plaintext, key: metadataKey, context: metadataContext(for: path))
+  }
+
+  func openMetadata(_ ciphertext: Data, at path: [String]) throws -> (device: UUID, data: Data) {
+    guard ActivitySyncRemotePath.validMetadataObject(path) else {
+      throw ActivitySyncFailure.invalidListing
+    }
+    guard ciphertext.count <= ActivitySyncRemotePath.maximumMetadataBytes else {
+      throw ActivitySyncFailure.limit
+    }
+    let owner = try unwrap(path[1], tag: 4, length: 16, parent: [ActivitySyncRemotePath.metadata])
+    let plaintext = try Self.open(ciphertext, key: metadataKey, context: metadataContext(for: path))
+    return (Self.device(from: owner), plaintext)
+  }
+
+  private func metadataContext(for path: [String]) -> Data {
+    Data(("XStats.Activity.v2/" + path.joined(separator: "/")).utf8)
+  }
+
+  private static func device(from bytes: Data) -> UUID {
+    UUID(
+      uuid: (
+        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+        bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+      ))
   }
 
   // RFC 3394 的封装结果可逆且确定。域标签、定长填充和父目录派生密钥绑定对象位置。

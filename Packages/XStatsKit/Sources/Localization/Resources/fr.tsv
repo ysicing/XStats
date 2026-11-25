@@ -3068,3 +3068,43 @@ HTTP 仅限内网或 Tailscale，WebDAV 登录凭据会通过 HTTP 发送。	HTT
 娱乐	Divertissement
 沟通	Communication
 浏览	Navigation web
+同步设置	Réglages de synchronisation
+使用 Google Drive 桌面版同步的文件夹。	Utilisez un dossier synchronisé par Google Drive pour ordinateur.
+同步内容	Contenu à synchroniser
+仅本机	Sur ce Mac uniquement
+功能设置	Réglages des fonctionnalités
+同步设备	Appareils synchronisés
+无法读取同步设置	Impossible de charger les réglages de synchronisation
+正在读取同步设置	Chargement des réglages de synchronisation
+本机记录	Enregistrement sur ce Mac
+最近同步	Dernière synchronisation
+已加入同步	Participe à la synchronisation
+更改…	Modifier…
+同步频率	Fréquence de synchronisation
+每 {} 分钟	Toutes les {} minutes
+仅手动	Manuellement uniquement
+查看差异	Examiner les différences
+等待首次同步	En attente de la première synchronisation
+正在同步…	Synchronisation en cours…
+同步失败	Échec de la synchronisation
+尚未同步	Pas encore synchronisé
+最近同步 {}	Dernière synchronisation : {}
+提醒声音	Son du rappel
+停止同步设置	Arrêter la synchronisation des réglages
+开启设置同步	Activer la synchronisation des réglages
+无法更改设置同步	Impossible de modifier la synchronisation des réglages
+首次同步功能设置	Première synchronisation des réglages des fonctionnalités
+设置冲突	Conflits de réglages
+只列出不同的设置。选中的值将同步到参与的 Mac。	Seuls les réglages qui diffèrent sont affichés. Vos choix seront synchronisés avec les Mac concernés.
+应用并同步	Appliquer et synchroniser
+导入旧设置备份…	Importer une ancienne sauvegarde des réglages…
+正在读取旧设置备份	Lecture de l’ancienne sauvegarde des réglages
+应用备份中的设置？	Appliquer les réglages de la sauvegarde ?
+设置备份文件过大，无法导入	Le fichier de sauvegarde des réglages est trop volumineux pour être importé
+此文件不是有效的 XStats 设置备份	Ce fichier n’est pas une sauvegarde valide des réglages de XStats
+无法读取设置备份	Impossible de lire la sauvegarde des réglages
+已导入设置备份	Sauvegarde des réglages importée
+共享值	Valeur partagée
+汇总各台 Mac 的活动记录	Regroupe les données d’activité de vos Mac
+活动记录保存在这台 Mac	Les données d’activité restent sur ce Mac
+外观、菜单栏布局和休息提醒偏好	Préférences d’apparence, de disposition de la barre des menus et de rappels de pause

@@ -3068,3 +3068,43 @@ HTTP 仅限内网或 Tailscale，WebDAV 登录凭据会通过 HTTP 发送。	HTT
 娱乐	Entretenimiento
 沟通	Comunicación
 浏览	Navegación
+同步设置	Ajustes de sincronización
+使用 Google Drive 桌面版同步的文件夹。	Usa una carpeta sincronizada con Google Drive para ordenadores.
+同步内容	Qué sincronizar
+仅本机	Solo en este Mac
+功能设置	Ajustes de funciones
+同步设备	Dispositivos sincronizados
+无法读取同步设置	No se pudieron cargar los ajustes de sincronización
+正在读取同步设置	Cargando los ajustes de sincronización
+本机记录	Registro en este Mac
+最近同步	Última sincronización
+已加入同步	Participa en la sincronización
+更改…	Cambiar…
+同步频率	Frecuencia de sincronización
+每 {} 分钟	Cada {} minutos
+仅手动	Solo manualmente
+查看差异	Revisar diferencias
+等待首次同步	En espera de la primera sincronización
+正在同步…	Sincronizando…
+同步失败	Error de sincronización
+尚未同步	Aún no se ha sincronizado
+最近同步 {}	Última sincronización: {}
+提醒声音	Sonido del recordatorio
+停止同步设置	Dejar de sincronizar los ajustes
+开启设置同步	Activar la sincronización de ajustes
+无法更改设置同步	No se pudo cambiar la sincronización de ajustes
+首次同步功能设置	Primera sincronización de los ajustes de funciones
+设置冲突	Conflictos de ajustes
+只列出不同的设置。选中的值将同步到参与的 Mac。	Solo se muestran los ajustes que difieren. Tu selección se sincronizará con los Mac participantes.
+应用并同步	Aplicar y sincronizar
+导入旧设置备份…	Importar una copia de seguridad antigua de los ajustes…
+正在读取旧设置备份	Leyendo la copia de seguridad antigua de los ajustes
+应用备份中的设置？	¿Aplicar los ajustes de la copia de seguridad?
+设置备份文件过大，无法导入	El archivo de copia de seguridad de los ajustes es demasiado grande para importarlo
+此文件不是有效的 XStats 设置备份	Este archivo no es una copia de seguridad válida de los ajustes de XStats
+无法读取设置备份	No se pudo leer la copia de seguridad de los ajustes
+已导入设置备份	Se ha importado la copia de seguridad de los ajustes
+共享值	Valor compartido
+汇总各台 Mac 的活动记录	Reúne los registros de actividad de tus Mac
+活动记录保存在这台 Mac	Los registros de actividad se guardan en este Mac
+外观、菜单栏布局和休息提醒偏好	Preferencias de apariencia, distribución de la barra de menús y recordatorios de descanso

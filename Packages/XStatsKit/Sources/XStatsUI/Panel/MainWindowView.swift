@@ -143,7 +143,7 @@ public struct MainWindowView: View {
         case .settingsFeatures: FeatureSettings()
         case .settingsMenuBar: SettingsTabPage { MenuBarSettings() }
         case .settingsNotifications: SettingsTabPage { NotificationSettings() }
-        // 设置同步暂时隐藏；旧路由进入通用设置，恢复时重新挂载 WebDAVSettings。
+        case .settingsSync: SyncSettingsPage()
         case .settingsAccount: SettingsTabPage { GeneralSettings() }
         case .settingsHelper: SettingsTabPage { HelperSettings() }
         case .settingsAbout: SettingsTabPage { AboutSettings() }

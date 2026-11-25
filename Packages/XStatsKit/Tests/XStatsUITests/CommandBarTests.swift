@@ -6,13 +6,19 @@ import Testing
 @testable import XStatsUI
 
 struct CommandBarTests {
-  @MainActor @Test func settingsKeepSixEntriesAndExposeShortcutAndHelperRoutes() throws {
-    #expect(PanelTab.settings.count == 6)
+  @MainActor @Test func settingsExposeSyncShortcutAndHelperRoutes() throws {
+    #expect(
+      PanelTab.settings == [
+        .settingsGeneral, .settingsFeatures, .settingsMenuBar, .settingsShortcuts,
+        .settingsSync, .settingsNotifications, .settingsAbout,
+      ])
     #expect(!PanelTab.settings.contains(.settingsHelper))
     #expect(PanelTab.settings.contains { $0.rawValue == "settingsShortcuts" })
     let search = CommandBarSearch(commands: AppCommand.catalog(supportsFans: false))
     #expect(search.results(for: "快捷键").first?.id == "page.settingsShortcuts")
     #expect(search.results(for: "shortcuts").first?.id == "page.settingsShortcuts")
+    #expect(search.results(for: "sync").first?.id == "page.settingsSync")
+    #expect(search.results(for: "同步").first?.id == "page.settingsSync")
     #expect(search.results(for: "辅助工具").first?.action == .route(.open(.settingsHelper)))
     #expect(
       AppDeepLink(url: try #require(URL(string: "xstats://open/settings/helper")))

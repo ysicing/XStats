@@ -33,14 +33,14 @@ struct ActivitySyncSettings: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
-      Text(tr("存储设置")).font(.headline)
+      Text(tr("存储位置")).font(.headline)
       Form {
         Picker(tr("存储位置"), selection: $provider) {
-          Text(verbatim: "iCloud Drive").tag(ActivitySyncProvider.iCloud)
-          Text(verbatim: "WebDAV").tag(ActivitySyncProvider.webDAV)
-          Text(tr("Google Drive 共享文件夹")).tag(ActivitySyncProvider.googleDrive)
-          Text(tr("仅保存在本机")).tag(ActivitySyncProvider.local)
+          ForEach(ActivitySyncProvider.allCases, id: \.self) { destination in
+            Text(verbatim: destination.settingsTitle).tag(destination)
+          }
         }
+        .pickerStyle(.radioGroup)
         if provider == .webDAV {
           TextField(tr("WebDAV 目录地址"), text: $address)
           TextField(tr("用户名"), text: $username)
@@ -59,29 +59,22 @@ struct ActivitySyncSettings: View {
             }
             Button(tr("选择文件夹")) { pickingFolder = true }
           }
+          Text(tr("使用 Google Drive 桌面版同步的文件夹。"))
+            .font(.caption).foregroundStyle(.secondary)
         }
-        if provider != .local {
-          DisclosureGroup(tr("同步恢复密钥")) {
-            HStack {
-              Button(tr("查看恢复密钥")) { recoveryAction = .show }
-              Button(tr("导入恢复密钥")) { recoveryAction = .enter }
-            }
+        DisclosureGroup(tr("同步恢复密钥")) {
+          HStack {
+            Button(tr("查看恢复密钥")) { recoveryAction = .show }
+            Button(tr("导入恢复密钥")) { recoveryAction = .enter }
           }
         }
       }
-      if let message = failure ?? controller.message {
-        Text(verbatim: message).font(.callout).foregroundStyle(.secondary)
+      if let failure {
+        Text(verbatim: failure).font(.callout).foregroundStyle(.secondary)
       }
       HStack {
-        if controller.syncing { ProgressView().controlSize(.small) }
-        if controller.syncMode == .manual {
-          Button(tr("取消")) { controller.cancelManualSync() }
-        } else {
-          Button(tr("立即同步")) { controller.syncNow() }
-            .disabled(dirty || controller.syncing || !controller.active || provider == .local)
-        }
         Spacer()
-        Button(tr("关闭")) { dismiss() }.keyboardShortcut(.cancelAction)
+        Button(tr("取消")) { dismiss() }.keyboardShortcut(.cancelAction)
         Button(tr("保存配置")) {
           do {
             try controller.save(

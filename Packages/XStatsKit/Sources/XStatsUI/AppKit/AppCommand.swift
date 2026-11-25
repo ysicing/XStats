@@ -158,7 +158,7 @@ struct AppCommand: Identifiable, Sendable {
     case .settingsFeatures: "settings features 设置 功能"
     case .settingsMenuBar: "settings menu bar 设置 菜单栏"
     case .settingsNotifications: "settings notifications 设置 通知"
-    case .settingsAccount: "settings sync 设置 同步"
+    case .settingsAccount, .settingsSync: "settings sync 设置 同步"
     case .settingsHelper: "settings helper 设置 辅助工具"
     case .settingsAbout: "settings about version 设置 关于 版本"
     }

@@ -3068,3 +3068,43 @@ HTTP 仅限内网或 Tailscale，WebDAV 登录凭据会通过 HTTP 发送。	HTT
 娱乐	Unterhaltung
 沟通	Kommunikation
 浏览	Websurfen
+同步设置	Synchronisierungseinstellungen
+使用 Google Drive 桌面版同步的文件夹。	Verwende einen Ordner, der mit Google Drive für den Desktop synchronisiert wird.
+同步内容	Inhalte für die Synchronisierung
+仅本机	Nur auf diesem Mac
+功能设置	Funktionseinstellungen
+同步设备	Synchronisierte Geräte
+无法读取同步设置	Synchronisierungseinstellungen konnten nicht geladen werden
+正在读取同步设置	Synchronisierungseinstellungen werden geladen
+本机记录	Aufzeichnung auf diesem Mac
+最近同步	Zuletzt synchronisiert
+已加入同步	Nimmt an der Synchronisierung teil
+更改…	Ändern…
+同步频率	Synchronisierungsintervall
+每 {} 分钟	Alle {} Minuten
+仅手动	Nur manuell
+查看差异	Unterschiede prüfen
+等待首次同步	Warten auf die erste Synchronisierung
+正在同步…	Synchronisierung läuft…
+同步失败	Synchronisierung fehlgeschlagen
+尚未同步	Noch nicht synchronisiert
+最近同步 {}	Zuletzt synchronisiert: {}
+提醒声音	Erinnerungston
+停止同步设置	Synchronisierung der Einstellungen beenden
+开启设置同步	Synchronisierung der Einstellungen aktivieren
+无法更改设置同步	Die Synchronisierung der Einstellungen konnte nicht geändert werden
+首次同步功能设置	Funktionseinstellungen erstmals synchronisieren
+设置冲突	Konflikte bei Einstellungen
+只列出不同的设置。选中的值将同步到参与的 Mac。	Nur abweichende Einstellungen werden angezeigt. Deine Auswahl wird mit den beteiligten Macs synchronisiert.
+应用并同步	Anwenden und synchronisieren
+导入旧设置备份…	Ältere Sicherung der Einstellungen importieren…
+正在读取旧设置备份	Ältere Sicherung der Einstellungen wird gelesen
+应用备份中的设置？	Einstellungen aus der Sicherung anwenden?
+设置备份文件过大，无法导入	Die Sicherungsdatei der Einstellungen ist zu groß für den Import
+此文件不是有效的 XStats 设置备份	Diese Datei ist keine gültige Sicherung der XStats-Einstellungen
+无法读取设置备份	Die Sicherung der Einstellungen konnte nicht gelesen werden
+已导入设置备份	Sicherung der Einstellungen importiert
+共享值	Geteilter Wert
+汇总各台 Mac 的活动记录	Aktivitätsaufzeichnungen mehrerer Macs zusammenführen
+活动记录保存在这台 Mac	Aktivitätsaufzeichnungen bleiben auf diesem Mac
+外观、菜单栏布局和休息提醒偏好	Einstellungen für Erscheinungsbild, Menüleistenlayout und Pausenerinnerungen

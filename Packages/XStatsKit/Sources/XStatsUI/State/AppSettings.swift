@@ -384,7 +384,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     battery,
     processes, ports, keepAwake, rest, cleaner, uninstaller, startupItems, audio, connections
   case settingsGeneral, settingsFeatures, settingsMenuBar, settingsNotifications, settingsAccount,
-    settingsHelper, settingsAbout, settingsShortcuts
+    settingsHelper, settingsAbout, settingsShortcuts, settingsSync
 
   public var id: String { rawValue }
 
@@ -397,10 +397,9 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     .aiUsage, .audio, .processes, .ports, .rest, .keepAwake, .cleaner, .uninstaller,
     .connections,
   ]
-  // 暂时隐藏设置同步；保留枚举值和页面实现，避免影响已有配置并方便恢复。
   static let settings: [PanelTab] = [
     .settingsGeneral, .settingsFeatures, .settingsMenuBar, .settingsShortcuts,
-    .settingsNotifications, /* .settingsAccount, */ .settingsAbout,
+    .settingsSync, .settingsNotifications, .settingsAbout,
   ]
 
   var isSettings: Bool { Self.settings.contains(self) || self == .settingsHelper }
@@ -438,6 +437,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case .settingsMenuBar: tr("菜单栏")
     case .settingsNotifications: tr("通知")
     case .settingsAccount: tr("设置同步")
+    case .settingsSync: tr("同步")
     case .settingsHelper: tr("辅助工具")
     case .settingsAbout: tr("关于")
     }
@@ -472,6 +472,7 @@ public enum PanelTab: String, CaseIterable, Identifiable, Sendable {
     case .settingsMenuBar: "menubar.rectangle"
     case .settingsNotifications: "bell.badge"
     case .settingsAccount: "arrow.triangle.2.circlepath"
+    case .settingsSync: "cloud"
     case .settingsHelper: "lock.shield"
     case .settingsAbout: "info.circle"
     }
@@ -579,6 +580,7 @@ public enum UpdateCheckSchedule: String, CaseIterable, Identifiable, Sendable {
 @Observable
 public final class AppSettings {
   @ObservationIgnored private let defaults: UserDefaults
+  @ObservationIgnored weak var syncPreferences: SyncPreferences?
   var audioDefaults: UserDefaults { defaults }
   var activityDefaults: UserDefaults { defaults }
   var activityFeatureEnabled: Bool {
@@ -626,6 +628,7 @@ public final class AppSettings {
     didSet {
       defaults.set(restEnabled, forKey: Keys.restEnabled)
       if !restEnabled && panelTab == .rest { panelTab = .settingsFeatures }
+      if restEnabled != oldValue { syncPreferences?.recordLocalChange(.restEnabled) }
     }
   }
   public var timerPreferences: TimerPreferences {
@@ -663,7 +666,10 @@ public final class AppSettings {
     }
   }
   public var restSound: RestSound {
-    didSet { defaults.set(restSound.rawValue, forKey: Keys.restSound) }
+    didSet {
+      defaults.set(restSound.rawValue, forKey: Keys.restSound)
+      if restSound != oldValue { syncPreferences?.recordLocalChange(.restSound) }
+    }
   }
   /// 音频副本的本机元数据，不参与 WebDAV 同步或 JSON 设置备份。
   var restCustomAudio: RestCustomAudio? {
@@ -1073,7 +1079,10 @@ public final class AppSettings {
     }
   }
   public var appearance: AppearanceMode {
-    didSet { defaults.set(appearance.rawValue, forKey: Keys.appearance) }
+    didSet {
+      defaults.set(appearance.rawValue, forKey: Keys.appearance)
+      if appearance != oldValue { syncPreferences?.recordLocalChange(.appearance) }
+    }
   }
   /// 网络测速里单个节点的时间与流量上限
   public var speedTestBudget: SpeedTestBudget {
@@ -1121,6 +1130,7 @@ public final class AppSettings {
     didSet {
       defaults.set(menuBarLayout.rawValue, forKey: Keys.menuBarLayout)
       if menuBarLayout == .iconOnly { enableTrioSources(trio.sources) }
+      if menuBarLayout != oldValue { syncPreferences?.recordLocalChange(.menuBarLayout) }
     }
   }
   /// 聚合模式可直接打开点击指标的独立详情；默认仍打开状态总览。

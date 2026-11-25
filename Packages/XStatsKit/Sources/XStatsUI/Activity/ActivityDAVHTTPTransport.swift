@@ -57,6 +57,18 @@ actor ActivityDAVHTTPTransport {
       let parts = URLComponents(url: url, resolvingAgainstBaseURL: true),
       parts.query == nil, parts.fragment == nil, parts.percentEncodedPath.hasPrefix("/")
     else { throw ActivityDAVError.invalidAddress }
+    if request.httpMethod == "PUT", request.value(forHTTPHeaderField: "If-None-Match") != "*" {
+      let object = parts.percentEncodedPath.split(separator: "/", omittingEmptySubsequences: false)
+        .suffix(2).map(String.init)
+      guard request.value(forHTTPHeaderField: "If-None-Match") == nil,
+        request.value(forHTTPHeaderField: "If-Match") == nil,
+        request.value(forHTTPHeaderField: "Content-Type") == "application/octet-stream",
+        ActivitySyncRemotePath.validMetadataObject(object)
+      else { throw WebDAVError.transport }
+      guard let payload = request.httpBody,
+        payload.count <= ActivitySyncRemotePath.maximumMetadataBytes
+      else { throw ActivitySyncFailure.limit }
+    }
     let routes = try await routes(for: endpoint)
     let path = parts.percentEncodedPath
     let port = ":\(endpoint.port)"
@@ -174,6 +186,8 @@ actor ActivityDAVHTTPTransport {
     guard let method = request.httpMethod,
       let authorization = request.value(forHTTPHeaderField: "Authorization")
     else { throw WebDAVError.transport }
+    let replaceMetadata =
+      method == "PUT" && request.value(forHTTPHeaderField: "If-None-Match") == nil
     let cancelled = OSAllocatedUnfairLock(initialState: false)
     return try await withTaskCancellationHandler {
       try Task.checkCancellation()
@@ -185,22 +199,30 @@ actor ActivityDAVHTTPTransport {
           var connectionFailed = false
           var oversized = false
           var data = Data()
-          let success = payload.withUnsafeBytes { bytes in
-            ActivityDAVHTTPPerform(
-              connection.url.absoluteString, method, "Host: \(connection.authority)",
-              "Authorization: \(authorization)", bytes.bindMemory(to: UInt8.self).baseAddress,
-              payload.count, connection.tunnel?.interfaceName ?? "",
-              connection.tunnel?.localAddress.text ?? "", &status, &connectionFailed
-            ) { bytes, count in
-              guard count <= limit - data.count else {
-                oversized = true
-                return false
-              }
-              if count > 0, let bytes { data.append(bytes, count: count) }
-              return true
-            } _: {
-              cancelled.withLock { $0 }
+          let receive: (UnsafePointer<UInt8>?, Int) -> Bool = { bytes, count in
+            guard count <= limit - data.count else {
+              oversized = true
+              return false
             }
+            if count > 0, let bytes { data.append(bytes, count: count) }
+            return true
+          }
+          let isCancelled = { cancelled.withLock { $0 } }
+          let url = connection.url.absoluteString
+          let host = "Host: \(connection.authority)"
+          let credentials = "Authorization: \(authorization)"
+          let tunnel = connection.tunnel?.interfaceName ?? ""
+          let localAddress = connection.tunnel?.localAddress.text ?? ""
+          let success = payload.withUnsafeBytes { bytes in
+            let body = bytes.bindMemory(to: UInt8.self).baseAddress
+            if replaceMetadata {
+              return ActivityDAVHTTPPutMetadata(
+                url, host, credentials, body, payload.count, tunnel, localAddress,
+                &status, &connectionFailed, receive, isCancelled)
+            }
+            return ActivityDAVHTTPPerform(
+              url, method, host, credentials, body, payload.count, tunnel, localAddress,
+              &status, &connectionFailed, receive, isCancelled)
           }
           if cancelled.withLock({ $0 }) {
             continuation.resume(throwing: CancellationError())
