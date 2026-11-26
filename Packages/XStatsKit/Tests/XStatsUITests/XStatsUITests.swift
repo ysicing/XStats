@@ -79,7 +79,7 @@ private func isolatedDefaults() -> UserDefaults {
 
 @MainActor
 @Suite struct ToolBrandLogoTests {
-  @Test(arguments: ["site-openai", "site-claude", "site-twitter"])
+  @Test(arguments: ["site-openai", "site-claude", "site-twitter", "site-telegram"])
   func brandLogosCanBeCachedAsBothColorAndMenuBarTemplates(_ name: String) throws {
     let color = try #require(LogoCache.shared.image(named: name, template: false))
     let template = try #require(LogoCache.shared.image(named: name, template: true))

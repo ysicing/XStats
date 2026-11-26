@@ -112,7 +112,11 @@ GitHub、GitHub Copilot、Google 与 Apple 的名称和标志均为各自公司�
 
 `Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-twitter.svg` 来自
 [Simple Icons v9.21.0 的固定提交](https://github.com/simple-icons/simple-icons/blob/14a89c73d3a1666d3fa073f865fc45ec98b88850/icons/twitter.svg)，
-使用 CC0-1.0。XStats 仅补充尺寸与蓝色填色，用于侧边栏的 X 关注入口；名称和商标属于其权利人。
+使用 CC0-1.0。XStats 仅补充尺寸与蓝色填色，随资源目录打包。名称和商标属于其权利人。
+
+`Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-telegram.svg` 来自
+[gilbarbara/logos 的固定提交](https://github.com/gilbarbara/logos/blob/6663f2bee5ef93ae8ed1cd80c42ab41181925d3b/logos/telegram.svg)，
+使用 CC0-1.0。XStats 仅压缩了 SVG 标记，图形保持不变；用于本机安装 Telegram 时显示的侧边栏频道入口。Telegram 的名称和标志属于其权利人。
 
 `Packages/XStatsKit/Sources/XStatsUI/Resources/Logos/site-workbuddy.svg` 来自
 [LobeHub Icons](https://github.com/lobehub/lobe-icons/blob/8b7bbc433d38437fa2b0cca58ae896917162b812/packages/static-svg/icons/workbuddy.svg)，
