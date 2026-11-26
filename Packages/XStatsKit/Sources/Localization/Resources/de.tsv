@@ -3002,6 +3002,10 @@ MCP 地址	MCP-Adresse
 输入 1–65535 之间的端口号。	Gib eine Portnummer zwischen 1 und 65535 ein.
 浏览器会阻止访问此端口，请选择其他端口。	Browser blockieren diesen Port. Wähle einen anderen Port.
 显示设置	Anzeigeeinstellungen
+看板模式	Kioskmodus
+退出看板	Kioskmodus beenden
+按 CPU 或内存占用查看当前用户的进程排行。	Listet die Prozesse des aktuellen Benutzers nach CPU- oder Speicherverbrauch auf.
+读取本机的电池健康度、循环次数、功耗、温度、可用磁盘空间和活跃告警。	Liest Batteriezustand, Ladezyklen, Leistungsaufnahme, Temperaturen, verfügbaren Speicherplatz und aktive Warnungen dieses Macs aus.
 系统资源	Systemressourcen
 1 / 5 / 15 分钟负载	Last über 1 / 5 / 15 Min.
 近 5 分钟	Letzte 5 Minuten
@@ -3090,6 +3094,20 @@ HTTP 仅限内网或 Tailscale，WebDAV 登录凭据会通过 HTTP 发送。	HTT
 音乐与视频	Musik und Video
 系统工具	Systemwerkzeuge
 待分类	Nicht kategorisiert
+应用分类	App-Kategorie
+自动分类	Automatische Kategorie
+本机活动保留期	Lokale Aufbewahrungsdauer für Aktivitäten
+永久保留	Dauerhaft aufbewahren
+90 天	90 Tage
+缩短保留期会删除本机的过期记录，云端副本继续保留。	Eine kürzere Aufbewahrungsdauer löscht abgelaufene Einträge auf diesem Mac. Cloud-Kopien bleiben erhalten.
+导出报表	Bericht exportieren
+导出为 Markdown	Als Markdown exportieren
+导出为 CSV	Als CSV exportieren
+无法导出活动报表	Aktivitätsbericht konnte nicht exportiert werden
+活动报表	Aktivitätsbericht
+总活跃时长	Gesamte aktive Zeit
+分类汇总	Zusammenfassung nach Kategorie
+活跃时长（秒）	Aktive Zeit (Sekunden)
 未细分	Nicht näher bestimmt
 查看全部应用	Alle Apps anzeigen
 工作	Arbeit
@@ -3136,6 +3154,17 @@ HTTP 仅限内网或 Tailscale，WebDAV 登录凭据会通过 HTTP 发送。	HTT
 汇总各台 Mac 的活动记录	Aktivitätsaufzeichnungen mehrerer Macs zusammenführen
 活动记录保存在这台 Mac	Aktivitätsaufzeichnungen bleiben auf diesem Mac
 外观、菜单栏布局和休息提醒偏好	Einstellungen für Erscheinungsbild, Menüleistenlayout und Pausenerinnerungen
+同步状态	Synchronisierungsstatus
+最近同步尝试	Letzter Synchronisierungsversuch
+等待确认设置差异	Unterschiede bei den Einstellungen müssen geprüft werden
+正在等待 iCloud 钥匙串同步密钥。也可在“存储位置”中导入恢复密钥。	Warten auf die Synchronisierung des Schlüssels über den iCloud-Schlüsselbund. Du kannst den Wiederherstellungsschlüssel auch unter „Speicherort“ importieren.
+WebDAV 登录失败，请检查用户名和密码。	Anmeldung bei WebDAV fehlgeschlagen. Prüfe Benutzername und Passwort.
+无法连接 WebDAV。请检查网络、地址和证书。若使用局域网，请在系统设置中允许 XStats 访问本地网络。	Verbindung zu WebDAV fehlgeschlagen. Prüfe Netzwerk, Adresse und Zertifikat. Liegt der Server im lokalen Netzwerk, erlaube XStats in den Systemeinstellungen den Zugriff darauf.
+移除设备	Gerät entfernen
+移除设备？	Dieses Gerät entfernen?
+此操作适用于已停用的设备。已同步的活动记录会保留。	Diese Aktion ist für nicht mehr genutzte Geräte gedacht. Bereits synchronisierte Aktivitätsdaten bleiben erhalten.
+无法移除设备	Gerät konnte nicht entfernt werden
+请稍后重试。	Versuche es später erneut.
 功能设置同步	Funktionseinstellungen synchronisieren
 选择这台 Mac 要同步的设置。	Wähle, welche Einstellungen dieser Mac synchronisiert.
 当前值	Aktueller Wert

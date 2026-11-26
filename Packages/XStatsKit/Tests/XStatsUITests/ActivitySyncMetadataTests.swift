@@ -131,6 +131,39 @@ struct ActivitySyncMetadataTests {
     try await firstEngine.run(store: ActivityStore(url: nil), device: first, repository: repository)
   }
 
+  @Test func removesOnlyThePeerSlotFromTheAuthenticatedFolder() async throws {
+    let base = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(at: base) }
+    let repository = ActivitySyncFolder(root: base)
+    let engine = ActivitySyncEngine(key: key)
+    let cipher = ActivitySyncCipher(key: key)
+    let local = UUID()
+    let peer = UUID()
+    let localPath = try cipher.metadataPath(for: local)
+    let peerPath = try cipher.metadataPath(for: peer)
+    try await engine.exchangeMetadata(device: local, repository: repository) { _ in Data([1]) }
+    try await engine.exchangeMetadata(device: peer, repository: repository) { _ in Data([2]) }
+    let dataset = try #require(await engine.datasetIdentifier)
+    let originalMarker = try await repository.read(marker)
+    let localCiphertext = try await repository.read(localPath)
+
+    await #expect(throws: ActivitySyncFailure.cannotRemoveLocalDevice) {
+      try await engine.removeDevice(
+        local, localDeviceID: local, dataset: dataset, repository: repository)
+    }
+    try await engine.removeDevice(
+      peer, localDeviceID: local, dataset: dataset, repository: repository)
+    try await engine.removeDevice(
+      peer, localDeviceID: local, dataset: dataset, repository: repository)
+    #expect(try await repository.read(peerPath) == nil)
+    #expect(try await repository.read(localPath) == localCiphertext)
+    #expect(try await repository.read(marker) == originalMarker)
+    try await engine.exchangeMetadata(device: local, repository: repository) { snapshot in
+      #expect(snapshot == [local: Data([1])])
+      return nil
+    }
+  }
+
   @Test func unchangedMetadataVersionsAreNotDownloadedAgain() async throws {
     let repository = VersionedMetadataRepository()
     let first = UUID()
@@ -165,6 +198,111 @@ struct ActivitySyncMetadataTests {
       return nil
     }
     #expect(await repository.metadataReads == 1)
+  }
+
+  @MainActor
+  @Test func omittedLocalSlotIsAuthenticatedBeforeItCanBeReplaced() async throws {
+    let suite = "OmittedLocalSlotTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    let device = UUID()
+    let preferences = SyncPreferences(
+      settings: settings, deviceID: device, deviceName: nil, defaults: defaults)
+    try preferences.selectDestination("fixture", key: key)
+    try preferences.setSelectedFields([.appearance])
+    let repository = VersionedMetadataRepository()
+    let engine = ActivitySyncEngine(key: key)
+    let cipher = ActivitySyncCipher(key: key)
+    let path = try cipher.metadataPath(for: device)
+    await repository.omitMetadata(named: try #require(path.last))
+
+    let initial = try await engine.exchangeMetadata(device: device, repository: repository) {
+      try await preferences.prepare($0, activitySyncedAt: nil)
+    }
+    let verified = try #require(initial)
+    try preferences.didPublish(verified)
+    let own = try #require(verified[device])
+    var document = try #require(JSONSerialization.jsonObject(with: own) as? [String: Any])
+    document["publication"] = UUID().uuidString
+    let replacement = try JSONSerialization.data(withJSONObject: document)
+    let ciphertext = try cipher.sealMetadata(replacement, at: path)
+    try await (repository as any ActivitySyncRepository).replaceMetadata(ciphertext, at: path)
+
+    await #expect(throws: SyncPreferences.Failure.incompleteSnapshot) {
+      try await engine.exchangeMetadata(device: device, repository: repository) {
+        try await preferences.prepare($0, activitySyncedAt: nil)
+      }
+    }
+    #expect(await repository.read(path) == ciphertext)
+  }
+
+  @MainActor
+  @Test func removedMacRegistersAgainAndResumesSettingsSync() async throws {
+    let base = try temporaryFolder()
+    let localSuite = "RemovedMacTests.local.\(UUID())"
+    let peerSuite = "RemovedMacTests.peer.\(UUID())"
+    let localDefaults = try #require(UserDefaults(suiteName: localSuite))
+    let peerDefaults = try #require(UserDefaults(suiteName: peerSuite))
+    defer {
+      try? FileManager.default.removeItem(at: base)
+      localDefaults.removePersistentDomain(forName: localSuite)
+      peerDefaults.removePersistentDomain(forName: peerSuite)
+    }
+    let repository = ActivitySyncFolder(root: base)
+    let localEngine = ActivitySyncEngine(key: key)
+    let peerEngine = ActivitySyncEngine(key: key)
+    let localSettings = AppSettings(defaults: localDefaults)
+    let peerSettings = AppSettings(defaults: peerDefaults)
+    localSettings.appearance = .light
+    peerSettings.appearance = .light
+    let local = SyncPreferences(
+      settings: localSettings, deviceID: UUID(), deviceName: "Mac A", defaults: localDefaults)
+    let peer = SyncPreferences(
+      settings: peerSettings, deviceID: UUID(), deviceName: "Mac B", defaults: peerDefaults)
+    for preferences in [local, peer] {
+      try preferences.selectDestination("fixture", key: key)
+      try preferences.setSelectedFields([.appearance])
+    }
+    let first = try await localEngine.exchangeMetadata(
+      device: local.deviceID, repository: repository
+    ) { try await local.prepare($0, activitySyncedAt: nil) }
+    try local.didPublish(#require(first))
+    let joined = try await peerEngine.exchangeMetadata(
+      device: peer.deviceID, repository: repository
+    ) {
+      try await peer.prepare($0, activitySyncedAt: nil)
+    }
+    let peerSnapshot = try #require(joined)
+    try peer.didPublish(peerSnapshot)
+
+    peerSettings.appearance = .dark
+    let staleUpload = try #require(try peer.prepare(peerSnapshot, activitySyncedAt: nil))
+    peer.discardPrepared()
+    let dataset = try #require(await localEngine.datasetIdentifier)
+    try await localEngine.removeDevice(
+      peer.deviceID, localDeviceID: local.deviceID, dataset: dataset, repository: repository)
+    let peerPath = try ActivitySyncCipher(key: key).metadataPath(for: peer.deviceID)
+    #expect(try await repository.read(peerPath) == nil)
+
+    let restarted = SyncPreferences(
+      settings: peerSettings, deviceID: peer.deviceID, deviceName: "Mac B", defaults: peerDefaults)
+    try restarted.selectDestination("fixture", key: key)
+    let registered = try await peerEngine.exchangeMetadata(
+      device: restarted.deviceID, repository: repository
+    ) { try await restarted.prepare($0, activitySyncedAt: nil) }
+    let verified = try #require(registered)
+    let newSlot = try #require(verified[peer.deviceID])
+    #expect(newSlot != staleUpload)
+    try restarted.didPublish(verified)
+    #expect(restarted.lastSettingsSyncAt != nil)
+    #expect(restarted.conflicts.isEmpty)
+
+    let updated = try await localEngine.exchangeMetadata(
+      device: local.deviceID, repository: repository
+    ) { try await local.prepare($0, activitySyncedAt: nil) }
+    try local.didPublish(#require(updated))
+    #expect(localSettings.appearance == .dark)
   }
 
   @Test func rejectsMissingOrForeignMarkerAndMetadataMovedToAnotherDevice() async throws {
@@ -301,9 +439,11 @@ struct ActivitySyncMetadataTests {
 private actor VersionedMetadataRepository: ActivitySyncRepository {
   private var files: [[String]: (data: Data, version: Int)] = [:]
   private var nextVersion = 0
+  private var omittedMetadata: String?
   private(set) var metadataReads = 0
 
   func resetMetadataReads() { metadataReads = 0 }
+  func omitMetadata(named name: String) { omittedMetadata = name }
 
   func list(_ directory: [String]) -> Set<String> {
     listActivityObjects(directory).names
@@ -313,6 +453,7 @@ private actor VersionedMetadataRepository: ActivitySyncRepository {
     var listing = ActivitySyncListing()
     for (path, file) in files where path.count > directory.count && path.starts(with: directory) {
       let name = path[directory.count]
+      if directory == [ActivitySyncRemotePath.metadata], name == omittedMetadata { continue }
       listing.names.insert(name)
       if path.count == directory.count + 1 { listing.versions[name] = "\"\(file.version)\"" }
     }
@@ -425,6 +566,7 @@ struct ActivitySyncMetadataWebDAVTests {
     expected += [
       ("MKCOL", collection, 201), ("PUT", file, 201),
       ("GET", file, 200), ("PUT", file, 204), ("GET", file, 200), ("GET", file, 200),
+      ("DELETE", file, 204), ("DELETE", file, 404), ("GET", file, 404),
     ]
     let requests = OSAllocatedUnfairLock(initialState: 0)
     let responses = [original, replacement, oversized]
@@ -447,7 +589,7 @@ struct ActivitySyncMetadataWebDAVTests {
         #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/octet-stream")
       }
       let data: Data
-      if method == "GET" {
+      if method == "GET", status == 200 {
         data = gets.withLock {
           let data = responses[$0]
           $0 += 1
@@ -472,6 +614,12 @@ struct ActivitySyncMetadataWebDAVTests {
     try await repository.replaceMetadata(replacement, at: path)
     #expect(try await repository.read(path) == replacement)
     await #expect(throws: ActivitySyncFailure.limit) { try await repository.read(path) }
+    await #expect(throws: ActivitySyncFailure.invalidShard) {
+      try await repository.deleteMetadata(at: [ActivitySyncRemotePath.marker])
+    }
+    try await repository.deleteMetadata(at: path)
+    try await repository.deleteMetadata(at: path)
+    #expect(try await repository.read(path) == nil)
     #expect(requests.withLock { $0 } == expected.count)
   }
 

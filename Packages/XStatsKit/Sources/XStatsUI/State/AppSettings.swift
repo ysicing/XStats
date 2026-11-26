@@ -590,6 +590,25 @@ public final class AppSettings {
       if !activityFeatureEnabled, panelTab == .activity { panelTab = .settingsFeatures }
     }
   }
+  var activityRetention: ActivityRetention {
+    didSet { defaults.set(activityRetention.rawValue, forKey: "activity.retentionDays") }
+  }
+  private(set) var activityClassificationOverrides: [String: String] {
+    didSet {
+      defaults.set(activityClassificationOverrides, forKey: "activity.classificationOverrides")
+    }
+  }
+
+  func activityClassification(for appID: String) -> ActivityClassification? {
+    ActivityClassification.custom(appID: appID, overrides: activityClassificationOverrides)
+  }
+
+  func setActivityClassification(_ classification: ActivityClassification?, for appID: String) {
+    let key = appID.lowercased()
+    guard activityClassificationOverrides[key] != classification?.rawValue else { return }
+    activityClassificationOverrides[key] = classification?.rawValue
+  }
+
   var menuBarFoldingDefaults: UserDefaults { defaults }
   var networkObservationDefaults: UserDefaults { defaults }
   var updateDefaults: UserDefaults { defaults }
@@ -1513,6 +1532,10 @@ public final class AppSettings {
       ?? (defaults.bool(forKey: "activity.featureEnabled")
         && defaults.bool(forKey: "activity.recording"))
     activityFeatureEnabled = isActivityFeatureEnabled
+    activityRetention =
+      ActivityRetention(rawValue: defaults.integer(forKey: "activity.retentionDays")) ?? .forever
+    activityClassificationOverrides =
+      defaults.dictionary(forKey: "activity.classificationOverrides") as? [String: String] ?? [:]
     processesEnabled = isProcessesEnabled
     let isPortsEnabled = defaults.bool(forKey: Keys.portsEnabled)
     portsEnabled = isPortsEnabled

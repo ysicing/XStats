@@ -5,6 +5,23 @@ import Testing
 @testable import XStatsUI
 
 struct ActivityControllerTests {
+  @MainActor @Test func activityPreferencesPersistLocallyAndUseCaseInsensitiveBundleIDs() throws {
+    let suite = "ActivityLocalPreferencesTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let settings = AppSettings(defaults: defaults)
+    #expect(settings.activityRetention == .forever)
+    settings.activityRetention = .thirtyDays
+    settings.setActivityClassification(.office, for: "COM.Apple.Safari")
+
+    let restored = AppSettings(defaults: defaults)
+    #expect(restored.activityRetention == .thirtyDays)
+    #expect(restored.activityClassification(for: "com.apple.Safari") == .office)
+    #expect(restored.activityClassificationOverrides == ["com.apple.safari": "office"])
+    restored.setActivityClassification(nil, for: "Com.Apple.Safari")
+    #expect(AppSettings(defaults: defaults).activityClassificationOverrides.isEmpty)
+  }
+
   @MainActor @Test func experimentalGateControlsRecordingAndNavigationTogether() throws {
     let suite = "ActivityFeatureTests.\(UUID())"
     let defaults = try #require(UserDefaults(suiteName: suite))

@@ -2999,6 +2999,10 @@ MCP 地址	URL MCP
 输入 1–65535 之间的端口号。	Saisissez un port entre 1 et 65535.
 浏览器会阻止访问此端口，请选择其他端口。	Les navigateurs bloquent ce port. Choisissez-en un autre.
 显示设置	Réglages d’affichage
+看板模式	Mode kiosque
+退出看板	Quitter le mode kiosque
+按 CPU 或内存占用查看当前用户的进程排行。	Classe les processus de l’utilisateur actuel par utilisation du processeur ou de la mémoire.
+读取本机的电池健康度、循环次数、功耗、温度、可用磁盘空间和活跃告警。	Consulte l’état et les cycles de la batterie, la consommation d’énergie, les températures, l’espace disque disponible et les alertes actives de ce Mac.
 系统资源	Ressources système
 1 / 5 / 15 分钟负载	Charge sur 1 / 5 / 15 min
 近 5 分钟	5 dernières minutes
@@ -3087,6 +3091,20 @@ HTTP 仅限内网或 Tailscale，WebDAV 登录凭据会通过 HTTP 发送。	HTT
 音乐与视频	Musique et vidéo
 系统工具	Utilitaires système
 待分类	Non classé
+应用分类	Catégorie de l’app
+自动分类	Catégorie automatique
+本机活动保留期	Conservation de l’activité locale
+永久保留	Conserver indéfiniment
+90 天	90 jours
+缩短保留期会删除本机的过期记录，云端副本继续保留。	Réduire la durée de conservation supprime les enregistrements expirés sur ce Mac. Les copies dans le cloud sont conservées.
+导出报表	Exporter le rapport
+导出为 Markdown	Exporter en Markdown
+导出为 CSV	Exporter en CSV
+无法导出活动报表	Impossible d’exporter le rapport d’activité
+活动报表	Rapport d’activité
+总活跃时长	Durée d’activité totale
+分类汇总	Récapitulatif par catégorie
+活跃时长（秒）	Durée d’activité (secondes)
 未细分	Non précisé
 查看全部应用	Voir toutes les apps
 工作	Travail
@@ -3133,6 +3151,17 @@ HTTP 仅限内网或 Tailscale，WebDAV 登录凭据会通过 HTTP 发送。	HTT
 汇总各台 Mac 的活动记录	Regroupe les données d’activité de vos Mac
 活动记录保存在这台 Mac	Les données d’activité restent sur ce Mac
 外观、菜单栏布局和休息提醒偏好	Préférences d’apparence, de disposition de la barre des menus et de rappels de pause
+同步状态	État de la synchronisation
+最近同步尝试	Dernière tentative de synchronisation
+等待确认设置差异	Différences de réglages à vérifier
+正在等待 iCloud 钥匙串同步密钥。也可在“存储位置”中导入恢复密钥。	En attente de la synchronisation de la clé par le trousseau iCloud. Vous pouvez aussi importer la clé de récupération dans « Emplacement de stockage ».
+WebDAV 登录失败，请检查用户名和密码。	Échec de l’identification WebDAV. Vérifiez le nom d’utilisateur et le mot de passe.
+无法连接 WebDAV。请检查网络、地址和证书。若使用局域网，请在系统设置中允许 XStats 访问本地网络。	Impossible de se connecter à WebDAV. Vérifiez le réseau, l’adresse et le certificat. Si le serveur est sur le réseau local, autorisez XStats à y accéder dans Réglages Système.
+移除设备	Retirer l’appareil
+移除设备？	Retirer cet appareil ?
+此操作适用于已停用的设备。已同步的活动记录会保留。	Utilisez cette option pour les appareils que vous n’utilisez plus. Les données d’activité déjà synchronisées sont conservées.
+无法移除设备	Impossible de retirer l’appareil
+请稍后重试。	Réessayez plus tard.
 功能设置同步	Synchronisation des réglages des fonctionnalités
 选择这台 Mac 要同步的设置。	Choisissez les réglages que ce Mac synchronise.
 当前值	Valeur actuelle

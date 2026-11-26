@@ -178,6 +178,8 @@ struct ActivityPageRankings: View {
   let report: ActivityPageAnalytics
   let locale: Locale
   let openApp: (ActivityPageAnalytics.App) -> Void
+  var classificationOverrides: [String: String] = [:]
+  var setClassification: ((String, ActivityClassification?) -> Void)?
   @State private var showsAllApps = false
   @State var expandedCategories = Set<ActivityPageAnalytics.Category>()
 
@@ -207,6 +209,38 @@ struct ActivityPageRankings: View {
             ActivityPageAppRow(app: app, locale: locale)
           }
           .buttonStyle(.plain)
+          .contextMenu {
+            if let setClassification {
+              let override = ActivityClassification.custom(
+                appID: app.id, overrides: classificationOverrides)
+              Menu(tr("应用分类")) {
+                Button {
+                  setClassification(app.id, nil)
+                } label: {
+                  if override == nil {
+                    Label(tr("自动分类"), systemImage: "checkmark")
+                  } else {
+                    Text(tr("自动分类"))
+                  }
+                }
+                Divider()
+                ForEach(ActivityClassification.allCases, id: \.self) { classification in
+                  let title =
+                    classification.rawValue == classification.category.rawValue
+                    ? classification.category.title : classification.title
+                  Button {
+                    setClassification(app.id, classification)
+                  } label: {
+                    if override == classification {
+                      Label(title, systemImage: "checkmark")
+                    } else {
+                      Text(title)
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
       if report.apps.count > 5 {
@@ -519,13 +553,15 @@ enum ActivityPageFormat {
 }
 
 extension ActivityPageAnalytics.Category {
-  var title: String {
+  var title: String { tr(titleSource) }
+
+  var titleSource: String {
     switch self {
-    case .work: tr("工作")
-    case .entertainment: tr("娱乐")
-    case .communication: tr("沟通")
-    case .browsing: tr("浏览")
-    case .other: tr("其他")
+    case .work: "工作"
+    case .entertainment: "娱乐"
+    case .communication: "沟通"
+    case .browsing: "浏览"
+    case .other: "其他"
     }
   }
 

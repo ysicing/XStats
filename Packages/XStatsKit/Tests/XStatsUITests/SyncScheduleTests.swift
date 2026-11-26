@@ -63,6 +63,7 @@ struct SyncScheduleTests {
     defer { controller.setSession(available: false, recordsActivity: false) }
     controller.syncNow()
     try await waitUntilIdle(controller)
+    #expect(controller.lastResultAt != nil)
 
     let unavailable = tr("暂时无法访问 iCloud 云盘，请在系统设置中确认已开启“同步此 Mac”。")
     #expect(
@@ -213,6 +214,8 @@ struct SyncScheduleTests {
     #expect(choice.fields.map(\.field) == [.appearance])
     #expect(secondSettings.appearance == .light)
     #expect(secondPreferences.lastSettingsSyncAt == nil)
+    #expect(second.needsSettingsReview)
+    #expect(second.lastResultAt != nil)
     #expect(await repository.publishedSettingsCount == 2)
     #expect(secondPreferences.devices.contains { $0.id == secondID })
     try secondPreferences.acceptFirst(choice, selections: [.appearance: .device(firstID)])
@@ -221,6 +224,7 @@ struct SyncScheduleTests {
     #expect(secondSettings.appearance == .dark)
     #expect(!secondSettings.restEnabled)
     #expect(secondPreferences.firstChoice == nil)
+    #expect(!second.needsSettingsReview)
     #expect(secondPreferences.lastSettingsSyncAt != nil)
     #expect(await repository.publishedSettingsCount == 2)
     #expect(await repository.publishedActivityCount == 0)
@@ -244,6 +248,91 @@ struct SyncScheduleTests {
     #expect(secondPreferences.firstChoice == nil)
     #expect(secondPreferences.conflicts.isEmpty)
     #expect(secondSettings.appearance == .light)
+  }
+
+  @Test func removingRemoteDeviceRefreshesTheListInManualOnlyMode() async throws {
+    let suite = "SyncDeviceRemovalTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(true, forKey: "sync.enabled")
+    defaults.set(0, forKey: "sync.intervalMinutes")
+    let repository = ScheduleRepository()
+    let local = UUID()
+    let peer = UUID()
+    let settings = AppSettings(defaults: defaults)
+    let controller = ActivitySyncController(
+      store: ActivityStore(url: nil), deviceID: local, defaults: defaults, repository: repository,
+      settings: settings)
+    controller.setSession(available: true, recordsActivity: false)
+    controller.syncNow()
+    try await waitUntilIdle(controller)
+    let preferences = try #require(controller.preferences)
+    let code = try await controller.recoveryCode()
+    let key = try ActivityKeys.decode(code)
+    let cipher = ActivitySyncCipher(key: key)
+    let peerPath = try cipher.metadataPath(for: peer)
+    let localPath = try cipher.metadataPath(for: local)
+    let localMetadata = try #require(try await repository.read(localPath))
+    let marker = try #require(try await repository.read([ActivitySyncRemotePath.marker]))
+    let peerPreferences = SyncPreferences(
+      settings: AppSettings(defaults: defaults), deviceID: peer, deviceName: "Mac mini",
+      defaults: defaults)
+    try peerPreferences.selectDestination("fixture", key: key)
+    let document = try #require(try peerPreferences.prepare([:], activitySyncedAt: nil))
+    let peerEngine = ActivitySyncEngine(key: key)
+    try await peerEngine.exchangeMetadata(device: peer, repository: repository) { _ in
+      document
+    }
+    controller.syncNow()
+    try await waitUntilIdle(controller)
+    #expect(Set(preferences.devices.map(\.id)) == [local, peer])
+    let resultAt = try #require(controller.lastResultAt)
+
+    let foreignCipher = ActivitySyncCipher(key: SymmetricKey(size: .bits256))
+    await repository.replaceMarker(try foreignCipher.makeMarker())
+    await #expect(throws: ActivitySyncFailure.authenticationFailed) {
+      try await controller.removeDevice(peer)
+    }
+    #expect(try await repository.read(peerPath) != nil)
+    #expect(Set(preferences.devices.map(\.id)) == [local, peer])
+    await repository.replaceMarker(marker)
+
+    try await controller.removeDevice(peer)
+    #expect(preferences.devices.map(\.id) == [local])
+    #expect(try await repository.read(peerPath) == nil)
+    #expect(try await repository.read(localPath) == localMetadata)
+    #expect(try await repository.read([ActivitySyncRemotePath.marker]) == marker)
+    #expect(controller.lastResultAt == resultAt)
+    #expect(controller.syncMode == nil)
+
+    controller.syncNow()
+    try await waitUntilIdle(controller)
+    #expect(preferences.devices.map(\.id) == [local])
+  }
+
+  @Test func refusesToRemoveLocalDeviceBeforeAccessingTheRepository() async throws {
+    let suite = "SyncLocalDeviceRemovalTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(true, forKey: "sync.enabled")
+    defaults.set(0, forKey: "sync.intervalMinutes")
+    let repository = ScheduleRepository()
+    let local = UUID()
+    let controller = ActivitySyncController(
+      store: ActivityStore(url: nil), deviceID: local, defaults: defaults, repository: repository,
+      settings: AppSettings(defaults: defaults))
+    controller.setSession(available: true, recordsActivity: false)
+    controller.syncNow()
+    try await waitUntilIdle(controller)
+    let preferences = try #require(controller.preferences)
+    let accesses = await repository.accessCount
+
+    await #expect(throws: ActivitySyncFailure.cannotRemoveLocalDevice) {
+      try await controller.removeDevice(local)
+    }
+    #expect(await repository.accessCount == accesses)
+    #expect(preferences.devices.map(\.id) == [local])
+    #expect(await repository.publishedSettingsCount == 1)
   }
 
   @Test func resumingWithinTheIntervalWaitsInsteadOfSyncingAgain() async throws {
@@ -504,5 +593,10 @@ private actor ScheduleRepository: ActivitySyncRepository {
   func replaceMetadata(_ data: Data, at path: [String]) {
     accessCount += 1
     files[path] = data
+  }
+
+  func deleteMetadata(at path: [String]) {
+    accessCount += 1
+    files[path] = nil
   }
 }

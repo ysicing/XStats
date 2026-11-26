@@ -3,7 +3,24 @@
 import CryptoKit
 import Darwin
 import Foundation
+import OSLog
 import SQLite3
+
+enum ActivityRetention: Int, CaseIterable, Sendable {
+  case forever = 0
+  case ninetyDays = 90
+  case thirtyDays = 30
+
+  func cutoff(at now: Date, calendar: Calendar = .current) -> Date? {
+    guard self != .forever else { return nil }
+    return calendar.date(byAdding: .day, value: -rawValue, to: now)
+      .map { calendar.startOfDay(for: $0) }
+  }
+
+  func includes(_ previous: ActivityRetention) -> Bool {
+    self == .forever || (previous != .forever && rawValue >= previous.rawValue)
+  }
+}
 
 struct ActivitySession: Codable, Sendable, Identifiable, Equatable {
   let id: UUID
@@ -76,21 +93,28 @@ actor ActivityStore {
   private static let unixEpochOffset = Date.timeIntervalBetween1970AndReferenceDate
   private static let firstSupportedDay = -62_135_596_800.0 - unixEpochOffset
   private static let afterLastSupportedDay = 253_402_300_800.0 - unixEpochOffset
+  private static let logger = Logger(subsystem: "work.12306.xstats", category: "AppActivity")
 
   private let url: URL?
   private let localKey: @Sendable (Bool) throws -> SymmetricKey
+  private let retention: (@MainActor @Sendable () -> ActivityRetention)?
   // 句柄仅由 actor 方法访问，析构时没有在途操作。
   nonisolated(unsafe) private var db: OpaquePointer?
   private var keys: Keys?
   private var revision: UInt64 = 0
   private var revisionFloor: UInt64 = 0
   private var dayRevisions: [Int: UInt64] = [:]
-  /// 同步每轮都要列出本机有记录的日期。记录只增不删，首次全量读取后由 insert 增量补充，
-  /// 避免每轮按历史天数逐天解密。
+  private var lastPrunedCutoff: Date?
+  private var lastWritePruneAttempt: Date?
+  /// 写入后增量补充，清理后失效，避免每轮同步逐天解密。
   private var localDayCache: (device: UUID, days: Set<Int>)?
 
-  init(url: URL?, keyProvider: (@Sendable () throws -> SymmetricKey)? = nil) {
+  init(
+    url: URL?, retention: (@MainActor @Sendable () -> ActivityRetention)? = nil,
+    keyProvider: (@Sendable () throws -> SymmetricKey)? = nil
+  ) {
     self.url = url
+    self.retention = retention
     if let keyProvider {
       localKey = { _ in try keyProvider() }
     } else {
@@ -100,6 +124,7 @@ actor ActivityStore {
 
   init(url: URL?, localKey: @escaping @Sendable (Bool) throws -> SymmetricKey) {
     self.url = url
+    retention = nil
     self.localKey = localKey
   }
 
@@ -120,7 +145,7 @@ actor ActivityStore {
   }
 
   @discardableResult
-  func insert(_ sessions: [ActivitySession], receipt: SyncReceipt? = nil) throws -> Bool {
+  func insert(_ sessions: [ActivitySession], receipt: SyncReceipt? = nil) async throws -> Bool {
     guard sessions.count <= Self.maximumBatchSize else { throw Failure.batchTooLarge }
     guard !sessions.isEmpty || receipt != nil else { return false }
     for session in sessions {
@@ -128,6 +153,28 @@ actor ActivityStore {
       guard validSession(session) else { throw Failure.invalidSession }
     }
 
+    let policy = await retention?() ?? .forever
+    let cutoff = policy.cutoff(at: .now)
+    var pruned = false
+    if let cutoff {
+      if lastWritePruneAttempt != cutoff, lastPrunedCutoff != cutoff {
+        do {
+          pruned = try pruneExpired(before: cutoff, policy: policy)
+          lastWritePruneAttempt = cutoff
+        } catch {
+          try Task.checkCancellation()
+          lastWritePruneAttempt = cutoff
+          Self.logger.error("清理过期应用活动失败")
+        }
+      }
+    } else {
+      lastPrunedCutoff = nil
+      lastWritePruneAttempt = nil
+    }
+    // 回执覆盖当前保留期，过滤掉的云端记录可在保留期延长后重新导入。
+    let retained = cutoff.map { date in sessions.filter { $0.end > date } } ?? sessions
+    guard !retained.isEmpty || receipt != nil else { return pruned }
+    try Task.checkCancellation()
     guard let (handle, keys) = try open(createIfMissing: true) else {
       throw Failure.database(SQLITE_CANTOPEN)
     }
@@ -149,7 +196,7 @@ actor ActivityStore {
         try statement(insertRange, on: handle) { rangeQuery in
           var dayTokens: [Int: Data] = [:]
           let overflow = keys.token("range-overflow", "")
-          for session in sessions {
+          for session in retained {
             try Task.checkCancellation()
             let indexes = keys.indexes(for: session)
             let ciphertext = try keys.seal(
@@ -211,7 +258,7 @@ actor ActivityStore {
         try updateDeviceNameIndex(session, on: handle, keys: keys)
       }
       if let receipt {
-        try writeReceipt(receipt, on: handle, keys: keys)
+        try writeReceipt(receipt, policy: policy, on: handle, keys: keys)
       }
       try Task.checkCancellation()
       try execute("COMMIT", on: handle)
@@ -221,7 +268,7 @@ actor ActivityStore {
     }
     if receipt != nil { receiptsAvailable = true }
     localDayCache?.days.formUnion(insertedLocalDays)
-    guard allDaysChanged || !daysChanged.isEmpty else { return false }
+    guard allDaysChanged || !daysChanged.isEmpty else { return pruned }
     revision &+= 1
     if allDaysChanged || dayRevisions.count + daysChanged.count > Self.maximumQueryDays {
       revisionFloor = revision
@@ -230,6 +277,138 @@ actor ActivityStore {
       for day in daysChanged { dayRevisions[day] = revision }
     }
     return true
+  }
+
+  func pruneExpired() async throws {
+    let policy = await retention?() ?? .forever
+    guard let cutoff = policy.cutoff(at: .now) else {
+      lastPrunedCutoff = nil
+      lastWritePruneAttempt = nil
+      return
+    }
+    try pruneExpired(before: cutoff, policy: policy)
+  }
+
+  @discardableResult
+  func pruneExpired(before cutoff: Date, policy: ActivityRetention? = nil) throws -> Bool {
+    guard lastPrunedCutoff != cutoff, let (handle, keys) = try open() else { return false }
+    let decoder = JSONDecoder()
+    let cutoffDay = Self.dayIndex(cutoff)
+    // 日期索引为 HMAC，在写事务外只解密每个日桶的一条记录。
+    // SQLite 的复合键比较可能先落入上一桶，再逐条比较。分开查找同设备的下一天与下一台设备。
+    let representatives = """
+      SELECT \(Self.columns) FROM activity_records AS s WHERE s.record_key = coalesce(
+        (SELECT record_key FROM activity_records
+         WHERE device_key = ?1 AND day_key > ?2 ORDER BY day_key LIMIT 1),
+        (SELECT record_key FROM activity_records
+         WHERE device_key > ?1 ORDER BY device_key, day_key LIMIT 1)
+      )
+      """
+    var expiredDays: [(device: Data, day: Data)] = []
+    try statement(representatives, on: handle) { query in
+      // 空 BLOB 排在所有有效标记之前，首次定位也沿用同一预编译语句。
+      try check(sqlite3_bind_zeroblob(query, 1, 0))
+      try check(sqlite3_bind_zeroblob(query, 2, 0))
+      while true {
+        try Task.checkCancellation()
+        let status = sqlite3_step(query)
+        if status == SQLITE_DONE { break }
+        try check(status, expected: SQLITE_ROW)
+        let session = try decodeSession(query, keys: keys, decoder: decoder)
+        let device = try token(at: 1, in: query)
+        let day = try token(at: 2, in: query)
+        if Self.dayIndex(session.start) <= cutoffDay {
+          expiredDays.append((device, day))
+        }
+        try check(sqlite3_reset(query))
+        try bind(device, at: 1, in: query)
+        try bind(day, at: 2, in: query)
+      }
+    }
+    guard !expiredDays.isEmpty else {
+      lastPrunedCutoff = cutoff
+      return false
+    }
+
+    var writing = false
+    do {
+      let removeRange = """
+        DELETE FROM activity_ranges WHERE bucket = ? AND device_key = ? AND record_key = ?
+        """
+      try statement(removeRange, on: handle) { rangeQuery in
+        try statement("DELETE FROM activity_records WHERE record_key = ?", on: handle) {
+          recordQuery in
+          for (device, day) in expiredDays {
+            var lastRecord: Data?
+            repeat {
+              let lowerBound = lastRecord == nil ? "X''" : "?3"
+              let sql = """
+                SELECT \(Self.columns) FROM activity_records AS s
+                WHERE s.device_key = ?1 AND s.day_key = ?2 AND s.record_key > \(lowerBound)
+                ORDER BY s.record_key LIMIT 256
+                """
+              let previous = lastRecord
+              lastRecord = nil
+              var expired: [(record: Data, days: ClosedRange<Int>)] = []
+              try scan(
+                sql, on: handle,
+                bind: { query in
+                  try bind(device, at: 1, in: query)
+                  try bind(day, at: 2, in: query)
+                  if let previous { try bind(previous, at: 3, in: query) }
+                }
+              ) { query in
+                let record = try token(at: 0, in: query)
+                lastRecord = record
+                let session = try decodeSession(query, keys: keys, decoder: decoder)
+                if session.end <= cutoff {
+                  expired.append((record, Self.days(start: session.start, end: session.end)))
+                }
+              }
+              for (record, days) in expired {
+                try Task.checkCancellation()
+                // 候选日桶可能只含跨截止点的时段，找到实际过期记录后才需要写锁。
+                if !writing {
+                  try execute("BEGIN IMMEDIATE", on: handle)
+                  writing = true
+                }
+                var buckets =
+                  days.count > Self.maximumIndexedDays
+                  ? [keys.token("range-overflow", "")]
+                  : days.map { keys.token("range-day", String($0)) }
+                buckets.append(keys.token("device-name", ""))
+                for bucket in buckets {
+                  try bind(bucket, at: 1, in: rangeQuery)
+                  try bind(device, at: 2, in: rangeQuery)
+                  try bind(record, at: 3, in: rangeQuery)
+                  try check(sqlite3_step(rangeQuery), expected: SQLITE_DONE)
+                  try check(sqlite3_reset(rangeQuery))
+                }
+                try bind(record, at: 1, in: recordQuery)
+                try check(sqlite3_step(recordQuery), expected: SQLITE_DONE)
+                try check(sqlite3_reset(recordQuery))
+              }
+            } while lastRecord != nil
+          }
+        }
+      }
+      if writing, let policy, receiptsAvailable {
+        try updateReceiptRetention(policy, on: handle, keys: keys)
+      }
+      try Task.checkCancellation()
+      if writing { try execute("COMMIT", on: handle) }
+    } catch {
+      if writing { sqlite3_exec(handle, "ROLLBACK", nil, nil, nil) }
+      throw error
+    }
+    lastPrunedCutoff = cutoff
+    if writing {
+      localDayCache = nil
+      revision &+= 1
+      revisionFloor = revision
+      dayRevisions.removeAll(keepingCapacity: true)
+    }
+    return writing
   }
 
   func reportRevisions(in intervals: [DateInterval]) -> [UInt64] {
@@ -259,6 +438,7 @@ actor ActivityStore {
       guard deviceID == nil || session.deviceID == deviceID,
         sessionStart >= Self.firstSupportedDay, sessionEnd <= Self.afterLastSupportedDay,
         sessionStart < sessionEnd, sessionStart < end, sessionEnd > start,
+        lastPrunedCutoff.map({ session.end > $0 }) ?? true,
         recentByID[session.id] == nil
       else { continue }
       recentByID[session.id] = session
@@ -445,10 +625,15 @@ actor ActivityStore {
     return sessions
   }
 
-  func syncReceipts(dataset: String, paths: [[String]]) throws -> [[String]: ReceiptContents] {
-    guard !paths.isEmpty, let (handle, keys) = try open() else { return [:] }
+  func syncReceipts(dataset: String, paths: [[String]]) async throws -> [[String]: ReceiptContents]
+  {
+    guard !paths.isEmpty else { return [:] }
+    let policy = await retention?() ?? .forever
+    guard let (handle, keys) = try open() else { return [:] }
     if !receiptsAvailable { receiptsAvailable = try hasReceiptTable(on: handle) }
-    guard receiptsAvailable else { return [:] }
+    guard receiptsAvailable, let previous = try receiptRetention(on: handle, keys: keys),
+      previous.includes(policy)
+    else { return [:] }
     let decoder = JSONDecoder()
     var receipts: [[String]: ReceiptContents] = [:]
     try statement("SELECT ciphertext FROM activity_sync_receipts WHERE object_key = ?", on: handle)
@@ -485,8 +670,11 @@ actor ActivityStore {
     ) WITHOUT ROWID
     """
 
-  private func writeReceipt(_ receipt: SyncReceipt, on handle: OpaquePointer, keys: Keys) throws {
+  private func writeReceipt(
+    _ receipt: SyncReceipt, policy: ActivityRetention, on handle: OpaquePointer, keys: Keys
+  ) throws {
     if !receiptsAvailable { try execute(Self.receiptSchema, on: handle) }
+    try updateReceiptRetention(policy, on: handle, keys: keys)
     let token = keys.receipt(receipt.dataset, path: receipt.path)
     let contents = ReceiptContents(ownRecords: receipt.ownRecords, version: receipt.version)
     let data = try keys.seal(JSONEncoder().encode(contents), authenticating: token)
@@ -495,6 +683,44 @@ actor ActivityStore {
     ) {
       try bind(token, at: 1, in: $0)
       try bind(data, at: 2, in: $0)
+      try check(sqlite3_step($0), expected: SQLITE_DONE)
+    }
+  }
+
+  private func receiptRetention(on handle: OpaquePointer, keys: Keys) throws -> ActivityRetention? {
+    let token = keys.token("receipt-retention", "")
+    return try statement(
+      "SELECT ciphertext FROM activity_sync_receipts WHERE object_key = ?", on: handle
+    ) { query in
+      try bind(token, at: 1, in: query)
+      let status = sqlite3_step(query)
+      // 旧版未写入保留期时，分片回执覆盖完整历史。
+      if status == SQLITE_DONE { return .forever }
+      try check(status, expected: SQLITE_ROW)
+      let ciphertext = try blob(
+        at: 0, in: query, length: Self.sealedOverhead...Self.maximumCiphertextBytes)
+      guard let bytes = try? keys.unseal(ciphertext, authenticating: token), bytes.count == 1,
+        let days = bytes.first
+      else { return nil }
+      return ActivityRetention(rawValue: Int(days))
+    }
+  }
+
+  private func updateReceiptRetention(
+    _ policy: ActivityRetention, on handle: OpaquePointer, keys: Keys
+  ) throws {
+    let previous = try receiptRetention(on: handle, keys: keys)
+    guard previous != policy else { return }
+    // 延长保留期时重新认证曾过滤或清理的分片。无法认证的覆盖范围也在此重建。
+    // 与导入或清理一起提交，避免在失败时留下不完整的回执覆盖范围。
+    if previous?.includes(policy) != true {
+      try execute("DELETE FROM activity_sync_receipts", on: handle)
+    }
+    let token = keys.token("receipt-retention", "")
+    let ciphertext = try keys.seal(Data([UInt8(policy.rawValue)]), authenticating: token)
+    try statement("INSERT OR REPLACE INTO activity_sync_receipts VALUES (?, ?)", on: handle) {
+      try bind(token, at: 1, in: $0)
+      try bind(ciphertext, at: 2, in: $0)
       try check(sqlite3_step($0), expected: SQLITE_DONE)
     }
   }

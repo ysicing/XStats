@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import Foundation
+import Localization
 import Network
 import Testing
 @testable import Metrics
@@ -205,6 +206,266 @@ struct DashboardTests {
       invalid, peer: .local, port: 3261, settings: settings, store: store)
     #expect(response.status == 404)
     #expect(!dashboard.hasViewerDemand)
+  }
+
+  @Test func kioskQueryRendersInitialModeAndLocalizedToggleWithoutSampling() async throws {
+    let settings = try testSettings()
+    let store = MetricsStore(readBattery: false)
+    let dashboard = DashboardController()
+    let labelsData = try #require(DashboardPage.localization(for: settings.language.languageCode))
+    let labels = try JSONDecoder().decode([String: String].self, from: labelsData)
+    for (path, enabled) in [
+      ("/", false), ("/?kiosk=1", true), ("/?source=ipad&kiosk=1", true),
+      ("/?kiosk=0", false), ("/?kiosk", false),
+    ] {
+      let request = DashboardHTTPRequest(
+        method: "GET", path: path,
+        headers: ["host": "192.168.1.2:3261", "sec-fetch-site": "cross-site"])
+      let response = await dashboard.respond(
+        request, peer: .local, port: 3261, settings: settings, store: store)
+      #expect(response.status == 200)
+      let html = String(decoding: response.body, as: UTF8.self)
+      let root = try #require(html.split(separator: "\n").first { $0.hasPrefix("<html ") })
+      #expect(root.hasSuffix(" data-kiosk>") == enabled)
+      let title = try #require(labels[enabled ? "exitKiosk" : "enterKiosk"])
+      #expect(html.contains("id=\"kiosk-toggle\" class=\"kiosk-toggle\" type=\"button\">\(title)"))
+    }
+    let rtl = DashboardPage.html(language: .arabic, kiosk: true)
+    #expect(rtl.contains(#"<html lang="ar" dir="rtl" data-kiosk>"#))
+    #expect(dashboard.sampling.isEmpty)
+  }
+
+  @Test func diagnosticToolsPublishOptionalSchemasAndReadOnlyAnnotations() async throws {
+    let settings = try testSettings()
+    let store = MetricsStore(readBattery: false)
+    let dashboard = DashboardController()
+    let reply = try await rpc(
+      #"{"jsonrpc":"2.0","id":7,"method":"tools/list"}"#,
+      dashboard: dashboard, settings: settings, store: store)
+    let result = try #require(reply["result"] as? [String: Any])
+    let tools = try #require(result["tools"] as? [[String: Any]])
+    #expect(
+      tools.compactMap { $0["name"] as? String } == [
+        "get_monitoring_snapshot", "xstats_top_processes", "xstats_system_health",
+      ])
+    for tool in tools {
+      #expect(
+        tool["annotations"] as? [String: Bool] == [
+          "readOnlyHint": true, "destructiveHint": false, "openWorldHint": false,
+        ])
+      let schema = try #require(tool["inputSchema"] as? [String: Any])
+      #expect(schema["type"] as? String == "object")
+      #expect(schema["additionalProperties"] as? Bool == false)
+      #expect((schema["required"] as? [String] ?? []).isEmpty)
+      let properties = try #require(schema["properties"] as? [String: [String: Any]])
+      if tool["name"] as? String == "xstats_top_processes" {
+        #expect(Set(properties.keys) == ["sortBy", "limit"])
+        #expect(properties["sortBy"]?["type"] as? String == "string")
+        #expect(properties["sortBy"]?["enum"] as? [String] == ["cpu", "memory"])
+        #expect(properties["sortBy"]?["default"] as? String == "cpu")
+        #expect(properties["limit"]?["type"] as? String == "integer")
+        #expect(properties["limit"]?["minimum"] as? Int == 1)
+        #expect(properties["limit"]?["maximum"] as? Int == 20)
+        #expect(properties["limit"]?["default"] as? Int == 10)
+      } else {
+        #expect(properties.isEmpty)
+      }
+    }
+    #expect(dashboard.sampling.isEmpty)
+  }
+
+  @Test(arguments: [
+    #"{"name":"xstats_top_processes","arguments":{"sortBy":"disk"}}"#,
+    #"{"name":"xstats_top_processes","arguments":{"sortBy":4}}"#,
+    #"{"name":"xstats_top_processes","arguments":{"sortBy":null}}"#,
+    #"{"name":"xstats_top_processes","arguments":{"limit":0}}"#,
+    #"{"name":"xstats_top_processes","arguments":{"limit":21}}"#,
+    #"{"name":"xstats_top_processes","arguments":{"limit":1.5}}"#,
+    #"{"name":"xstats_top_processes","arguments":{"limit":true}}"#,
+    #"{"name":"xstats_top_processes","arguments":{"limit":"5"}}"#,
+    #"{"name":"xstats_top_processes","arguments":{"limit":null}}"#,
+    #"{"name":"xstats_top_processes","arguments":{"extra":true}}"#,
+    #"{"name":"xstats_top_processes","arguments":[]}"#,
+    #"{"name":"xstats_system_health","arguments":{"limit":1}}"#,
+    #"{"name":"xstats_system_health","arguments":null}"#,
+    #"{"name":"xstats_system_health","arguments":[]}"#,
+    #"{"name":false}"#,
+    #"[]"#,
+  ])
+  func diagnosticToolsRejectInvalidParameters(_ params: String) async throws {
+    let settings = try testSettings()
+    let store = MetricsStore(readBattery: false)
+    let dashboard = DashboardController()
+    let reply = try await rpc(
+      """
+      {"jsonrpc":"2.0","id":7,"method":"tools/call","params":\(params)}
+      """, dashboard: dashboard, settings: settings, store: store)
+    #expect(reply["id"] as? Int == 7)
+    #expect((reply["error"] as? [String: Any])?["code"] as? Int == -32602)
+    #expect(reply["result"] == nil)
+    #expect(dashboard.sampling.isEmpty)
+  }
+
+  @Test func diagnosticProcessRankingUsesSelectedSortLimitAndCurrentUser() async throws {
+    let settings = try testSettings()
+    settings.setModuleEnabled(.cpu, true)
+    settings.setModuleEnabled(.memory, true)
+    let store = MetricsStore(readBattery: false)
+    let dashboard = DashboardController()
+    defer { dashboard.stop() }
+    let initial = try await callTool(
+      #""name":"xstats_top_processes""#, dashboard: dashboard, settings: settings, store: store)
+    #expect(initial["status"] as? String == "sampling")
+    #expect(initial["processes"] == nil)
+    #expect(dashboard.sampling == [.cpuProcesses])
+
+    var sample = MetricsSnapshot()
+    sample.processes = (0..<24).map { index in
+      var process = ProcessUsage(
+        pid: Int32(index + 1), name: "process-\(index)", executablePath: "/Users/private/app",
+        appBundlePath: nil, cpu: Double(24 - index) / 10, memory: UInt64(index + 100))
+      process.uid = index == 0 ? getuid() &+ 1 : getuid()
+      process.isOwned = index != 23
+      return process
+    }
+    store.apply(sample)
+    dashboard.record(sample)
+    let cpu = try await callTool(
+      #""name":"xstats_top_processes""#, dashboard: dashboard, settings: settings, store: store)
+    let cpuProcesses = try #require(cpu["processes"] as? [[String: Any]])
+    #expect(cpu["status"] as? String == "live")
+    #expect(cpu["sortBy"] as? String == "cpu")
+    #expect(cpu["timestamp"] as? Double == sample.date.timeIntervalSince1970)
+    #expect(cpuProcesses.compactMap { $0["name"] as? String } == (1...10).map { "process-\($0)" })
+    #expect(Set(cpuProcesses.first?.keys.map { $0 } ?? []) == ["name", "cpu", "memoryBytes"])
+
+    settings.setModuleEnabled(.cpu, false)
+    let memory = try await callTool(
+      #""name":"xstats_top_processes","arguments":{"sortBy":"memory","limit":20}"#,
+      dashboard: dashboard, settings: settings, store: store)
+    let memoryProcesses = try #require(memory["processes"] as? [[String: Any]])
+    #expect(memory["sortBy"] as? String == "memory")
+    #expect(
+      memoryProcesses.compactMap { $0["memoryBytes"] as? Int } == Array((103...122).reversed()))
+    let limited = try await callTool(
+      #""name":"xstats_top_processes","arguments":{"sortBy":"memory","limit":1}"#,
+      dashboard: dashboard, settings: settings, store: store)
+    #expect((limited["processes"] as? [[String: Any]])?.count == 1)
+    let disabled = try await callTool(
+      #""name":"xstats_top_processes""#, dashboard: dashboard, settings: settings, store: store)
+    #expect(disabled["status"] as? String == "unavailable")
+    #expect(disabled["processes"] == nil)
+    dashboard.setPaused(true)
+    let paused = try await callTool(
+      #""name":"xstats_top_processes""#, dashboard: dashboard, settings: settings, store: store)
+    #expect(paused["status"] as? String == "paused")
+    #expect(paused["processes"] == nil)
+    #expect(dashboard.sampling.isEmpty)
+  }
+
+  @Test func diagnosticHealthReadsSampledMetricsAndOnlyActiveAlerts() async throws {
+    let settings = try testSettings()
+    settings.setModuleEnabled(.battery, true)
+    settings.setModuleEnabled(.disk, true)
+    settings.setModuleEnabled(.cpu, true)
+    settings.enabledAlerts = [.cpuLoad, .diskSpace]
+    let store = MetricsStore(readBattery: false)
+    let alerts = AlertController(
+      settings: settings, authorization: .denied, submitNotification: { _ in })
+    let dashboard = DashboardController()
+    dashboard.alerts = alerts
+    defer { dashboard.stop() }
+    let initial = try await callTool(
+      #""name":"xstats_system_health","arguments":{}"#,
+      dashboard: dashboard, settings: settings, store: store)
+    #expect(initial["status"] as? String == "sampling")
+    #expect(dashboard.sampling == [.health])
+
+    var sample = MetricsSnapshot()
+    sample.cpu = CPULoad(total: 1, user: 1, system: 0, perCore: [], loadAverage: [])
+    sample.disk = DiskUsage(volumeName: "Private Volume", total: 100, available: 45)
+    sample.battery = BatteryStatus(
+      level: 0.5, isCharging: false, isPluggedIn: false, isFullyCharged: false,
+      cycleCount: 120, health: 0.89)
+    sample.power = PowerReading(system: 14, battery: -12)
+    sample.sensors = SensorReadings(
+      temperatures: [TemperatureSummary(group: .cpu, average: 49, maximum: 54, sensorCount: 4)],
+      fans: [])
+    store.apply(sample)
+    dashboard.record(sample)
+    alerts.evaluate(store, now: sample.date.addingTimeInterval(-90))
+    #expect(alerts.activeKinds.isEmpty)
+    alerts.evaluate(store, now: sample.date)
+
+    let health = try await callTool(
+      #""name":"xstats_system_health""#, dashboard: dashboard, settings: settings, store: store)
+    #expect(health["status"] as? String == "live")
+    #expect(health["timestamp"] as? Double == sample.date.timeIntervalSince1970)
+    let battery = try #require(health["battery"] as? [String: Any])
+    #expect(battery["health"] as? Double == 0.89)
+    #expect(battery["cycleCount"] as? Int == 120)
+    #expect(battery["powerWatts"] as? Double == -12)
+    #expect(health["systemPowerWatts"] as? Double == 14)
+    #expect(health["disk"] as? [String: Int] == ["totalBytes": 100, "availableBytes": 45])
+    let temperatures = try #require(health["temperatures"] as? [[String: Any]])
+    #expect(temperatures.count == 1)
+    #expect(temperatures.first?["group"] as? String == "cpu")
+    #expect(temperatures.first?["averageCelsius"] as? Double == 49)
+    #expect(temperatures.first?["maximumCelsius"] as? Double == 54)
+    #expect(health["activeAlerts"] as? [String] == ["cpuLoad"])
+
+    sample.cpu?.total = 0
+    store.apply(sample)
+    alerts.evaluate(store)
+    settings.setModuleEnabled(.battery, false)
+    settings.setModuleEnabled(.disk, false)
+    let reduced = try await callTool(
+      #""name":"xstats_system_health""#, dashboard: dashboard, settings: settings, store: store)
+    #expect(reduced["disk"] == nil)
+    #expect(reduced["temperatures"] == nil)
+    #expect((reduced["battery"] as? [String: Any])?["powerWatts"] == nil)
+    #expect(reduced["activeAlerts"] as? [String] == [])
+    dashboard.setPaused(true)
+    let paused = try await callTool(
+      #""name":"xstats_system_health""#, dashboard: dashboard, settings: settings, store: store)
+    #expect(paused["status"] as? String == "paused")
+    #expect(paused["battery"] == nil)
+    #expect(paused["activeAlerts"] == nil)
+    #expect(dashboard.sampling.isEmpty)
+  }
+
+  @Test func diagnosticsRequestOnlyTheirReadingsAndReleaseOnPause() async throws {
+    let settings = try testSettings()
+    settings.dashboardEnabled = true
+    settings.setModuleEnabled(.cpu, false)
+    settings.setModuleEnabled(.memory, true)
+    settings.setModuleEnabled(.battery, true)
+    settings.setModuleEnabled(.disk, true)
+    let model = AppModel(settings: settings, historyURL: nil)
+    defer { model.dashboard.stop() }
+    let baseline = model.demand
+    _ = try await callTool(
+      #""name":"xstats_top_processes","arguments":{"sortBy":"memory"}"#,
+      dashboard: model.dashboard, settings: settings, store: model.store)
+    let processes = model.demand
+    #expect(processes.processes)
+    #expect(processes.systemProcesses == false)
+    #expect(processes.cpu == baseline.cpu && processes.disk == baseline.disk)
+    #expect(processes.memory == baseline.memory && processes.power == baseline.power)
+
+    _ = try await callTool(
+      #""name":"xstats_system_health""#, dashboard: model.dashboard, settings: settings,
+      store: model.store)
+    let health = model.demand
+    #expect(health.disk && health.power)
+    #expect(health.temperatures.isSuperset(of: [.cpu, .gpu, .memory]))
+    #expect(health.diskDetail == baseline.diskDetail)
+    #expect(model.dashboard.sampling == [.memoryProcesses, .health])
+
+    model.dashboard.setPaused(true)
+    #expect(model.dashboard.sampling.isEmpty)
+    #expect(model.demand.processes == baseline.processes)
+    #expect(model.demand.disk == baseline.disk && model.demand.power == baseline.power)
   }
 
   @Test func webAndMCPShareReadingsAndRespectPauseAndMonitoringSwitches() async throws {
@@ -439,5 +700,34 @@ struct DashboardTests {
 
   private func json(_ response: DashboardHTTPResponse) throws -> [String: Any] {
     try #require(JSONSerialization.jsonObject(with: response.body) as? [String: Any])
+  }
+
+  private func rpc(
+    _ body: String, dashboard: DashboardController, settings: AppSettings, store: MetricsStore
+  ) async throws -> [String: Any] {
+    let request = DashboardHTTPRequest(
+      method: "POST", path: "/mcp",
+      headers: ["host": "127.0.0.1:3261", "content-type": "application/json"], body: Data(body.utf8)
+    )
+    let response = await dashboard.respond(
+      request, peer: .loopback, port: 3261, settings: settings, store: store)
+    try #require(response.status == 200)
+    return try json(response)
+  }
+
+  private func callTool(
+    _ tool: String, dashboard: DashboardController, settings: AppSettings, store: MetricsStore
+  ) async throws -> [String: Any] {
+    let reply = try await rpc(
+      """
+      {"jsonrpc":"2.0","id":7,"method":"tools/call","params":{\(tool)}}
+      """, dashboard: dashboard, settings: settings, store: store)
+    let result = try #require(reply["result"] as? [String: Any])
+    let structured = try #require(result["structuredContent"] as? [String: Any])
+    let text = try #require((result["content"] as? [[String: String]])?.first?["text"])
+    let textObject = try #require(
+      JSONSerialization.jsonObject(with: Data(text.utf8)) as? NSDictionary)
+    #expect(textObject == structured as NSDictionary)
+    return structured
   }
 }

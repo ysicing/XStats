@@ -29,6 +29,125 @@ struct ActivityStoreTests {
     #expect(await store.reportRevisions(in: days) == after)
   }
 
+  @Test func retentionPrunesExpiredRecordsAndIndexesButKeepsSessionsCrossingTheCutoff() async throws
+  {
+    let store = ActivityStore(url: nil)
+    let device = UUID()
+    var expired = session(deviceID: device, start: 1, end: 2)
+    expired.deviceName = "Old name"
+    let exact = session(deviceID: device, start: 86_400, end: 86_410)
+    var overlapping = session(deviceID: device, start: 86_390, end: 86_420)
+    overlapping.deviceName = "Current name"
+    var longExpired = session(start: -40 * 86_400, end: 20)
+    longExpired.deviceName = "Expired Mac"
+    let cutoff = date(86_410)
+    let intervals = [DateInterval(start: date(0), duration: 86_400)]
+
+    try await store.insert([expired, exact, overlapping, longExpired])
+    #expect(try await store.localDays(deviceID: device) == ["2001-01-01", "2001-01-02"])
+    let before = await store.reportRevisions(in: intervals)
+    #expect(try await store.pruneExpired(before: cutoff))
+    #expect(try await store.localDays(deviceID: device) == ["2001-01-01"])
+    #expect(try await store.deviceIDs() == [device])
+    #expect(try await store.deviceNames() == [device: "Current name"])
+    #expect(try await store.exportDay("2001-01-02", deviceID: device).isEmpty)
+    #expect(try await store.sessions(in: intervals[0]) == [overlapping])
+    let after = await store.reportRevisions(in: intervals)
+    #expect(after[0] > before[0])
+    #expect(try await !store.pruneExpired(before: cutoff))
+    #expect(await store.reportRevisions(in: intervals) == after)
+  }
+
+  @Test func retentionAppliesWhenImportingAndKeepsTheShardReceipt() async throws {
+    let store = ActivityStore(url: nil, retention: { .thirtyDays })
+    let days: TimeInterval = 86_400
+    let now = Date.now.timeIntervalSinceReferenceDate
+    let expired = session(start: now - 32 * days, end: now - 32 * days + 1)
+    let recent = session(start: now - days, end: now - days + 1)
+    let path = ["month", "date", "shard"]
+    let receipt = ActivityStore.SyncReceipt(dataset: "test", path: path, ownRecords: [])
+    try await store.insert([expired, recent], receipt: receipt)
+    let interval = DateInterval(start: expired.start, end: recent.end)
+    #expect(try await store.sessions(in: interval) == [recent])
+    #expect(try await store.syncReceipts(dataset: "test", paths: [path]).count == 1)
+  }
+
+  @Test func pruningFindsEveryExpiredDayBucketAcrossDevices() async throws {
+    let store = ActivityStore(url: nil)
+    let day: TimeInterval = 86_400
+    let devices = [UUID(), UUID(), UUID()]
+    var expired: [ActivitySession] = []
+    var retained: [ActivitySession] = []
+    for device in devices {
+      for start in [-3 * day, -2 * day, -day, 0] {
+        for offset in [1.0, 3.0, 5.0] {
+          expired.append(session(deviceID: device, start: start + offset, end: start + offset + 1))
+        }
+      }
+      retained.append(session(deviceID: device, start: -1, end: 11))
+      retained.append(session(deviceID: device, start: day + 1, end: day + 2))
+    }
+    try await store.insert(expired + retained)
+
+    #expect(try await store.pruneExpired(before: date(10)))
+    let interval = DateInterval(start: date(-3 * day), end: date(2 * day))
+    let remaining = try await store.sessions(in: interval)
+    #expect(Set(remaining.map(\.id)) == Set(retained.map(\.id)))
+    for device in devices {
+      #expect(try await store.localDays(deviceID: device) == ["2000-12-31", "2001-01-02"])
+    }
+  }
+
+  @Test func legacyReceiptsWithoutRetentionMetadataSurviveReopenAndNewWrites() async throws {
+    let url = temporaryURL()
+    defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+    let store = ActivityStore(url: url, keyProvider: { Self.fixtureKey })
+    let record = session(start: 1, end: 2)
+    let path = ["month", "date", "legacy"]
+    let legacy = ActivityStore.SyncReceipt(
+      dataset: "test", path: path, ownRecords: [record.id], version: "old-version")
+    try await store.insert([record], receipt: legacy)
+    // 保留期标记的明文只有一个字节。移除它以模拟旧版库，保留加密分片回执。
+    try execute("DELETE FROM activity_sync_receipts WHERE length(ciphertext) = 29", on: url)
+
+    let reopened = ActivityStore(url: url, keyProvider: { Self.fixtureKey })
+    let existing = try await reopened.syncReceipts(dataset: "test", paths: [path])
+    #expect(existing[path]?.ownRecords == [record.id])
+    #expect(existing[path]?.version == "old-version")
+
+    let newPath = ["month", "date", "new"]
+    let newReceipt = ActivityStore.SyncReceipt(dataset: "test", path: newPath, ownRecords: [])
+    try await reopened.insert([], receipt: newReceipt)
+    let receipts = try await reopened.syncReceipts(dataset: "test", paths: [path, newPath])
+    #expect(receipts.count == 2)
+    #expect(receipts[path]?.ownRecords == [record.id])
+    #expect(receipts[path]?.version == "old-version")
+  }
+
+  @Test(arguments: [false, true])
+  func pruningWithoutExpiredRecordsDoesNotAcquireTheWriteLock(crossesCutoff: Bool) async throws {
+    let url = temporaryURL()
+    defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+    let store = ActivityStore(url: url, keyProvider: { Self.fixtureKey })
+    let recent = session(start: crossesCutoff ? -1 : 86_401, end: 86_402)
+    try await store.insert([recent])
+    let intervals = [DateInterval(start: date(86_400), duration: 10)]
+    let before = await store.reportRevisions(in: intervals)
+
+    var connection: OpaquePointer?
+    let status = sqlite3_open_v2(url.path, &connection, SQLITE_OPEN_READWRITE, nil)
+    defer { sqlite3_close(connection) }
+    try #require(status == SQLITE_OK)
+    let writer = try #require(connection)
+    // WAL 允许另一个连接持写锁时读取。若清理尝试开启写事务，此处会收到 SQLITE_BUSY。
+    try #require(sqlite3_exec(writer, "BEGIN IMMEDIATE", nil, nil, nil) == SQLITE_OK)
+    defer { sqlite3_exec(writer, "ROLLBACK", nil, nil, nil) }
+
+    #expect(try await !store.pruneExpired(before: date(0)))
+    #expect(await store.reportRevisions(in: intervals) == before)
+    #expect(try await store.sessions(in: intervals[0]) == [recent])
+  }
+
   @Test func aConflictingRecordDoesNotCommitTheRestOfItsShardOrReceipt() async throws {
     let store = ActivityStore(url: nil)
     let first = session(start: 1, end: 2)

@@ -746,9 +746,158 @@ struct SyncPreferencesTests {
     #expect(throws: SyncPreferences.Failure.incompleteSnapshot) {
       try sync.prepare([peer.id: replacement], activitySyncedAt: nil)
     }
-    #expect(throws: SyncPreferences.Failure.incompleteSnapshot) {
-      try sync.prepare([:], activitySyncedAt: nil)
+    try exchange(sync, in: &documents)
+  }
+
+  @Test(arguments: [false, true])
+  func missingOwnSlotPreservesUnfinishedSettingsForReview(awaitingApplication: Bool) throws {
+    let receiver = Peer(recordJournal: true)
+    let source = Peer()
+    defer {
+      receiver.clean()
+      source.clean()
     }
+    var documents: [UUID: Data] = [:]
+    let (sync, publisher) = try joined(receiver, source, documents: &documents)
+    source.settings.appearance = .dark
+    try exchange(publisher, in: &documents)
+    let upload = try #require(try sync.prepare(documents, activitySyncedAt: nil))
+    if awaitingApplication {
+      documents[receiver.id] = upload
+      try sync.didPublish(documents)
+      #expect(receiver.settings.appearance == .dark)
+      // 恢复已核实发布、尚未更新本机设置时的加密日志。
+      let journal = try #require(receiver.defaults.data(forKey: JournalDefaults.previous))
+      let storage = try #require(receiver.defaults.string(forKey: JournalDefaults.storage))
+      receiver.settings.syncPreferences = nil
+      receiver.settings.appearance = .system
+      receiver.defaults.set(journal, forKey: storage)
+    }
+
+    documents[receiver.id] = nil
+    let resumed = try receiver.open()
+    try exchange(resumed, in: &documents)
+    #expect(documents[receiver.id] != nil)
+    #expect(documents[receiver.id] != upload)
+    #expect(receiver.settings.appearance == .system)
+
+    let reopened = try receiver.open()
+    try exchange(reopened, in: &documents)
+    let choice = try #require(reopened.conflicts.first { $0.field == .appearance })
+    try reopened.resolve(choice, using: .device(source.id))
+    try exchange(reopened, in: &documents)
+    #expect(receiver.settings.appearance == .dark)
+    #expect(reopened.conflicts.isEmpty)
+  }
+
+  @Test func missingOwnSlotKeepsFirstConfirmationPendingWhenItsSourceIsAlsoMissing() throws {
+    let receiver = Peer()
+    let source = Peer()
+    defer {
+      receiver.clean()
+      source.clean()
+    }
+    receiver.settings.appearance = .light
+    source.settings.appearance = .dark
+    var documents: [UUID: Data] = [:]
+    try seed(source.open(), in: &documents)
+    let sync = try receiver.open()
+    try sync.setSelectedFields([.appearance])
+    try exchange(sync, in: &documents)
+    try sync.acceptFirst(
+      #require(sync.firstChoice), selections: [.appearance: .device(source.id)])
+    _ = try #require(try sync.prepare(documents, activitySyncedAt: nil))
+
+    documents.removeAll()
+    let resumed = try receiver.open()
+    try exchange(resumed, in: &documents)
+    #expect(documents[receiver.id] != nil)
+    #expect(receiver.settings.appearance == .light)
+    let choice = try #require(resumed.firstChoice)
+    #expect(choice.fields.map(\.field) == [.appearance])
+    #expect(choice.fields.first?.remoteValues.isEmpty == true)
+    try resumed.acceptFirst(choice)
+    try exchange(resumed, in: &documents)
+    #expect(resumed.firstChoice == nil)
+  }
+
+  enum RemovedDevicePublication: Equatable, Sendable {
+    case notWritten, awaitingReadback, awaitingApplication
+  }
+
+  @Test(arguments: [
+    RemovedDevicePublication.notWritten, .awaitingReadback, .awaitingApplication,
+  ])
+  func forgettingADeviceRevokesItsPendingResolutionAfterRestart(
+    _ stage: RemovedDevicePublication
+  ) throws {
+    let receiver = Peer(recordJournal: true)
+    let source = Peer()
+    defer {
+      receiver.clean()
+      source.clean()
+    }
+    var documents: [UUID: Data] = [:]
+    let (sync, other) = try joined(receiver, source, documents: &documents)
+    receiver.settings.appearance = .light
+    source.settings.appearance = .dark
+    try exchange(other, in: &documents)
+    try exchange(sync, in: &documents)
+    try sync.resolve(#require(sync.conflicts.first), using: .device(source.id))
+    let upload = try #require(try sync.prepare(documents, activitySyncedAt: nil))
+
+    if stage != .notWritten { documents[receiver.id] = upload }
+    if stage == .awaitingApplication {
+      try sync.didPublish(documents)
+      #expect(receiver.settings.appearance == .dark)
+      // 恢复已核实写入但尚未应用的加密队列。
+      let journal = try #require(receiver.defaults.data(forKey: JournalDefaults.previous))
+      let storage = try #require(receiver.defaults.string(forKey: JournalDefaults.storage))
+      receiver.settings.syncPreferences = nil
+      receiver.settings.appearance = .light
+      receiver.defaults.set(journal, forKey: storage)
+    }
+
+    let reopened = try receiver.open()
+    documents[source.id] = nil
+    try reopened.forgetDevice(source.id)
+    #expect(reopened.devices.map(\.id) == [receiver.id])
+    let resumed = try receiver.open()
+    try exchange(resumed, in: &documents)
+    try exchange(resumed, in: &documents)
+    #expect(resumed.firstChoice == nil)
+    #expect(resumed.conflicts.isEmpty)
+    #expect(receiver.settings.appearance == .light)
+  }
+
+  @Test func forgettingADeviceClearsItsSavedFirstChoiceCandidates() throws {
+    let source = Peer()
+    let receiver = Peer()
+    defer {
+      source.clean()
+      receiver.clean()
+    }
+    source.settings.appearance = .dark
+    receiver.settings.appearance = .light
+    var documents: [UUID: Data] = [:]
+    try seed(source.open(), in: &documents)
+    let sync = try receiver.open()
+    try sync.setSelectedFields([.appearance])
+    try exchange(sync, in: &documents)
+    try sync.acceptFirst(#require(sync.firstChoice), selections: [.appearance: .device(source.id)])
+    let upload = try #require(try sync.prepare(documents, activitySyncedAt: nil))
+    try sync.cancel()
+    documents[receiver.id] = upload
+    try exchange(sync, in: &documents)
+    #expect(sync.firstChoice?.fields.first?.remoteValues.map(\.id) == [source.id])
+
+    documents[source.id] = nil
+    try sync.forgetDevice(source.id)
+    let resumed = try receiver.open()
+    try exchange(resumed, in: &documents)
+    #expect(resumed.firstChoice == nil)
+    #expect(resumed.conflicts.isEmpty)
+    #expect(receiver.settings.appearance == .light)
   }
 
   @Test func malformedSnapshotDoesNotApplySettingsOrAdvanceMetadata() throws {
@@ -878,8 +1027,13 @@ struct SyncPreferencesTests {
     follower.defaults.set(journal, forKey: storage)
     let reopened = try follower.open()
     #expect(follower.settings.appearance == .light)
+    let own = try #require(documents[follower.id])
+    var document = try #require(JSONSerialization.jsonObject(with: own) as? [String: Any])
+    document["publication"] = UUID().uuidString
+    var replaced = documents
+    replaced[follower.id] = try JSONSerialization.data(withJSONObject: document)
     #expect(throws: SyncPreferences.Failure.incompleteSnapshot) {
-      try reopened.prepare([:], activitySyncedAt: nil)
+      try reopened.prepare(replaced, activitySyncedAt: nil)
     }
     #expect(follower.settings.appearance == .light)
     _ = try reopened.prepare(documents, activitySyncedAt: nil)

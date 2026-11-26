@@ -516,6 +516,60 @@ struct ActivitySyncTests {
       try await reopened.sessions(in: DateInterval(start: now, duration: 60)) == [local, remote])
   }
 
+  @MainActor
+  @Test(arguments: [true, false])
+  func extendingRetentionRestoresUnchangedCloudHistory(filteredOnImport: Bool) async throws {
+    let suite = "ActivityRetentionTests.\(UUID())"
+    let defaults = try #require(UserDefaults(suiteName: suite))
+    let workspace = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    defer {
+      defaults.removePersistentDomain(forName: suite)
+      try? FileManager.default.removeItem(at: workspace)
+    }
+    let settings = AppSettings(defaults: defaults)
+    settings.activityRetention = filteredOnImport ? .thirtyDays : .forever
+    let url = workspace.appending(path: "activity.sqlite")
+    let key = self.key
+    let retention: @MainActor @Sendable () -> ActivityRetention = { settings.activityRetention }
+    let initial = ActivityStore(url: url, retention: retention, keyProvider: { key })
+    let repository = Shards(key: key)
+    let device = UUID()
+    let current = Date()
+    let start = current.addingTimeInterval(-45 * 86_400)
+    let old = ActivitySession(
+      id: UUID(), deviceID: UUID(), appID: "app", appName: "App", category: "work",
+      start: start, end: start.addingTimeInterval(1))
+    let path = try await repository.seed([old])
+    await repository.setVersion("unchanged", at: path)
+    let interval = DateInterval(start: start, end: old.end)
+    let mode: ActivitySyncMode = filteredOnImport ? .manual : .automatic
+    try await ActivitySyncEngine(key: key).run(
+      store: initial, device: device, repository: repository, mode: mode, now: current)
+    #expect(await repository.reads == 1)
+    if !filteredOnImport {
+      #expect(try await initial.sessions(in: interval) == [old])
+      settings.activityRetention = .thirtyDays
+      try await initial.pruneExpired()
+    }
+    #expect(try await initial.sessions(in: interval).isEmpty)
+
+    let reopened = ActivityStore(url: url, retention: retention, keyProvider: { key })
+    let engine = ActivitySyncEngine(key: key)
+    try await engine.run(
+      store: reopened, device: device, repository: repository, mode: mode, now: current)
+    #expect(await repository.reads == 1)
+
+    settings.activityRetention = filteredOnImport ? .ninetyDays : .forever
+    try await engine.run(
+      store: reopened, device: device, repository: repository, mode: mode, now: current)
+    #expect(await repository.reads == 2)
+    #expect(try await reopened.sessions(in: interval) == [old])
+    try await engine.run(
+      store: reopened, device: device, repository: repository, mode: mode, now: current)
+    #expect(await repository.reads == 2)
+    #expect(await repository.writes == 0)
+  }
+
   @Test func changedCiphertextAtAListedPathIsNotTrustedFromTheReceipt() async throws {
     let repository = Shards(key: key)
     let source = UUID()

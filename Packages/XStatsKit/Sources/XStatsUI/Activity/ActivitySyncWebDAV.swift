@@ -86,6 +86,15 @@ actor ActivitySyncWebDAV: ActivitySyncRepository {
     _ = try await write(data, at: path, creating: false)
   }
 
+  func deleteMetadata(at path: [String]) async throws {
+    guard ActivitySyncRemotePath.validMetadataObject(path), let name = path.last else {
+      throw ActivitySyncFailure.invalidShard
+    }
+    let url = directoryURL(path.dropLast(), under: syncRoot).appendingPathComponent(name)
+    let response = try await request("DELETE", url)
+    try require(response.status, in: [200, 204, 404])
+  }
+
   private func write(_ data: Data, at path: [String], creating: Bool) async throws
     -> (created: Bool, version: String?)
   {

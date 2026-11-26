@@ -386,7 +386,7 @@ release details and historical validation limits.
 ## App Activity
 
 App Activity is opt-in under Settings → Features → Experimental. Its switch
-controls local recording and visibility of the read-only monitor page.
+controls local recording and visibility of the activity page.
 Disabling recording preserves existing history. For upgrades from separate
 recording and page switches, both older switches must have been enabled to carry
 forward the recording preference. When enabled, it stores foreground app identifiers,
@@ -403,6 +403,13 @@ The day view groups resolved foreground activity into elapsed-hour buckets and
 offers a device timeline for inspecting exact sessions. Weekly rows and monthly
 columns group the same activity by local calendar day. Opening a day from a week
 or month keeps the device filter and provides a route back to that period.
+
+The app ranking offers per-app category overrides on this Mac. Reports apply
+them to both local and synced history, including the Markdown and CSV exports
+for the selected period and device. Exported files contain readable summaries.
+Local retention defaults to forever and can be set to 90 or 30 days in
+Settings → Features → Experimental. The store removes expired sessions during
+record writes or report loads and skips expired imports. Cloud copies are retained.
 
 Each Mac encrypts its local records with a device-specific key. A separate recovery
 key shared across the user's Macs encrypts synchronized activity. Both keys are

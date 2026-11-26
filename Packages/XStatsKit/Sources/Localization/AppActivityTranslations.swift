@@ -82,5 +82,19 @@ extension Translations {
     娱乐	Entertainment
     沟通	Communication
     浏览	Browsing
+    应用分类	App Category
+    自动分类	Automatic Category
+    本机活动保留期	Local Activity Retention
+    永久保留	Keep Forever
+    90 天	90 days
+    缩短保留期会删除本机的过期记录，云端副本继续保留。	Shortening retention deletes expired records from this Mac. Cloud copies are retained.
+    导出报表	Export Report
+    导出为 Markdown	Export as Markdown
+    导出为 CSV	Export as CSV
+    无法导出活动报表	Unable to export the activity report
+    活动报表	Activity Report
+    总活跃时长	Total Active Time
+    分类汇总	Category Summary
+    活跃时长（秒）	Active Time (seconds)
     """#
 }

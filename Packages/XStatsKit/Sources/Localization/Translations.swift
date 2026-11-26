@@ -30,6 +30,10 @@ extension Translations {
     输入 1–65535 之间的端口号。	Enter a port from 1 to 65535.
     浏览器会阻止访问此端口，请选择其他端口。	Browsers block this port. Choose another port.
     显示设置	Display settings
+    看板模式	Kiosk mode
+    退出看板	Exit kiosk mode
+    按 CPU 或内存占用查看当前用户的进程排行。	List the current user’s top processes by CPU or memory usage.
+    读取本机的电池健康度、循环次数、功耗、温度、可用磁盘空间和活跃告警。	Read this Mac’s battery health, cycle count, power usage, temperatures, available disk space and active alerts.
     系统资源	System resources
     1 / 5 / 15 分钟负载	1 / 5 / 15 min load
     近 5 分钟	Last 5 minutes

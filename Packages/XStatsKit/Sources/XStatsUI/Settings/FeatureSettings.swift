@@ -293,12 +293,26 @@ struct FeatureSettings: View {
         .fixedSize(horizontal: false, vertical: true)
       DashboardSettings()
       SettingsGroup {
-        GroupRow(showsDivider: false) {
+        GroupRow {
           SettingRow(title: tr("应用活动"), icon: PanelTab.activity.symbol) {
             DSToggle(
               isOn: Binding(
                 get: { settings.activityFeatureEnabled }, set: model.setActivityFeatureEnabled),
               label: tr("应用活动"))
+          }
+        }
+        GroupRow(showsDivider: false) {
+          SettingRow(
+            title: tr("本机活动保留期"),
+            subtitle: tr("缩短保留期会删除本机的过期记录，云端副本继续保留。"),
+            icon: "calendar.badge.clock"
+          ) {
+            Picker(tr("本机活动保留期"), selection: $settings.activityRetention) {
+              Text(tr("永久保留")).tag(ActivityRetention.forever)
+              Text(tr("90 天")).tag(ActivityRetention.ninetyDays)
+              Text(tr("30 天")).tag(ActivityRetention.thirtyDays)
+            }
+            .labelsHidden()
           }
         }
       }

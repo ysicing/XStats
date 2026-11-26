@@ -8,6 +8,8 @@ struct SyncSettingsPage: View {
   @State private var sheet: Sheet?
   @State private var retry = 0
   @State private var completedLoad: PreferenceLoad?
+  @State private var confirmsRemoval = false
+  @State private var removalFailure: String?
 
   private var sync: ActivitySyncController { model.activity.sync }
   private var localID: UUID { model.activity.deviceID }
@@ -51,6 +53,7 @@ struct SyncSettingsPage: View {
 
     return PageScroll {
       locationSettings
+      syncStatus
       SettingsGroup(caption: tr("同步内容")) {
         GroupRow(showsDivider: false) {
           detailRow(
@@ -97,7 +100,6 @@ struct SyncSettingsPage: View {
           }
         }
       }
-      syncActions
     }
     .task(id: load) {
       await sync.preparePreferences()
@@ -134,7 +136,44 @@ struct SyncSettingsPage: View {
             LabeledContent(tr("存储位置"), value: sync.provider.settingsTitle)
             LabeledContent(tr("应用活动"), value: Self.dateLabel(device.lastActivitySyncAt))
             LabeledContent(tr("功能设置"), value: Self.dateLabel(device.lastSettingsSyncAt))
+            if id != localID {
+              HStack {
+                Button(tr("移除设备"), role: .destructive) { confirmsRemoval = true }
+                  .disabled(!sync.canRemoveDevice)
+                if sync.removingDevice { ProgressView().controlSize(.small) }
+              }
+            }
           }
+        }
+        .interactiveDismissDisabled(sync.removingDevice)
+        .alert(tr("移除设备？"), isPresented: $confirmsRemoval) {
+          Button(tr("取消"), role: .cancel) {}
+          Button(tr("移除设备"), role: .destructive) { removeDevice(id) }
+        } message: {
+          Text(tr("此操作适用于已停用的设备。已同步的活动记录会保留。"))
+        }
+        .alert(
+          tr("无法移除设备"),
+          isPresented: Binding(
+            get: { removalFailure != nil },
+            set: { if !$0 { removalFailure = nil } })
+        ) {
+          Button(tr("完成"), role: .cancel) {}
+        } message: {
+          if let removalFailure { Text(verbatim: removalFailure) }
+        }
+      }
+    }
+  }
+
+  private func removeDevice(_ id: UUID) {
+    Task {
+      do {
+        try await sync.removeDevice(id)
+        if sheet == .device(id) { sheet = nil }
+      } catch {
+        if sheet == .device(id) {
+          removalFailure = sync.deviceRemovalHint(for: error) ?? tr("请稍后重试。")
         }
       }
     }
@@ -153,7 +192,7 @@ struct SyncSettingsPage: View {
         SettingRow(title: tr("存储位置"), subtitle: sync.provider.settingsTitle, icon: "cloud") {
           Button(tr("更改…")) { sheet = .storage }
             .buttonStyle(DSButtonStyle(kind: .secondary))
-            .disabled(sync.syncing || sync.changingKey)
+            .disabled(sync.syncing || sync.changingKey || sync.removingDevice)
         }
       }
       GroupRow {
@@ -177,31 +216,40 @@ struct SyncSettingsPage: View {
 
   private var preferenceStatus: String {
     guard let preferences = sync.preferences, preferences.isEnabled else { return tr("未开启") }
-    if preferences.firstChoice != nil || !preferences.conflicts.isEmpty { return tr("查看差异") }
+    if sync.needsSettingsReview { return tr("查看差异") }
     guard let date = preferences.lastSettingsSyncAt else { return tr("等待首次同步") }
     return Self.receipt(date)
   }
 
-  private var syncActions: some View {
-    HStack(spacing: DS.Space.s2) {
-      if sync.syncing {
-        ProgressView().controlSize(.small)
-        Text(tr("正在同步…")).foregroundStyle(.secondary)
-        if sync.syncMode == .manual {
-          Button(tr("取消"), action: sync.cancelManualSync)
-            .buttonStyle(DSButtonStyle(kind: .secondary))
+  private var syncStatus: some View {
+    SettingsGroup {
+      GroupRow(showsDivider: false) {
+        SettingRow(
+          title: tr("同步状态"),
+          subtitle: sync.syncing ? tr("正在同步…") : sync.message ?? tr("尚未同步"),
+          icon: "arrow.clockwise"
+        ) {
+          if sync.syncing {
+            ProgressView().controlSize(.small)
+            if sync.syncMode == .manual {
+              Button(tr("取消"), action: sync.cancelManualSync)
+                .buttonStyle(DSButtonStyle(kind: .secondary))
+            }
+          } else {
+            Button(tr("立即同步"), action: sync.syncNow)
+              .buttonStyle(DSButtonStyle(kind: .primary))
+              .disabled(!sync.active || sync.changingKey || sync.removingDevice)
+          }
         }
-      } else {
-        Button(tr("立即同步"), action: sync.syncNow)
-          .buttonStyle(DSButtonStyle(kind: .primary))
-          .disabled(!sync.active || sync.changingKey)
       }
-      if let message = sync.message, !sync.syncing {
-        Text(verbatim: message)
-          .dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
-          .fixedSize(horizontal: false, vertical: true)
+      if let date = sync.lastResultAt {
+        GroupRow {
+          SettingRow(title: tr("最近同步尝试"), icon: "clock") {
+            Text(Self.dateLabel(date)).dsFont(.xs).foregroundStyle(DS.Palette.textSecondary)
+              .multilineTextAlignment(.trailing)
+          }
+        }
       }
-      Spacer(minLength: 0)
     }
   }
 
@@ -230,6 +278,7 @@ struct SyncSettingsPage: View {
       HStack {
         Spacer()
         Button(tr("完成")) { sheet = nil }.keyboardShortcut(.cancelAction)
+          .disabled(sync.removingDevice)
       }
     }
     .padding(DS.Space.s6)

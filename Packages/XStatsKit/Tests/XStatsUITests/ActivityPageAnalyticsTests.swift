@@ -63,6 +63,35 @@ struct ActivityPageAnalyticsTests {
     #expect(report.seconds == 330)
   }
 
+  @Test func customCategoriesOverrideKnownAndCapturedCategoriesInAllReports() throws {
+    let calendar = utcCalendar
+    let interval = try #require(calendar.dateInterval(of: .day, for: midnight))
+    var editor = session(appID: "example.editor", from: 60, to: 120)
+    editor.subcategory = "programming"
+    let sessions = [
+      session(appID: "COM.Apple.Safari", category: "browsing", from: 0, to: 60),
+      session(on: remote, appID: "COM.Apple.Safari", category: "browsing", from: 0, to: 60),
+      editor,
+    ]
+    let overrides = ["com.apple.safari": "learning", "example.editor": "invalid"]
+    let daily = try ActivityPageAnalytics.make(
+      sessions: sessions, interval: interval, period: .day, calendar: calendar, deviceID: nil,
+      classificationOverrides: overrides)
+    #expect(daily.categories.first?.breakdown == [.learning: 120, .programming: 60])
+    #expect(daily.apps.first?.category == .work)
+    #expect(daily.hours.first?.secondsByCategory == [.work: 180])
+    #expect(daily.lanes.flatMap(\.segments).allSatisfy { $0.category == .work })
+
+    let summaries = try ActivityPageAnalytics.summarizeDays(
+      [interval], sessions: sessions, period: .week, calendar: calendar, deviceID: remote,
+      through: interval.end, classificationOverrides: overrides)
+    let weekly = try ActivityPageAnalytics.combineDailySummaries(summaries)
+    #expect(weekly.categories.first?.breakdown == [.learning: 60])
+    let automatic = try ActivityPageAnalytics.make(
+      sessions: sessions, interval: interval, period: .day, calendar: calendar, deviceID: nil)
+    #expect(automatic.apps.first?.category == .browsing)
+  }
+
   @Test func clipsBothEdgesAndIgnoresSessionsTouchingTheDay() throws {
     let calendar = utcCalendar
     let interval = try #require(calendar.dateInterval(of: .day, for: midnight))

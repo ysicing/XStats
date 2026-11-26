@@ -5,6 +5,14 @@ import Foundation
 enum ActivityPagePeriod: CaseIterable, Hashable, Sendable {
   case day, week, month
 
+  var titleSource: String {
+    switch self {
+    case .day: "日"
+    case .week: "周"
+    case .month: "月"
+    }
+  }
+
   var component: Calendar.Component {
     switch self {
     case .day: .day
@@ -84,7 +92,8 @@ struct ActivityPageAnalytics: Sendable {
 
   static func make(
     sessions: [ActivitySession], interval: DateInterval, period: ActivityPagePeriod,
-    calendar: Calendar, deviceID: UUID?, through now: Date? = nil, detail: Detail = .all
+    calendar: Calendar, deviceID: UUID?, through now: Date? = nil, detail: Detail = .all,
+    classificationOverrides: [String: String] = [:]
   ) throws -> Self {
     var days: [Bucket] = []
     var dayIndices: [Date: Int] = [:]
@@ -123,7 +132,8 @@ struct ActivityPageAnalytics: Sendable {
       guard let firstDay = dayIndices[calendar.startOfDay(for: start)] else { continue }
       // 在查询时应用现行规则，让本机和远端的历史记录获得相同的归类。
       let classification =
-        ActivityClassification.knownApplication(session.appID)
+        ActivityClassification.custom(appID: session.appID, overrides: classificationOverrides)
+        ?? ActivityClassification.knownApplication(session.appID)
         ?? session.subcategory.flatMap(ActivityClassification.init(rawValue:))
         ?? ActivityClassification(rawValue: session.category) ?? .other
       let category = classification.category
@@ -232,7 +242,8 @@ struct ActivityPageAnalytics: Sendable {
 
   static func summarizeDays(
     _ intervals: [DateInterval], sessions: [ActivitySession], period: ActivityPagePeriod,
-    calendar: Calendar, deviceID: UUID?, through now: Date
+    calendar: Calendar, deviceID: UUID?, through now: Date,
+    classificationOverrides: [String: String] = [:]
   ) throws -> [Self] {
     let indices = Dictionary(
       uniqueKeysWithValues: intervals.enumerated().map {
@@ -252,7 +263,8 @@ struct ActivityPageAnalytics: Sendable {
     return try intervals.indices.map { index in
       try make(
         sessions: partitioned[index], interval: intervals[index], period: period,
-        calendar: calendar, deviceID: deviceID, through: now, detail: .none)
+        calendar: calendar, deviceID: deviceID, through: now, detail: .none,
+        classificationOverrides: classificationOverrides)
     }
   }
 

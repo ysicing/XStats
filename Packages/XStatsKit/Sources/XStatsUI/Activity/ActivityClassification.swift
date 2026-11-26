@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-enum ActivityClassification: String, Sendable {
+enum ActivityClassification: String, CaseIterable, Sendable {
   case programming, office, design, learning, games, media, utilities
   case work, entertainment, communication, browsing, other
 
@@ -12,6 +12,10 @@ enum ActivityClassification: String, Sendable {
     case .browsing: .browsing
     case .utilities, .other: .other
     }
+  }
+
+  static func custom(appID: String, overrides: [String: String]) -> Self? {
+    overrides[appID.lowercased()].flatMap(Self.init(rawValue:))
   }
 
   static func knownApplication(_ id: String) -> Self? {

@@ -146,6 +146,35 @@ struct ActivitySyncFolder: ActivitySyncRepository {
     _ = try await write(data, at: path, replacing: true)
   }
 
+  func deleteMetadata(at path: [String]) async throws {
+    guard ActivitySyncRemotePath.validMetadataObject(path), let name = path.last else {
+      throw ActivitySyncFailure.invalidListing
+    }
+    let components = rootComponents + path
+    guard let directory = try openDirectory(Array(components.dropLast())) else { return }
+    defer { close(directory) }
+    let url = location(components)
+    // iCloud 的占位文件需先还原为实际槽位，不能把占位状态当成远端已删除。
+    var info = stat()
+    if fstatat(directory, name, &info, AT_SYMLINK_NOFOLLOW) != 0 {
+      guard errno == ENOENT else { throw ActivitySyncFailure.folderUnavailable }
+      try materialize(url, byteLimit: ActivitySyncRemotePath.maximumMetadataBytes)
+      return
+    }
+    try await coordinated(at: url, writing: true, writeOptions: .forDeleting) { [self] in
+      try materialize(url, byteLimit: ActivitySyncRemotePath.maximumMetadataBytes)
+      var info = stat()
+      if fstatat(directory, name, &info, AT_SYMLINK_NOFOLLOW) != 0 {
+        guard errno == ENOENT else { throw ActivitySyncFailure.folderUnavailable }
+        return
+      }
+      guard info.st_mode & S_IFMT == S_IFREG else { throw ActivitySyncFailure.invalidListing }
+      guard unlinkat(directory, name, 0) == 0 || errno == ENOENT else {
+        throw ActivitySyncFailure.folderUnavailable
+      }
+    }
+  }
+
   private func write(_ data: Data, at path: [String], replacing: Bool) async throws
     -> (created: Bool, version: String?)
   {
@@ -303,7 +332,8 @@ struct ActivitySyncFolder: ActivitySyncRepository {
   }
 
   private func coordinated<Value>(
-    at url: URL, writing: Bool, _ action: @escaping () throws -> Value
+    at url: URL, writing: Bool, writeOptions: NSFileCoordinator.WritingOptions = .forReplacing,
+    _ action: @escaping () throws -> Value
   ) async throws -> Value {
     // cancel() 可在协调阻塞时从另一线程调用；其余操作均留在同一同步 access scope。
     nonisolated(unsafe) let coordinator = NSFileCoordinator()
@@ -323,7 +353,7 @@ struct ActivitySyncFolder: ActivitySyncRepository {
       }
       if writing {
         coordinator.coordinate(
-          writingItemAt: url, options: .forReplacing, error: &failure, byAccessor: access)
+          writingItemAt: url, options: writeOptions, error: &failure, byAccessor: access)
       } else {
         coordinator.coordinate(readingItemAt: url, options: [], error: &failure, byAccessor: access)
       }

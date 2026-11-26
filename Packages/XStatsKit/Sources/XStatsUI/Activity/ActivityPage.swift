@@ -5,6 +5,7 @@ import Combine
 import Localization
 import OSLog
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ActivityPage: View {
   @Environment(AppModel.self) private var model
@@ -20,6 +21,8 @@ struct ActivityPage: View {
   @State private var summaries: [DateInterval: DailySummary] = [:]
   @State private var failedRequest: Request?
   @State private var selectedApp: ActivityPageAnalytics.App?
+  @State private var exporting = false
+  @State private var exportFailed = false
 
   private static let logger = Logger(subsystem: Log.subsystem, category: "activity-page")
   private static let syncFinished = Notification.Name("XStatsActivitySyncFinished")
@@ -57,17 +60,34 @@ struct ActivityPage: View {
     let liveDay =
       isVisible && tracksLocalChanges && period == .day && controller.enabled
         && selectedApp == nil ? interval : nil
+    let classificationOverrides = model.settings.activityClassificationOverrides
+    let retention = model.settings.activityRetention
     let request = selection.map {
       Request(
-        selection: $0, localID: localID, enabled: controller.enabled, refresh: refresh)
+        selection: $0, localID: localID, enabled: controller.enabled, refresh: refresh,
+        classificationOverrides: classificationOverrides, retention: retention)
     }
     let visibleRequest = isVisible ? request : nil
-    let report = loaded?.selection == selection ? loaded?.report : nil
+    let report = loaded?.request.selection == selection ? loaded?.report : nil
+    let canExport =
+      report != nil && !exporting && failedRequest != visibleRequest
+      && loaded?.request.classificationOverrides == classificationOverrides
+      && loaded?.request.retention == retention
     let remoteIDs = storedDeviceIDs.filter { $0 != localID }
 
     ScrollView {
       LazyVStack(alignment: .leading, spacing: DS.Space.s4) {
-        header(localID: localID, remoteIDs: remoteIDs, names: deviceNames)
+        header(localID: localID, remoteIDs: remoteIDs, names: deviceNames, canExport: canExport) {
+          format in
+          guard let report, let interval else { return }
+          let name =
+            device.id(localID: localID).map {
+              ActivityPageFormat.deviceName($0, localID: localID, names: deviceNames)
+            } ?? tr("所有设备")
+          export(
+            report, format: format, interval: interval, period: period, deviceName: name,
+            calendar: calendar, locale: locale)
+        }
         if controller.writeFailed {
           Label {
             Text(tr("录制写入失败，请检查可用磁盘空间。"))
@@ -97,8 +117,12 @@ struct ActivityPage: View {
                 .frame(maxWidth: .infinity)
                 .padding()
             } else {
-              ActivityPageRankings(report: report, locale: locale) { selectedApp = $0 }
-                .id(selection)
+              ActivityPageRankings(
+                report: report, locale: locale, openApp: { selectedApp = $0 },
+                classificationOverrides: classificationOverrides,
+                setClassification: { model.settings.setActivityClassification($1, for: $0) }
+              )
+              .id(selection)
             }
           } else {
             dateNavigation(interval: interval, current: current, calendar: calendar, locale: locale)
@@ -187,15 +211,21 @@ struct ActivityPage: View {
             let detail = try await makeReport(
               selection.interval, period: selection.period, controller: controller,
               calendar: calendar, deviceID: selection.device.id(localID: localID),
-              now: .now, detail: .app(app.id))
+              now: .now, classificationOverrides: classificationOverrides, detail: .app(app.id))
             return detail.apps.first { $0.id == app.id }
           }
         })
     }
     .onChange(of: device) { _, _ in animatePeriodChange = false }
+    .alert(tr("无法导出活动报表"), isPresented: $exportFailed) {
+      Button(tr("完成"), role: .cancel) {}
+    }
   }
 
-  private func header(localID: UUID, remoteIDs: [UUID], names: [UUID: String]) -> some View {
+  private func header(
+    localID: UUID, remoteIDs: [UUID], names: [UUID: String], canExport: Bool,
+    export: @escaping (ActivityReportExport.Format) -> Void
+  ) -> some View {
     let devices = Picker(tr("设备"), selection: $device) {
       Text(tr("所有设备")).tag(Device.all)
       Text(verbatim: ActivityPageFormat.deviceName(localID, localID: localID, names: names))
@@ -218,23 +248,68 @@ struct ActivityPage: View {
           DS.Motion.select { dateSelection.selectPeriod(newPeriod) }
         })
     ) {
-      Text(tr("日")).tag(ActivityPagePeriod.day)
-      Text(tr("周")).tag(ActivityPagePeriod.week)
-      Text(tr("月")).tag(ActivityPagePeriod.month)
+      ForEach(ActivityPagePeriod.allCases, id: \.self) { period in
+        Text(tr(period.titleSource)).tag(period)
+      }
     }
     .pickerStyle(.segmented)
     .labelsHidden()
     .fixedSize()
+
+    let exportMenu = Menu {
+      Button(tr("导出为 Markdown")) { export(.markdown) }
+      Button(tr("导出为 CSV")) { export(.csv) }
+    } label: {
+      Label(tr("导出报表"), systemImage: "square.and.arrow.up")
+    }
+    .fixedSize()
+    .disabled(!canExport)
 
     return ViewThatFits(in: .horizontal) {
       HStack(spacing: DS.Space.s3) {
         Spacer(minLength: 0)
         periods
         devices
+        exportMenu
       }
       VStack(alignment: .leading, spacing: DS.Space.s2) {
         periods
         devices
+        exportMenu
+      }
+    }
+  }
+
+  @MainActor
+  private func export(
+    _ report: ActivityPageAnalytics, format: ActivityReportExport.Format, interval: DateInterval,
+    period: ActivityPagePeriod, deviceName: String, calendar: Calendar, locale: Locale
+  ) {
+    guard !exporting else { return }
+    let language = L10n.language
+    let panel = NSSavePanel()
+    panel.allowedContentTypes = [
+      format == .csv
+        ? .commaSeparatedText
+        : UTType(filenameExtension: format.rawValue, conformingTo: .plainText) ?? .plainText
+    ]
+    let date = interval.start.formatted(
+      Date.ISO8601FormatStyle(timeZone: calendar.timeZone).year().month().day())
+    panel.nameFieldStringValue = "\(tr("活动报表"))-\(date).\(format.rawValue)"
+    guard panel.runModal() == .OK, let destination = panel.url else { return }
+    exporting = true
+    Task {
+      defer { exporting = false }
+      do {
+        try await Task.detached(priority: .userInitiated) {
+          let contents = ActivityReportExport.render(
+            report, format: format, interval: interval, period: period, deviceName: deviceName,
+            calendar: calendar, locale: locale, language: language)
+          try Data(contents.utf8).write(to: destination, options: .atomic)
+        }.value
+      } catch {
+        Self.logger.error("导出应用活动报表失败")
+        exportFailed = true
       }
     }
   }
@@ -306,6 +381,7 @@ struct ActivityPage: View {
     do {
       let selection = request.selection
       let deviceID = selection.device.id(localID: request.localID)
+      try await controller.store.pruneExpired()
       let knownIDs = try? await controller.store.deviceIDs()
       let names = try await controller.store.deviceNames()
       try Task.checkCancellation()
@@ -314,7 +390,7 @@ struct ActivityPage: View {
       if selection.period == .day {
         report = try await makeReport(
           selection.interval, period: .day, controller: controller, calendar: calendar,
-          deviceID: deviceID, now: now)
+          deviceID: deviceID, now: now, classificationOverrides: request.classificationOverrides)
       } else {
         var intervals: [DateInterval] = []
         var cursor = selection.interval.start
@@ -332,6 +408,7 @@ struct ActivityPage: View {
           let interval = intervals[index]
           guard interval.end <= cacheThrough, let cached = summaries[interval],
             cached.calendar == calendar, cached.device == selection.device,
+            cached.classificationOverrides == request.classificationOverrides,
             cached.revision == revisions[index]
           else { return nil }
           return cached.report
@@ -341,7 +418,7 @@ struct ActivityPage: View {
         if reusable.allSatisfy({ $0 == nil }) {
           ordered = try await loadDays(
             intervals, selection: selection, controller: controller, calendar: calendar,
-            deviceID: deviceID, now: now)
+            deviceID: deviceID, now: now, classificationOverrides: request.classificationOverrides)
         } else {
           var daily: [ActivityPageAnalytics] = []
           for (interval, cached) in zip(intervals, reusable) {
@@ -351,7 +428,9 @@ struct ActivityPage: View {
             } else {
               let summary = try await makeReport(
                 interval, period: selection.period, controller: controller, calendar: calendar,
-                deviceID: deviceID, now: now, detail: .none)
+                deviceID: deviceID, now: now,
+                classificationOverrides: request.classificationOverrides,
+                detail: .none)
               daily.append(summary)
             }
           }
@@ -362,7 +441,8 @@ struct ActivityPage: View {
           ) {
             ordered = try await loadDays(
               intervals, selection: selection, controller: controller, calendar: calendar,
-              deviceID: deviceID, now: now)
+              deviceID: deviceID, now: now, classificationOverrides: request.classificationOverrides
+            )
             cacheable = false
           }
         }
@@ -381,7 +461,7 @@ struct ActivityPage: View {
           for index in intervals.indices where intervals[index].end <= cacheThrough {
             summaries[intervals[index]] = DailySummary(
               calendar: calendar, device: selection.device, revision: revisions[index],
-              report: ordered[index])
+              classificationOverrides: request.classificationOverrides, report: ordered[index])
           }
         }
       }
@@ -391,7 +471,7 @@ struct ActivityPage: View {
       storedDeviceIDs = (knownIDs == nil ? ids.union(storedDeviceIDs) : ids)
         .sorted { $0.uuidString < $1.uuidString }
       storedDeviceNames = names
-      loaded = Loaded(selection: selection, report: report)
+      loaded = Loaded(request: request, report: report)
       failedRequest = nil
     } catch {
       guard !Task.isCancelled, model.isMainWindowVisible else { return }
@@ -403,14 +483,14 @@ struct ActivityPage: View {
   @MainActor
   private func loadDays(
     _ intervals: [DateInterval], selection: Selection, controller: ActivityController,
-    calendar: Calendar, deviceID: UUID?, now: Date
+    calendar: Calendar, deviceID: UUID?, now: Date, classificationOverrides: [String: String]
   ) async throws -> [ActivityPageAnalytics] {
     let sessions = try await controller.sessions(in: selection.interval, deviceID: deviceID)
     try Task.checkCancellation()
     let work = Task.detached(priority: .userInitiated) {
       try ActivityPageAnalytics.summarizeDays(
         intervals, sessions: sessions, period: selection.period, calendar: calendar,
-        deviceID: deviceID, through: now)
+        deviceID: deviceID, through: now, classificationOverrides: classificationOverrides)
     }
     return try await withTaskCancellationHandler {
       try await work.value
@@ -422,7 +502,8 @@ struct ActivityPage: View {
   @MainActor
   private func makeReport(
     _ interval: DateInterval, period: ActivityPagePeriod, controller: ActivityController,
-    calendar: Calendar, deviceID: UUID?, now: Date, detail: ActivityPageAnalytics.Detail = .all
+    calendar: Calendar, deviceID: UUID?, now: Date, classificationOverrides: [String: String],
+    detail: ActivityPageAnalytics.Detail = .all
   ) async throws -> ActivityPageAnalytics {
     let sessions =
       interval.start < now ? try await controller.sessions(in: interval, deviceID: deviceID) : []
@@ -430,7 +511,8 @@ struct ActivityPage: View {
     let work = Task.detached(priority: .userInitiated) {
       try ActivityPageAnalytics.make(
         sessions: sessions, interval: interval, period: period, calendar: calendar,
-        deviceID: deviceID, through: now, detail: detail)
+        deviceID: deviceID, through: now, detail: detail,
+        classificationOverrides: classificationOverrides)
     }
     return try await withTaskCancellationHandler {
       try await work.value
@@ -464,17 +546,20 @@ struct ActivityPage: View {
     let localID: UUID
     let enabled: Bool
     let refresh: Int
+    let classificationOverrides: [String: String]
+    let retention: ActivityRetention
   }
 
   private struct DailySummary {
     let calendar: Calendar
     let device: Device
     let revision: UInt64
+    let classificationOverrides: [String: String]
     let report: ActivityPageAnalytics
   }
 
   private struct Loaded {
-    let selection: Selection
+    let request: Request
     let report: ActivityPageAnalytics
   }
 }

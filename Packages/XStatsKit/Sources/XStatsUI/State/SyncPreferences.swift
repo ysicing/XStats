@@ -254,22 +254,98 @@ public final class SyncPreferences {
   /// 传输失败时撤销内存中的完成权限。下一次全读仍可核实上次写入是否到达。
   public func discardPrepared() { prepared = nil }
 
+  func forgetDevice(_ id: UUID) throws {
+    guard id != deviceID else { throw ActivitySyncFailure.cannotRemoveLocalDevice }
+    var next = state
+    next.devices.removeAll { $0.id == id }
+    var affected = Set<Field>()
+    var withdrawn = next.withdrawnOwnVersions ?? [:]
+    for field in Field.allCases {
+      if var previous = next.firstReview?[field], previous.removeValue(forKey: id) != nil {
+        next.firstReview?[field] = previous.isEmpty ? nil : previous
+        affected.insert(field)
+      }
+      if let action = next.application[field],
+        action.snapshot.heads.values.contains(where: { $0.clock[id] != nil })
+      {
+        next.application[field] = nil
+        affected.insert(field)
+        if action.explicit, let own = action.snapshot.heads[deviceID],
+          own != next.baseline[field]?.heads[deviceID], own.value != localValue(field)
+        {
+          withdrawn[field] = own
+        }
+      }
+      if conflicts.contains(where: { $0.field == field && $0.snapshot.heads[id] != nil }) {
+        next.review.remove(field)
+        affected.insert(field)
+      }
+    }
+    if var pending = next.pending {
+      let revoked = Set(
+        Field.allCases.filter { field in
+          let inputHeads = pending.inputs?[field]?.heads
+          let actionHeads = pending.actions[field]?.snapshot.heads
+          // 旧队列没有写前快照时，只能用已发布候选的因果时钟识别来源。
+          let legacyReference =
+            pending.inputs == nil && actionHeads?.values.contains { $0.clock[id] != nil } == true
+          return inputHeads?[id] != nil || pending.initial?[field]?.heads[id] != nil
+            || actionHeads?[id] != nil || pending.round?.expected[field]?.heads[id] != nil
+            || legacyReference
+        })
+      if !revoked.isEmpty {
+        // 保留原始字节用于认证可能已到达的写入，同时撤销受影响字段的确认和应用权限。
+        pending.revokedFields = (pending.revokedFields ?? []).union(revoked)
+        affected.formUnion(revoked)
+        for field in revoked {
+          if let action = pending.actions.removeValue(forKey: field), action.explicit,
+            let own = action.snapshot.heads[deviceID],
+            own != pending.inputs?[field]?.heads[deviceID],
+            own != next.baseline[field]?.heads[deviceID],
+            own.value != localValue(field)
+          {
+            withdrawn[field] = own
+          }
+          pending.inputs?[field] = nil
+        }
+        next.pending = pending
+      }
+    }
+    if next.firstReview?.isEmpty == true { next.firstReview = nil }
+    next.withdrawnOwnVersions = withdrawn.isEmpty ? nil : withdrawn
+    try save(next)
+    prepared = nil
+    if firstSnapshots?.contains(where: { affected.contains($0.key) || $0.value.heads[id] != nil })
+      == true
+    {
+      firstChoice = nil
+      firstSnapshots = nil
+      firstSelections = nil
+    }
+    for field in affected { resolutions[field] = nil }
+    conflicts.removeAll { affected.contains($0.field) }
+  }
+
   public func cancel() throws {
     if state.pending != nil || !state.application.isEmpty {
       var next = state
       next.pending?.cancelled = true
-      if let pending = next.pending {
-        for (field, action) in pending.actions
-        where next.fields.contains(field) && !next.awaitingConfirmation.contains(field) {
-          if action.explicit || action.value != localValue(field) { next.review.insert(field) }
-        }
-      }
-      next.review.formUnion(next.application.keys)
-      next.application = [:]
+      reviewUnfinishedActions(in: &next)
       try save(next)
     }
     prepared = nil
     clearChoices()
+  }
+
+  private func reviewUnfinishedActions(in next: inout LocalState) {
+    if let pending = next.pending {
+      for (field, action) in pending.actions
+      where next.fields.contains(field) && !next.awaitingConfirmation.contains(field) {
+        if action.explicit || action.value != localValue(field) { next.review.insert(field) }
+      }
+    }
+    next.review.formUnion(next.application.keys)
+    next.application = [:]
   }
 
   /// 捕获两次交换之间改回原值的编辑，由现有频率或手动同步调度交换。
@@ -290,11 +366,28 @@ public final class SyncPreferences {
     guard destination != nil else { throw Failure.noDestination }
     prepared = nil
     let records = try decode(documents)
+    let own = records[deviceID]
+    if own == nil, state.ownDigest != nil {
+      // 缺失的槽位无法证明旧发布已到达，转回复核并沿用基线与序列号重新注册。
+      var reset = state
+      reset.ownDigest = nil
+      reviewUnfinishedActions(in: &reset)
+      if let pending = reset.pending {
+        var firstReview = reset.firstReview ?? [:]
+        for (field, action) in pending.actions
+        where action.explicit && reset.awaitingConfirmation.contains(field) {
+          // 即使原候选从目录消失，仍须重新确认首次选择。
+          if firstReview[field] == nil { firstReview[field] = [:] }
+        }
+        if !firstReview.isEmpty { reset.firstReview = firstReview }
+      }
+      reset.pending = nil
+      try save(reset)
+    }
     if isEnabled { try finishApplication(in: records) }
     if let pending = state.pending, documents[deviceID] == pending.bytes {
       try finishPublication(pending, records: records)
     }
-    let own = records[deviceID]
     let statusActivityTime = activitySyncedAt.flatMap { date in
       guard minimumStatusInterval > 0, let previous = own?.device.lastActivitySyncAt,
         date >= previous, date.timeIntervalSince(previous) < minimumStatusInterval
@@ -372,12 +465,17 @@ public final class SyncPreferences {
       id: deviceID, name: deviceName ?? own?.device.name,
       lastActivitySyncAt: statusActivityTime ?? own?.device.lastActivitySyncAt,
       lastSettingsSyncAt: next.lastSettingsSyncAt ?? own?.device.lastSettingsSyncAt)
-    var outbound = Document(device: metadata, fields: own?.fields ?? [:])
+    // 重新注册时恢复仍有效的本机版本，避免其他设备丢失已确认的设置。
+    let ownFields = own?.fields.filter { state.withdrawnOwnVersions?[$0.key] != $0.value }
+    let restoredFields = snapshots.filter { !joining.contains($0.key) }.compactMapValues {
+      $0.heads[deviceID]
+    }
+    var outbound = Document(device: metadata, fields: ownFields ?? restoredFields)
     for field in Field.allCases where writes.contains(field) {
       guard let snapshot = snapshots[field], let value = targets[field] else { continue }
       var clock = state.baseline[field]?.clock ?? [:]
       for version in snapshot.heads.values { clock.merge(version.clock, uniquingKeysWith: max) }
-      if let previous = outbound.fields[field] {
+      if let previous = own?.fields[field] ?? outbound.fields[field] {
         clock.merge(previous.clock, uniquingKeysWith: max)
       }
       let counter = max(next.sequence, clock[deviceID, default: 0])
@@ -397,7 +495,7 @@ public final class SyncPreferences {
       } ?? true
     let publishes =
       (completeRound && statusDue) || !initial.isEmpty || !writes.isEmpty || !targets.isEmpty
-      || own?.device != metadata
+      || own?.device != metadata || own?.fields != ownFields
     var projected = records
     if publishes { projected[deviceID] = outbound }
     let expected = self.snapshots(in: projected)
@@ -438,6 +536,10 @@ public final class SyncPreferences {
     next.pending = nil
     next.ownDigest = Data(SHA256.hash(data: pending.bytes))
     next.devices = deviceList(records)
+    next.withdrawnOwnVersions = next.withdrawnOwnVersions?.filter {
+      records[deviceID]?.fields[$0.key] == $0.value
+    }
+    if next.withdrawnOwnVersions?.isEmpty == true { next.withdrawnOwnVersions = nil }
     let current = snapshots(in: records)
     let revoked = pending.revokedFields ?? []
     let initial = pending.initial?.filter { !revoked.contains($0.key) }
@@ -600,9 +702,16 @@ public final class SyncPreferences {
   private func snapshots(in records: [UUID: Document]) -> [Field: PreferenceSnapshot] {
     var result: [Field: PreferenceSnapshot] = [:]
     for field in selectedFields {
-      var versions = state.baseline[field]?.heads ?? [:]
+      // 离线设备若仍有槽位可继续参与合并。已删除的槽位只保留基线中的因果时钟。
+      var versions =
+        state.baseline[field]?.heads.filter { author, version in
+          author == deviceID
+            ? state.withdrawnOwnVersions?[field] != version
+            : records[author]?.fields[field] != nil
+        } ?? [:]
       for (author, document) in records {
         guard let version = document.fields[field] else { continue }
+        if author == deviceID, state.withdrawnOwnVersions?[field] == version { continue }
         if let known = versions[author], known.clock.covers(version.clock) { continue }
         versions[author] = version
       }
@@ -635,10 +744,10 @@ public final class SyncPreferences {
       else { throw Failure.invalidDocument }
       records[author] = document
     }
-    if state.ownDigest != nil || state.pending != nil,
-      documents[deviceID].map({ Data(SHA256.hash(data: $0)) }) != state.ownDigest
+    if let own = documents[deviceID], state.ownDigest != nil || state.pending != nil,
+      Data(SHA256.hash(data: own)) != state.ownDigest
     {
-      guard let pending = state.pending, documents[deviceID] == pending.bytes else {
+      guard own == state.pending?.bytes else {
         throw Failure.incompleteSnapshot
       }
     }
@@ -763,9 +872,9 @@ public final class SyncPreferences {
 
   private struct Pending: Codable, Equatable {
     let bytes: Data
-    let actions: [Field: Action]
+    var actions: [Field: Action]
     let initial: [Field: PreferenceSnapshot]?
-    let inputs: [Field: PreferenceSnapshot]?
+    var inputs: [Field: PreferenceSnapshot]?
     let round: Round?
     var cancelled = false
     var revokedFields: Set<Field>?
@@ -794,6 +903,8 @@ public final class SyncPreferences {
     // 写前保留版本号及计划；仅回读命中同一份文档后才转入本机应用。
     var pending: Pending?
     var application: [Field: Action] = [:]
+    // 已撤销的选择若写入了本机槽位，回读仍验真，但该版本不能重新成为候选。
+    var withdrawnOwnVersions: [Field: PreferenceVersion]?
 
     var fields: Set<Field> { enabled ? selection ?? Set(Field.allCases) : [] }
     var awaitingConfirmation: Set<Field> { joining ?? (initialized ? [] : fields) }

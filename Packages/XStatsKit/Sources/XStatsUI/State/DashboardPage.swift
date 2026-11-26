@@ -22,6 +22,7 @@ enum DashboardPage {
       "title": text("监控大屏"), "language": text("语言"), "followApp": text("跟随 XStats"),
       "appearance": text("外观"), "system": text("系统"), "light": text("浅色"), "dark": text("深色"),
       "displaySettings": text("显示设置"), "back": text("返回"), "resources": text("系统资源"),
+      "enterKiosk": text("看板模式"), "exitKiosk": text("退出看板"),
       "loadAverage": text("1 / 5 / 15 分钟负载"), "cores": text("核心负载"),
       "download": text("下载"), "upload": text("上传"), "trend": text("近 5 分钟"),
       "sampling": text("等待采样"), "paused": text("已暂停"), "unavailable": text("没有启用的监控指标"),
@@ -32,7 +33,7 @@ enum DashboardPage {
     ]
   }
 
-  static func html(language: AppLanguage) -> String {
+  static func html(language: AppLanguage, kiosk: Bool = false) -> String {
     let labels = labels(language)
     let text = { (key: String) in
       (labels[key] ?? "").replacingOccurrences(of: "&", with: "&amp;")
@@ -52,7 +53,7 @@ enum DashboardPage {
     }.joined(separator: "\n")
     return """
       <!doctype html>
-      <html lang="\(language.languageCode)" dir="\(language.isRightToLeft ? "rtl" : "ltr")">
+      <html lang="\(language.languageCode)" dir="\(language.isRightToLeft ? "rtl" : "ltr")"\(kiosk ? " data-kiosk" : "")>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1">
       <title>XStats · \(text("title"))</title>
@@ -90,6 +91,9 @@ enum DashboardPage {
         button:focus-visible, input:focus-visible + span, .languages label:has(:focus-visible) {
           outline: 2px solid var(--blue); outline-offset: 2px;
         }
+        .kiosk-toggle { min-height: 2.75rem; padding: .35rem .7rem; border: 1px solid var(--line);
+          border-radius: .7rem; background: var(--surface); font-size: .88rem; }
+        .kiosk-toggle:hover { background: var(--track); }
         .settings-toggle { display: grid; place-items: center; width: 2.75rem; height: 2.75rem;
           padding: 0; border: 1px solid var(--line); border-radius: .7rem; background: var(--surface); }
         .settings-toggle:hover, .settings-toggle[aria-expanded="true"] { background: var(--track); }
@@ -180,6 +184,38 @@ enum DashboardPage {
             border-block-start: 1px solid var(--line); }
         }
         @media (max-width: 34rem) { .toolbar { gap: .75rem; } }
+        [data-kiosk] main { max-width: none; padding-inline: clamp(.75rem, 1.8vw, 2rem); }
+        [data-kiosk] header { padding-block: .35rem; }
+        [data-kiosk] :is(header h1, .preferences, #calendar, .resources > h2, .chart-window) { display: none; }
+        [data-kiosk] .dashboard { padding-block: .75rem; }
+        [data-kiosk] :is(#memory, .capacity, #processes) { margin-block-start: .85rem; padding-block-start: .65rem; }
+        [data-kiosk] :is(#cpu[hidden] + #memory, #network[hidden] + #processes) {
+          margin-block-start: 0; padding-block-start: 0; }
+        [data-kiosk] .value { font-size: clamp(1.75rem, 3.5vw, 3.4rem); }
+        [data-kiosk] #cpu .value { font-size: clamp(3rem, 5.4vw, 5.2rem); }
+        [data-kiosk] .rates .value { font-size: clamp(1.45rem, 2.9vw, 2.65rem); }
+        [data-kiosk] .capacity .value { font-size: clamp(1.5rem, 2.6vw, 2.6rem); }
+        [data-kiosk] canvas, [data-kiosk] #memory canvas {
+          height: clamp(2.45rem, 10dvh, 8rem); margin-block-start: .4rem; }
+        [data-kiosk] table { table-layout: fixed; margin-block-start: .3rem; }
+        [data-kiosk] :is(th, td) { padding-block: .26rem; }
+        [data-kiosk] th:not(:first-child) { width: 11ch; white-space: normal; overflow-wrap: anywhere; }
+        [data-kiosk] td:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        @media (min-width: 42rem) {
+          [data-kiosk] .dashboard { display: grid; }
+          [data-kiosk] .column { padding-inline: clamp(.6rem, 1.5vw, 1.5rem); }
+          [data-kiosk] .resources:not([hidden]) + .activity {
+            margin: 0; padding-block-start: 0; border-block-start: 0;
+            border-inline-start: 1px solid var(--line); }
+        }
+        @media (max-height: 49rem) {
+          [data-kiosk] .core-load { display: none; }
+        }
+        @media (max-height: 40rem) {
+          [data-kiosk] canvas, [data-kiosk] #memory canvas { height: clamp(2rem, 8dvh, 4rem); }
+          [data-kiosk] :is(th, td) { padding-block: .2rem; line-height: 1.25; }
+          [data-kiosk] .rates { margin-block: .45rem .3rem; }
+        }
         @media (prefers-reduced-transparency: no-preference) {
           .settings-panel { background: color-mix(in srgb, var(--surface) 94%, transparent);
             backdrop-filter: blur(16px); }
@@ -239,6 +275,7 @@ enum DashboardPage {
                 </div>
               </div>
             </div>
+            <button id="kiosk-toggle" class="kiosk-toggle" type="button">\(text(kiosk ? "exitKiosk" : "enterKiosk"))</button>
           </div>
         </header>
         <div class="dashboard">
@@ -306,6 +343,7 @@ enum DashboardPage {
     const defaultLanguage = page.lang;
     let appLanguage = defaultLanguage;
     const defaultLabels = JSON.parse(document.querySelector('#dashboard-labels').textContent);
+    const kioskToggle = document.querySelector('#kiosk-toggle');
     const settingsToggle = document.querySelector('#settings-toggle');
     const settingsPanel = document.querySelector('#settings-panel');
     const settingsHome = document.querySelector('#settings-home');
@@ -351,6 +389,7 @@ enum DashboardPage {
       });
       settingsToggle.setAttribute('aria-label', labels.displaySettings);
       settingsToggle.title = labels.displaySettings;
+      reflectKiosk();
       diskMeter.setAttribute('aria-label', labels.disk);
       percent = new Intl.NumberFormat(code, {style: 'percent', maximumFractionDigits: 1});
       number = new Intl.NumberFormat(code, {maximumFractionDigits: 1});
@@ -361,6 +400,7 @@ enum DashboardPage {
     }
 
     async function updateCalendar(date) {
+      if (page.hasAttribute('data-kiosk')) return;
       const dateKey = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
         .map(value => String(value).padStart(2, '0')).join('-');
       const key = `${page.lang}/${dateKey}`;
@@ -451,6 +491,22 @@ enum DashboardPage {
       if (show) themes.find(input => input.checked).focus();
       else if (restoreFocus) settingsToggle.focus();
       if (!show) showLanguage(false, false);
+    }
+
+    function reflectKiosk() {
+      kioskToggle.textContent = page.hasAttribute('data-kiosk') ? labels.exitKiosk : labels.enterKiosk;
+    }
+
+    function setKiosk(enabled) {
+      const url = new URL(location.href);
+      if (enabled) url.searchParams.set('kiosk', '1');
+      else url.searchParams.delete('kiosk');
+      window.history.replaceState(window.history.state, '', url);
+      showSettings(false);
+      page.toggleAttribute('data-kiosk', enabled);
+      reflectKiosk();
+      if (latestReading) redrawCharts(latestReading.timestamp);
+      if (!enabled) updateCalendar(new Date());
     }
 
     function bytes(value) {
@@ -667,6 +723,7 @@ enum DashboardPage {
     selectTheme(themes.some(input => input.value === savedTheme) ? savedTheme : 'system');
     settingsHome.addEventListener('change', event => selectTheme(event.target.value));
     settingsToggle.addEventListener('click', () => showSettings(settingsPanel.hidden, true));
+    kioskToggle.addEventListener('click', () => setKiosk(!page.hasAttribute('data-kiosk')));
     languageLink.addEventListener('click', () => showLanguage(true, true));
     languageBack.addEventListener('click', () => showLanguage(false, true));
     for (const type of ['pointerdown', 'focusin']) {

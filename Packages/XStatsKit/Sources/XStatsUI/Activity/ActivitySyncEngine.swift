@@ -6,7 +6,7 @@ import Foundation
 enum ActivitySyncFailure: Error, Equatable {
   case cloudUnavailable, downloadRequested, folderUnavailable, invalidShard, limit, invalidListing,
     authenticationFailed,
-    busy, keyPending
+    busy, keyPending, cannotRemoveLocalDevice
 }
 
 struct ActivitySyncShard: Hashable, Sendable {
@@ -80,6 +80,7 @@ protocol ActivitySyncRepository: Sendable {
   func createWithVersion(_ data: Data, at path: [String]) async throws
     -> (created: Bool, version: String?)
   func replaceMetadata(_ data: Data, at path: [String]) async throws
+  func deleteMetadata(at path: [String]) async throws
 }
 
 struct ActivitySyncListing: Sendable {
@@ -100,6 +101,10 @@ extension ActivitySyncRepository {
   }
 
   func replaceMetadata(_ data: Data, at path: [String]) async throws {
+    throw ActivitySyncFailure.folderUnavailable
+  }
+
+  func deleteMetadata(at path: [String]) async throws {
     throw ActivitySyncFailure.folderUnavailable
   }
 }
@@ -238,13 +243,13 @@ actor ActivitySyncEngine {
     try await authenticateDataset(repository: repository)
     let verifiedMarker = publishedMarker
     try Task.checkCancellation()
-    let snapshot = try await readMetadata(repository: repository, cached: true)
+    let path = try cipher.metadataPath(for: device)
+    let snapshot = try await readMetadata(repository: repository, cached: true, ownPath: path)
     let updated = try await transform(snapshot)
     try Task.checkCancellation()
     guard let updated else { return nil }
     guard snapshot[device] != nil || snapshot.count < ActivitySyncRemotePath.maximumMetadataEntries
     else { throw ActivitySyncFailure.limit }
-    let path = try cipher.metadataPath(for: device)
     let ciphertext = try cipher.sealMetadata(updated, at: path)
     try await authenticateDataset(repository: repository)
     guard publishedMarker == verifiedMarker else {
@@ -258,13 +263,34 @@ actor ActivitySyncEngine {
     guard publishedMarker == verifiedMarker else {
       throw ActivitySyncFailure.authenticationFailed
     }
-    let verified = try await readMetadata(repository: repository, cached: false)
+    let verified = try await readMetadata(repository: repository, cached: false, ownPath: path)
     guard verified[device] == updated else { throw ActivitySyncFailure.authenticationFailed }
     return verified
   }
 
+  func removeDevice(
+    _ device: UUID, localDeviceID: UUID, dataset: String, repository: any ActivitySyncRepository
+  ) async throws {
+    guard device != localDeviceID else { throw ActivitySyncFailure.cannotRemoveLocalDevice }
+    try Task.checkCancellation()
+    guard !running else { throw ActivitySyncFailure.busy }
+    running = true
+    defer { running = false }
+
+    // 移除只作用于列表对应的数据集，空目录或被替换的同步位置不能在此初始化。
+    guard let marker = try await repository.read([ActivitySyncRemotePath.marker]) else {
+      throw ActivitySyncFailure.authenticationFailed
+    }
+    try acceptMarker(marker)
+    guard datasetIdentifier == dataset else { throw ActivitySyncFailure.authenticationFailed }
+    let path = try cipher.metadataPath(for: device)
+    try Task.checkCancellation()
+    try await repository.deleteMetadata(at: path)
+    metadataCache[path[1]] = nil
+  }
+
   private func readMetadata(
-    repository: any ActivitySyncRepository, cached: Bool
+    repository: any ActivitySyncRepository, cached: Bool, ownPath: [String]
   ) async throws -> [UUID: Data] {
     let directory = [ActivitySyncRemotePath.metadata]
     let listing = try await repository.listActivityObjects(directory)
@@ -295,6 +321,16 @@ actor ActivitySyncEngine {
         throw ActivitySyncFailure.invalidListing
       }
       if let version { refreshed[name] = (version, device, data) }
+    }
+    // 目录可能漏列本机槽位，直接认证该对象后再判断能否重新注册。
+    if !listing.names.contains(ownPath[1]), let ciphertext = try await repository.read(ownPath) {
+      guard snapshot.count < ActivitySyncRemotePath.maximumMetadataEntries else {
+        throw ActivitySyncFailure.limit
+      }
+      let metadata = try cipher.openMetadata(ciphertext, at: ownPath)
+      guard snapshot.updateValue(metadata.data, forKey: metadata.device) == nil else {
+        throw ActivitySyncFailure.invalidListing
+      }
     }
     try Task.checkCancellation()
     // 只保留当前列表中的条目，数量受 maximumMetadataEntries 约束。

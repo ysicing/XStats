@@ -110,7 +110,10 @@ static bool performDAV(const char *numericURL, const char *method, bool replaceM
     bool put = strcmp(method, "PUT") == 0;
     struct ActivityDAVResponse response = {handle, get ? 200 : propfind ? 207 : 0, receive, false};
     struct ActivityDAVTunnel binding = {tunnel, localAddress};
-    bool configured = (get || propfind || put || strcmp(method, "MKCOL") == 0)
+    bool deleteMetadata = strcmp(method, "DELETE") == 0 && isMetadataURL(numericURL)
+        && bodyLength == 0 && hasDAVHeaderValue(hostHeader, "Host: ")
+        && hasDAVHeaderValue(authorizationHeader, "Authorization: Basic ");
+    bool configured = (get || propfind || put || deleteMetadata || strcmp(method, "MKCOL") == 0)
         && addDAVHeader(&headers, hostHeader)
         && addDAVHeader(&headers, authorizationHeader)
         && addDAVHeader(&headers, "Expect:")

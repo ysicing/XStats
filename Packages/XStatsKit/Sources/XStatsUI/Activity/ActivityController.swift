@@ -102,11 +102,14 @@ final class ActivityController {
       deviceID = UUID()
       defaults.set(deviceID.uuidString, forKey: "activity.deviceID")
     }
+    let retention: @MainActor @Sendable () -> ActivityRetention = { [weak settings] in
+      settings?.activityRetention ?? .forever
+    }
     if defaults === UserDefaults.standard {
-      store = ActivityStore(url: databaseURL)
+      store = ActivityStore(url: databaseURL, retention: retention)
     } else {
       let isolatedKey = SymmetricKey(size: .bits256)
-      store = ActivityStore(url: databaseURL, keyProvider: { isolatedKey })
+      store = ActivityStore(url: databaseURL, retention: retention, keyProvider: { isolatedKey })
     }
     sync = ActivitySyncController(
       store: store, deviceID: deviceID, defaults: defaults,

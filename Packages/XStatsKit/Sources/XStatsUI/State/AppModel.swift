@@ -222,6 +222,7 @@ public final class AppModel {
     sync = SyncController(settings: settings)
     diskTools = DiskToolsController(helper: helper)
     speedTest = SpeedTestController(settings: settings)
+    dashboard.alerts = alerts
     // 全局快捷键和菜单栏也能启动维护，互斥必须在执行入口生效。
     cleaner.mole.nativeIsBusy = { [weak cleaner, weak maintenance] in
       cleaner?.isBusy == true || maintenance?.isBusy == true
@@ -335,6 +336,11 @@ public final class AppModel {
     let energyEnabled = settings.isModuleEnabled(.battery)
     let processPage = settings.processesEnabled && window && tab == .processes
     let remoteDashboard = settings.dashboardEnabled && dashboard.hasViewerDemand
+    let remoteHealth = settings.dashboardEnabled && dashboard.sampling.contains(.health)
+    let remoteProcesses =
+      settings.dashboardEnabled
+      && ((settings.isModuleEnabled(.cpu) && dashboard.sampling.contains(.cpuProcesses))
+        || (settings.isModuleEnabled(.memory) && dashboard.sampling.contains(.memoryProcesses)))
     let popover = openPopover.flatMap { settings.isModuleEnabled(for: $0) ? $0 : nil }
     let menu = Set(drawnMenuBarItems)
     let overview = isCombinedOverviewVisible ? Set(visibleOverviewItems) : []
@@ -360,7 +366,9 @@ public final class AppModel {
       processPage && !livePopover
       ? .seconds(2)
       : liveWindow || livePopover || liveOverview ? .seconds(1) : .seconds(settings.refreshSeconds)
-    if remoteDashboard { demand.interval = min(demand.interval, .seconds(2)) }
+    if remoteDashboard || remoteProcesses || (remoteHealth && energyEnabled) {
+      demand.interval = min(demand.interval, .seconds(2))
+    }
     let dashboard = window && tab == .overview
     let recording = settings.historyEnabled
     let alerts = settings.activeAlerts
@@ -388,12 +396,13 @@ public final class AppModel {
       remoteDashboard || (window && [.overview, .system].contains(tab)) || summary.contains(.gpu)
       || showing(.gpu, .gpu)
     demand.disk =
-      remoteDashboard || (window && [.overview, .system, .cleaner, .disk].contains(tab))
+      remoteDashboard || remoteHealth
+      || (window && [.overview, .system, .cleaner, .disk].contains(tab))
       || summary.contains(.disk)
       || popover == .disk
     demand.diskDetail = showing(.disk, .disk)
     demand.battery =
-      (remoteDashboard && store.hasBattery)
+      ((remoteDashboard || remoteHealth) && store.hasBattery)
       || (window && [.overview, .system, .keepAwake].contains(tab)) || keepAwake.lidClosedActive
       || summary.contains(.battery) || showing(.battery, .battery)
     demand.processes =
@@ -404,6 +413,10 @@ public final class AppModel {
 
     var groups = Set<TemperatureGroup>()
     if window && tab == .overview { groups.formUnion([.cpu, .gpu]) }
+    if remoteHealth {
+      groups.formUnion([.cpu, .gpu, .memory])
+      if store.hasBattery { groups.insert(.battery) }
+    }
     if overview.contains(.cpu) || overview.contains(.temperature) { groups.insert(.cpu) }
     if overview.contains(.gpu) { groups.insert(.gpu) }
     if (window && tab == .battery) || (temperaturePopover && settings.isVisible(.thermalSensors))
@@ -422,7 +435,7 @@ public final class AppModel {
     demand.temperatures = groups
     demand.power =
       settings.isModuleEnabled(.battery)
-      && ((window && tab == .battery)
+      && (remoteHealth || (window && tab == .battery)
         || (temperaturePopover && settings.isVisible(.thermalPower))
         || (popover == .battery && settings.isVisible(.batteryPower)))
     let gpuDetailsVisible =
@@ -464,6 +477,7 @@ public final class AppModel {
     if demand.batterySafety { demand.battery = true }
     demand.processes =
       processPage
+      || remoteProcesses
       || (remoteDashboard && settings.isModuleEnabled(.cpu))
       || (demand.processes
         && (dashboard && (settings.isModuleEnabled(.cpu) || settings.isModuleEnabled(.memory))

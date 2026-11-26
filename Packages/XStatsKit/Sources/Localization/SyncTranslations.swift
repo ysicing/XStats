@@ -46,5 +46,16 @@ extension Translations {
     汇总各台 Mac 的活动记录	Combines activity records from your Macs
     活动记录保存在这台 Mac	Activity records are stored on this Mac
     外观、菜单栏布局和休息提醒偏好	Preferences for appearance, menu bar layout, and break reminders
+    同步状态	Sync Status
+    最近同步尝试	Last Sync Attempt
+    等待确认设置差异	Waiting for you to review settings differences
+    正在等待 iCloud 钥匙串同步密钥。也可在“存储位置”中导入恢复密钥。	Waiting for iCloud Keychain to sync the key. You can also import the recovery key under Storage Location.
+    WebDAV 登录失败，请检查用户名和密码。	WebDAV sign-in failed. Check your username and password.
+    无法连接 WebDAV。请检查网络、地址和证书。若使用局域网，请在系统设置中允许 XStats 访问本地网络。	Couldn’t connect to WebDAV. Check the network, URL, and certificate. For a server on your local network, allow XStats local network access in System Settings.
+    移除设备	Remove Device
+    移除设备？	Remove this device?
+    此操作适用于已停用的设备。已同步的活动记录会保留。	Use this for devices you’ve retired. Previously synced activity records are kept.
+    无法移除设备	Couldn’t remove the device
+    请稍后重试。	Try again later.
     """#
 }

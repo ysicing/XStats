@@ -84,6 +84,7 @@ public enum AlertKind: String, CaseIterable, Identifiable, Sendable {
 /// 一种状况的触发判断：持续满 sustain 秒才触发，同一段持续期内只触发一次，两次之间至少间隔 cooldown
 struct AlertTracker: Equatable {
   private(set) var activeSince: Date?
+  private(set) var isSustained = false
   private(set) var firedThisEpisode = false
   private(set) var lastFired: Date?
 
@@ -93,12 +94,14 @@ struct AlertTracker: Equatable {
   {
     guard isActive else {
       activeSince = nil
+      isSustained = false
       firedThisEpisode = false
       return false
     }
     let since = activeSince ?? now
     activeSince = since
-    guard !firedThisEpisode, now.timeIntervalSince(since) >= sustain else { return false }
+    isSustained = now.timeIntervalSince(since) >= sustain
+    guard !firedThisEpisode, isSustained else { return false }
     if let lastFired, now.timeIntervalSince(lastFired) < cooldown { return false }
     firedThisEpisode = true
     lastFired = now
@@ -125,6 +128,8 @@ public final class AlertController: NSObject {
   @ObservationIgnored private var trackers: [AlertKind: AlertTracker] = [:]
   @ObservationIgnored private var pathMonitor: NWPathMonitor?
   @ObservationIgnored private var networkNotified = false
+  @ObservationIgnored private var batteryHealthLow = false
+  @ObservationIgnored private var bluetoothBatteryLow = false
   @ObservationIgnored private var networkDownTask: Task<Void, Never>?
   @ObservationIgnored private var periodicTask: Task<Void, Never>?
   /// 每个蓝牙设备上次提醒的时间
@@ -165,6 +170,8 @@ public final class AlertController: NSObject {
   func applySettings() {
     let enabled = settings.activeAlerts
     trackers = trackers.filter { enabled.contains($0.key) }
+    if !enabled.contains(.batteryHealth) { batteryHealthLow = false }
+    if !enabled.contains(.bluetoothBattery) { bluetoothBatteryLow = false }
     if !enabled.isEmpty, authorization == .unknown { requestAuthorization() }
 
     if enabled.contains(.networkDown) {
@@ -195,6 +202,18 @@ public final class AlertController: NSObject {
   }
 
   // MARK: 判断
+
+  var activeKinds: [AlertKind] {
+    // 告警摘要按状况是否仍成立判断，通知冷却不会掩盖持续的异常。
+    return settings.activeAlerts.filter { kind in
+      switch kind {
+      case .networkDown: networkNotified
+      case .batteryHealth: batteryHealthLow
+      case .bluetoothBattery: bluetoothBatteryLow
+      default: trackers[kind]?.isSustained == true
+      }
+    }.sorted { $0.rawValue < $1.rawValue }
+  }
 
   /// 每次采样后调用
   func evaluate(_ store: MetricsStore, now: Date = Date()) {
@@ -250,9 +269,10 @@ public final class AlertController: NSObject {
     if enabled.contains(.batteryHealth), settings.activeAlerts.contains(.batteryHealth),
       let health = battery?.health
     {
+      batteryHealthLow = health < 0.8
       // 冷却时间跨越重启，记在偏好设置里
       let last = defaults.object(forKey: Keys.batteryNotified) as? Date
-      if health < 0.8,
+      if batteryHealthLow,
         last.map({ now.timeIntervalSince($0) >= AlertKind.batteryHealth.cooldown }) ?? true
       {
         defaults.set(now, forKey: Keys.batteryNotified)
@@ -267,12 +287,14 @@ public final class AlertController: NSObject {
     guard settings.activeAlerts.contains(.bluetoothBattery) else { return }
     let devices = await readBluetoothDevices()
     guard !Task.isCancelled, settings.activeAlerts.contains(.bluetoothBattery) else { return }
+    bluetoothBatteryLow = false
     for device in Self.connectedBluetoothDevices(devices) {
       guard let lowest = device.batteries.min(by: { $0.percent < $1.percent }), lowest.percent <= 15
       else {
         bluetoothNotified[device.id] = nil
         continue
       }
+      bluetoothBatteryLow = true
       if let last = bluetoothNotified[device.id],
         now.timeIntervalSince(last) < AlertKind.bluetoothBattery.cooldown
       {

@@ -30,18 +30,33 @@ final class ActivitySyncController {
   private enum SyncMessage {
     case text(String)
     case downloadRequested
-  }
-  private var lastMessage: SyncMessage?
-  var message: String? {
-    switch lastMessage {
-    case .downloadRequested:
-      intervalMinutes > 0
-        ? tr("已请求下载同步文件，XStats 会自动重试。")
-        : tr("已请求下载同步文件，请稍后重试。")
-    case .text(let text): text
-    case nil: nil
+    case completed
+
+    func description(automaticRetry: Bool) -> String {
+      switch self {
+      case .downloadRequested:
+        automaticRetry
+          ? tr("已请求下载同步文件，XStats 会自动重试。")
+          : tr("已请求下载同步文件，请稍后重试。")
+      case .text(let text): text
+      case .completed: tr("本轮同步完成")
+      }
     }
   }
+  private var lastMessage: SyncMessage?
+  private var lastResult: (finishedAt: Date, message: SyncMessage)?
+  var lastResultAt: Date? { lastResult?.finishedAt }
+  var message: String? {
+    let status = lastMessage ?? lastResult?.message
+    if case .completed = status, needsSettingsReview { return tr("等待确认设置差异") }
+    return status?.description(automaticRetry: intervalMinutes > 0)
+  }
+  var needsSettingsReview: Bool {
+    guard let preferences else { return false }
+    return preferences.firstChoice != nil || !preferences.conflicts.isEmpty
+  }
+  private(set) var removingDevice = false
+  var canRemoveDevice: Bool { active && !syncing && !changingKey && !removingDevice }
   private(set) var address: String
   private(set) var username: String
   private(set) var folderName: String
@@ -215,7 +230,7 @@ final class ActivitySyncController {
     timer?.cancel()
     timer = nil
     requestedSync = preferences?.wantsSync == true
-    if worker == nil {
+    if worker == nil, !removingDevice {
       if requestedSync {
         requestedSync = false
         startSync(.manual, activity: .automatic)
@@ -289,7 +304,7 @@ final class ActivitySyncController {
 
   func importRecoveryCode(_ code: String, confirmExisting: Bool = false) async throws {
     let imported = try ActivityKeys.decode(code)
-    guard !changingKey else { throw ActivityKeys.Failure.unavailable }
+    guard !changingKey, !removingDevice else { throw ActivityKeys.Failure.unavailable }
     changingKey = true
     if !confirmExisting {
       do {
@@ -331,11 +346,123 @@ final class ActivitySyncController {
     worker?.cancel()
   }
 
+  func removeDevice(_ id: UUID) async throws {
+    guard id != deviceID else { throw ActivitySyncFailure.cannotRemoveLocalDevice }
+    guard canRemoveDevice, let preferences else { throw ActivitySyncFailure.busy }
+    guard preferences.devices.contains(where: { $0.id == id }) else { return }
+    guard let dataset = defaults.string(forKey: "sync.marker." + destinationID) else {
+      throw ActivitySyncFailure.authenticationFailed
+    }
+    // 删除与同步共用目标和引擎。远端提交后先更新加密快照，再恢复调度。
+    removingDevice = true
+    timer?.cancel()
+    timer = nil
+    defer {
+      removingDevice = false
+      if requestedSync {
+        requestedSync = false
+        startSync(.manual, activity: .automatic)
+      } else if lastFinished == nil, active, intervalMinutes > 0 {
+        startSync(.automatic)
+      } else {
+        schedule()
+      }
+    }
+    do {
+      let engine = try await syncEngine()
+      try await withRepository(provider: provider) { [deviceID] repository in
+        try await engine.removeDevice(
+          id, localDeviceID: deviceID, dataset: dataset, repository: repository)
+      }
+      try preferences.forgetDevice(id)
+      logger.info("Removed a synchronization device")
+    } catch {
+      logger.notice("Could not remove a synchronization device")
+      throw error
+    }
+  }
+
+  func deviceRemovalHint(for error: any Error) -> String? {
+    troubleshootingMessage(for: error)?.description(automaticRetry: false)
+  }
+
+  private func troubleshootingMessage(for error: any Error) -> SyncMessage? {
+    switch error {
+    case is ActivityKeys.Failure:
+      return .text(tr("无法读取或保存活动密钥，请检查钥匙串"))
+    case ActivitySyncFailure.keyPending:
+      return .text(tr("正在等待 iCloud 钥匙串同步密钥。也可在“存储位置”中导入恢复密钥。"))
+    case ActivitySyncFailure.authenticationFailed:
+      return .text(tr("无法验证同步数据，请核对恢复密钥和同步位置。"))
+    case ActivitySyncFailure.cloudUnavailable:
+      return .text(tr("暂时无法访问 iCloud 云盘，请在系统设置中确认已开启“同步此 Mac”。"))
+    case ActivitySyncFailure.downloadRequested:
+      return .downloadRequested
+    case let error as ActivityDAVError:
+      return error.errorDescription.map(SyncMessage.text)
+    case WebDAVError.unauthorized:
+      return .text(tr("WebDAV 登录失败，请检查用户名和密码。"))
+    case WebDAVError.transport, is URLError:
+      guard provider == .webDAV else { return nil }
+      return .text(
+        tr("无法连接 WebDAV。请检查网络、地址和证书。若使用局域网，请在系统设置中允许 XStats 访问本地网络。"))
+    case let error as WebDAVError:
+      return error.errorDescription.map(SyncMessage.text)
+    default:
+      return nil
+    }
+  }
+
+  private func syncEngine() async throws -> ActivitySyncEngine {
+    if let engine { return engine }
+    let key = try await keys.key()
+    try Task.checkCancellation()
+    let explicitlyImported =
+      defaults.string(forKey: Self.importedKeyFingerprint)
+      == key.withUnsafeBytes { ActivitySyncShard.checksum(Data($0)) }
+    let engine = ActivitySyncEngine(
+      key: key, sharedKeys: sharedKeys, explicitlyImported: explicitlyImported)
+    self.engine = engine
+    return engine
+  }
+
+  private func withRepository(
+    provider: ActivitySyncProvider, ticket: UUID? = nil,
+    action: @escaping @Sendable (any ActivitySyncRepository) async throws -> Void
+  ) async throws {
+    if let repository {
+      try await action(repository)
+      return
+    }
+    switch provider {
+    case .iCloud, .googleDrive:
+      let bookmark =
+        provider == .googleDrive ? defaults.data(forKey: "activity.sync.bookmark") : nil
+      guard provider != .googleDrive || bookmark != nil else {
+        throw ActivitySyncFailure.folderUnavailable
+      }
+      let refreshed = try await ActivitySyncFolder.withFolder(bookmark) { folder in
+        try await action(folder)
+      }
+      if ticket == nil || ticket == generation, let refreshed {
+        defaults.set(refreshed, forKey: "activity.sync.bookmark")
+      }
+    case .webDAV:
+      let config = try ActivityDAVConfiguration(address: address, username: username)
+      guard
+        let secret = try KeychainWebDAVPasswordStore().read(
+          account: "activity." + config.credentialAccount),
+        !secret.isEmpty
+      else { throw WebDAVError.missingPassword }
+      try await action(ActivitySyncWebDAV(configuration: config, password: secret))
+    }
+  }
+
   /// activity 默认跟随 mode；设置交换请求只需立即发布设置，活动数据按自动模式增量处理，
   /// 避免一次设置变更遍历全部历史月份。
   private func startSync(_ mode: ActivitySyncMode, activity: ActivitySyncMode? = nil) {
     let activityMode = activity ?? mode
-    guard active, worker == nil, !changingKey,
+    guard active, worker == nil, !changingKey, !removingDevice,
       mode == .manual || intervalMinutes > 0
     else { return }
     timer?.cancel()
@@ -349,64 +476,13 @@ final class ActivitySyncController {
       var errorMessage: SyncMessage?
       do {
         try Task.checkCancellation()
-        let engine: ActivitySyncEngine
-        if let cached = self.engine {
-          engine = cached
-        } else {
-          let key = try await keys.key()
-          try Task.checkCancellation()
-          let explicitlyImported =
-            defaults.string(forKey: Self.importedKeyFingerprint)
-            == key.withUnsafeBytes { ActivitySyncShard.checksum(Data($0)) }
-          engine = ActivitySyncEngine(
-            key: key, sharedKeys: sharedKeys, explicitlyImported: explicitlyImported)
-          self.engine = engine
-        }
-        if let repository {
-          try await synchronize(
+        let engine = try await syncEngine()
+        try await withRepository(provider: selected, ticket: ticket) { repository in
+          try await self.synchronize(
             engine, repository: repository, mode: mode, activity: activityMode, ticket: ticket)
-        } else {
-          switch selected {
-          case .iCloud, .googleDrive:
-            let bookmark =
-              selected == .googleDrive ? defaults.data(forKey: "activity.sync.bookmark") : nil
-            guard selected != .googleDrive || bookmark != nil else {
-              throw ActivitySyncFailure.folderUnavailable
-            }
-            let refreshed = try await ActivitySyncFolder.withFolder(bookmark) { folder in
-              try await self.synchronize(
-                engine, repository: folder, mode: mode, activity: activityMode, ticket: ticket)
-            }
-            if ticket == generation, let refreshed {
-              defaults.set(refreshed, forKey: "activity.sync.bookmark")
-            }
-          case .webDAV:
-            let config = try ActivityDAVConfiguration(address: address, username: username)
-            guard
-              let secret = try KeychainWebDAVPasswordStore().read(
-                account: "activity." + config.credentialAccount),
-              !secret.isEmpty
-            else { throw WebDAVError.missingPassword }
-            try await synchronize(
-              engine,
-              repository: ActivitySyncWebDAV(configuration: config, password: secret), mode: mode,
-              activity: activityMode, ticket: ticket)
-          }
         }
-      } catch is ActivityKeys.Failure {
-        errorMessage = .text(tr("无法读取或保存活动密钥，请检查钥匙串"))
-      } catch ActivitySyncFailure.keyPending {
-        errorMessage = .text(tr("正在等待 iCloud 钥匙串同步活动密钥"))
-      } catch ActivitySyncFailure.authenticationFailed {
-        errorMessage = .text(tr("无法验证同步数据，请核对恢复密钥和同步位置。"))
-      } catch ActivitySyncFailure.cloudUnavailable {
-        errorMessage = .text(tr("暂时无法访问 iCloud 云盘，请在系统设置中确认已开启“同步此 Mac”。"))
-      } catch ActivitySyncFailure.downloadRequested {
-        errorMessage = .downloadRequested
-      } catch let error as ActivityDAVError {
-        errorMessage = error.errorDescription.map(SyncMessage.text)
       } catch {
-        errorMessage = .text((error as? WebDAVError)?.errorDescription ?? tr("同步失败"))
+        errorMessage = troubleshootingMessage(for: error) ?? .text(tr("同步失败"))
       }
       if ticket == generation { preferences?.discardPrepared() }
       worker = nil
@@ -437,7 +513,8 @@ final class ActivitySyncController {
         }
       }
       retrying = errorMessage != nil
-      lastMessage = errorMessage ?? .text(tr("本轮同步完成"))
+      lastMessage = nil
+      lastResult = (Date(), errorMessage ?? .completed)
       schedule()
     }
   }
@@ -445,6 +522,7 @@ final class ActivitySyncController {
   func save(
     provider: ActivitySyncProvider, address: String, username: String, secret: String, folder: URL?
   ) throws {
+    guard !removingDevice else { throw ActivitySyncFailure.busy }
     let previousDestination = destinationID
     if provider == .webDAV {
       let config = try ActivityDAVConfiguration(address: address, username: username)
@@ -492,6 +570,7 @@ final class ActivitySyncController {
     if !keepingSchedule {
       lastFinished = nil
       failureStreak = 0
+      lastResult = nil
     }
     generation = UUID()
     preferences?.discardPrepared()
@@ -507,7 +586,7 @@ final class ActivitySyncController {
 
   private func schedule() {
     timer?.cancel()
-    guard intervalMinutes > 0, active else {
+    guard intervalMinutes > 0, active, !removingDevice else {
       timer = nil
       return
     }
