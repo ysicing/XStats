@@ -940,6 +940,7 @@ XStats 最近版本亮点	Neuerungen in XStats
 正在验证更新包与开发者签名…	Updatepaket und Entwicklersignatur werden überprüft…
 正在检查…	Wird geprüft …
 正在检查更新	Updates werden gesucht
+更新已变为 {}（构建 {}），请确认后安装。	Das Update wurde durch {} (Build {}) ersetzt. Bitte bestätige die Installation.
 正在检测出口与分流…	Ausgänge und Routing werden geprüft …
 正在测 {}/{}	Test {}/{}
 正在测上行	Upload wird gemessen
@@ -2909,7 +2910,6 @@ ps <进程名或 PID>	ps <Prozessname oder PID>
 项目可能已移动或不可用，请重新搜索后再试。	Das Objekt wurde möglicherweise verschoben oder ist nicht verfügbar. Suchen Sie erneut.
 收藏 {}	Favorit {}
 取消收藏 {}	Favorit entfernen {}
-移到废纸篓 {}	In den Papierkorb verschieben {}
 移到废纸篓 — {}	In den Papierkorb verschieben — {}
 Finder 新建文档	Neue Dokumente im Finder
 Finder 新建文档设置	Einstellungen für neue Dokumente
@@ -3008,7 +3008,6 @@ MCP 地址	MCP-Adresse
 无法监听此端口，请更换端口或重新开启。	Dieser Port konnte nicht geöffnet werden. Ändere den Port oder aktiviere die Übersicht erneut.
 正在启动监控大屏…	Monitoring-Übersicht wird gestartet…
 等待采样	Warten auf Messwerte
-已暂停	Pausiert
 没有启用的监控指标	Keine Monitoring-Messwerte aktiviert
 连接中断，正在重试	Verbindung unterbrochen. Neuer Versuch…
 CPU 占用最高的进程	Prozesse mit der höchsten CPU-Auslastung
@@ -3070,8 +3069,6 @@ HTTP 仅限内网或 Tailscale，WebDAV 登录凭据会通过 HTTP 发送。	HTT
 活跃时长（设备累计）	Aktive Zeit (Summe aller Geräte)
 各设备的活跃分钟分别计算后相加	Die aktiven Minuten werden pro Gerät erfasst und addiert
 活动时段	Aktivitätssitzungen
-本周	Diese Woche
-本月	Dieser Monat
 昨天	Gestern
 前天	Vorgestern
 大前天	Vor 3 Tagen

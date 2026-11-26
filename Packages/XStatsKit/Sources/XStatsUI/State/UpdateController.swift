@@ -13,6 +13,7 @@ public final class UpdateController {
 
   public private(set) var phase: Phase = .idle
   public private(set) var release: UpdateRelease?
+  private(set) var needsNewConfirmation = false
   public private(set) var lastChecked: Date? {
     didSet { defaults.set(lastChecked, forKey: Keys.lastChecked) }
   }
@@ -22,7 +23,10 @@ public final class UpdateController {
 
   /// 手动检查发现新版本时调用，由 AppController 打开升级提示窗口
   @ObservationIgnored var onCheckCompleted: () -> Void = {}
-  @ObservationIgnored var onPrompt: () -> Void = {}
+  @ObservationIgnored var onPrompt: (_ refresh: Bool) -> Void = { _ in }
+  @ObservationIgnored private var checkingForOpenPrompt = false
+  @ObservationIgnored private var pendingPromptRefresh = false
+  @ObservationIgnored private var failureBeforeBackgroundCheck: String?
   /// 后台发现新版本时请求系统通知；成功提交后才记录去重状态。
   @ObservationIgnored var onUpdateAvailable: (String) async -> Bool = { _ in false }
 
@@ -32,6 +36,7 @@ public final class UpdateController {
   @ObservationIgnored private let settings: AppSettings
   @ObservationIgnored private let defaults: UserDefaults
   @ObservationIgnored private let bundle: Bundle
+  @ObservationIgnored private let startUpdater: (SparkleInstaller) throws -> SPUUpdater?
   @ObservationIgnored private var updater: SPUUpdater?
   @ObservationIgnored private var sparkleInstaller: SparkleInstaller?
   @ObservationIgnored private let launchedAt: Date
@@ -40,12 +45,14 @@ public final class UpdateController {
 
   init(
     settings: AppSettings, defaults: UserDefaults = .standard, launchedAt: Date = Date(),
-    bundle: Bundle = .main
+    bundle: Bundle = .main,
+    startUpdater: @escaping (SparkleInstaller) throws -> SPUUpdater? = { try $0.start() }
   ) {
     self.settings = settings
     self.defaults = defaults
     self.bundle = bundle
     self.launchedAt = launchedAt
+    self.startUpdater = startUpdater
     lastChecked = defaults.object(forKey: Keys.lastChecked) as? Date
     skippedVersion = defaults.string(forKey: Keys.skippedVersion)
     // Sparkle 公开记录键：首轮迁移继承旧成功时间，避免“刚检查过”被当成首次检查。
@@ -65,16 +72,43 @@ public final class UpdateController {
     return release.version != skippedVersion
   }
 
-  /// 只打开已发现版本的现有窗口，不重新联网检查或自动安装。
   func presentAvailableUpdate() {
     guard hasAvailableUpdate else { return }
-    onPrompt()
+    onPrompt(true)
+  }
+
+  func refreshOpenPrompt() {
+    switch phase {
+    case .downloading, .verifying, .installing:
+      return
+    case .checking:
+      guard sparkleInstaller?.isInstalling != true else { return }
+      needsNewConfirmation = false
+      failureBeforeBackgroundCheck = nil
+      release = nil
+      if sparkleInstaller?.isSkipping == true {
+        pendingPromptRefresh = true
+      } else {
+        checkingForOpenPrompt = true
+      }
+      return
+    default:
+      break
+    }
+    guard !isBusy, sparkleInstaller?.isRunning != true else { return }
+    checkingForOpenPrompt = true
+    pendingPromptRefresh = false
+    needsNewConfirmation = false
+    failureBeforeBackgroundCheck = nil
+    release = nil
+    check(userInitiated: true)
   }
 
   /// Sparkle 已持久化跳过条目后，清掉对应界面缓存，避免旧提醒随兼容记录清除而重现。
   func finishSkipMigration() {
     if release?.version == skippedVersion {
       release = nil
+      needsNewConfirmation = false
       // 清空缓存后，周期结束回调不再看到已知版本；这里同步结束跳过检查的忙碌态。
       phase = .idle
     }
@@ -91,6 +125,14 @@ public final class UpdateController {
   var isDownloading: Bool {
     if case .downloading = phase { return true }
     return false
+  }
+
+  var canCloseUpdatePrompt: Bool {
+    switch phase {
+    case .checking: sparkleInstaller?.isInstalling != true
+    case .verifying, .installing: false
+    default: true
+    }
   }
 
   var installationRequiresPreparation: Bool {
@@ -135,11 +177,28 @@ public final class UpdateController {
     }
   }
 
+  private func applyInstallerPhase(_ next: Phase) {
+    if next == .checking, sparkleInstaller?.isBackgroundCheck == true,
+      case .failed(let message) = phase, release == nil
+    {
+      failureBeforeBackgroundCheck = message
+    }
+    phase = next
+  }
+
+  private func retryPromptRefreshAfterCycle() {
+    if sparkleInstaller?.isRunning == true {
+      Task { @MainActor [weak self] in self?.refreshOpenPrompt() }
+    } else {
+      refreshOpenPrompt()
+    }
+  }
+
   private func ensureUpdater() throws {
-    guard updater == nil else { return }
+    guard sparkleInstaller == nil else { return }
     let driver = SparkleInstaller(
       bundle: bundle,
-      onPhase: { [weak self] in self?.phase = $0 },
+      onPhase: { [weak self] in self?.applyInstallerPhase($0) },
       onRelaunch: { [weak self] in self?.skippedVersion = nil })
     driver.prepareForInstallation = { [weak self] in try await self?.prepareForInstallation() }
     driver.cancelInstallationPreparation = { [weak self] in self?.cancelInstallationPreparation() }
@@ -147,22 +206,68 @@ public final class UpdateController {
       self?.lastChecked = Date()
       self?.onCheckCompleted()
     }
-    driver.onNoUpdate = { [weak self] in self?.release = nil }
+    driver.onNoUpdate = { [weak self] in
+      self?.release = nil
+      self?.needsNewConfirmation = false
+    }
     driver.onRelease = { [weak self] release, manual in
       guard let self else { return }
       self.release = release
+      self.needsNewConfirmation = false
+      self.failureBeforeBackgroundCheck = nil
+      guard !self.checkingForOpenPrompt, !self.pendingPromptRefresh else {
+        self.pendingPromptRefresh = false
+        return
+      }
       Task { [weak self] in
         await self?.announceUpdate(
           version: release.version, userInitiated: manual,
           suppressPrompt: !(self?.settings.updateCheckSchedule.promptsForUpdates ?? false))
       }
     }
+    driver.onSupersedingRelease = { [weak self] release in
+      self?.release = release
+      self?.needsNewConfirmation = true
+      self?.failureBeforeBackgroundCheck = nil
+    }
     driver.legacySkippedVersion = { [weak self] in self?.skippedVersion }
     driver.hasKnownRelease = { [weak self] in self?.release != nil }
     driver.onLegacySkipMigrated = { [weak self] in self?.finishSkipMigration() }
-    driver.onCycleFinished = { [weak self] success in self?.applySchedule(retry: !success) }
+    driver.onCycleFinished = { [weak self, weak driver] success in
+      guard let self else { return }
+      let wasCheckingForOpenPrompt = self.checkingForOpenPrompt
+      let shouldRefreshAfterCycle = self.pendingPromptRefresh
+      self.checkingForOpenPrompt = false
+      self.pendingPromptRefresh = false
+      if shouldRefreshAfterCycle {
+        if self.phase == .checking { self.phase = .idle }
+        self.retryPromptRefreshAfterCycle()
+        return
+      }
+      if wasCheckingForOpenPrompt {
+        // 已打开的窗口也要展示复用后台检查时的失败，不能继续提供旧版本的安装按钮。
+        if !success, self.phase == .idle || self.phase == .available {
+          self.release = nil
+          self.needsNewConfirmation = false
+          self.phase = .failed(tr("检查更新失败"))
+        } else if success, driver?.isBackgroundCheck == true,
+          self.release == nil, self.phase == .idle
+        {
+          // 后台检查过滤了已跳过的更新；打开升级窗口时补一次手动检查以展示该版本。
+          self.retryPromptRefreshAfterCycle()
+          return
+        }
+      } else if !success, let previousFailure = self.failureBeforeBackgroundCheck,
+        self.release == nil, self.phase == .idle
+      {
+        self.phase = .failed(previousFailure)
+      }
+      self.failureBeforeBackgroundCheck = nil
+      self.applySchedule(retry: !success)
+    }
+    let startedUpdater = try startUpdater(driver)
     sparkleInstaller = driver
-    updater = try driver.start()
+    updater = startedUpdater
   }
 
   private func observeSchedule() {
@@ -211,8 +316,16 @@ public final class UpdateController {
     guard !isBusy, sparkleInstaller?.isRunning != true else { return }
     do {
       try ensureUpdater()
+      if userInitiated {
+        failureBeforeBackgroundCheck = nil
+      } else if case .failed(let message) = phase, release == nil {
+        failureBeforeBackgroundCheck = message
+      }
+      phase = .checking
       sparkleInstaller?.check(userInitiated: userInitiated)
     } catch {
+      checkingForOpenPrompt = false
+      failureBeforeBackgroundCheck = nil
       phase = userInitiated ? .failed(error.localizedDescription) : .idle
     }
   }
@@ -220,7 +333,7 @@ public final class UpdateController {
   /// 手动检查始终展示结果；后台通知遵循静默策略、开关、跳过版本及跨重启去重。
   func announceUpdate(version: String, userInitiated: Bool, suppressPrompt: Bool) async {
     if userInitiated {
-      onPrompt()
+      onPrompt(false)
       return
     }
     if suppressPrompt {
@@ -259,11 +372,15 @@ public final class UpdateController {
   /// 截图用：直接放入一个示例版本
   func showPreview(_ release: UpdateRelease) {
     self.release = release
+    needsNewConfirmation = false
+    failureBeforeBackgroundCheck = nil
     phase = .available
   }
 
   func skipCurrentRelease() {
     guard let release, !isBusy else { return }
+    needsNewConfirmation = false
+    failureBeforeBackgroundCheck = nil
     // 点击后立即生效，即使此时离线；签名条目重新可达时再交给 Sparkle 持久化。
     skippedVersion = release.version
     do {
@@ -278,6 +395,8 @@ public final class UpdateController {
 
   func install() {
     guard let release, !isBusy, sparkleInstaller?.isRunning != true else { return }
+    needsNewConfirmation = false
+    failureBeforeBackgroundCheck = nil
     if let reason = installBlockedReason {
       phase = .failed(reason)
       return

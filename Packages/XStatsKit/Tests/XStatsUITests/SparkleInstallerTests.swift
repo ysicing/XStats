@@ -71,6 +71,85 @@ struct SparkleInstallerTests {
         updateCheck: .updates)
     }
   }
+
+  @Test func supersedingBuildRequiresAnotherInstallClick() throws {
+    let original = release()
+    var fields = try item(original).propertiesDictionary
+    fields["sparkle:version"] = "201"
+    fields["sparkle:shortVersionString"] = "1.0.1"
+    let nextItem = try #require(SUAppcastItem(dictionary: fields))
+    let archive = NSKeyedArchiver(requiringSecureCoding: true)
+    archive.encode(0, forKey: "SPUUserUpdateStateStage")
+    archive.encode(true, forKey: "SPUUserUpdateStateUserInitiated")
+    archive.finishEncoding()
+    let decoder = try NSKeyedUnarchiver(forReadingFrom: archive.encodedData)
+    defer { decoder.finishDecoding() }
+    let state = try #require(SPUUserUpdateState(coder: decoder))
+    var offered: UpdateRelease?
+    var phase: UpdatePhase?
+    var choices: [SPUUserUpdateChoice] = []
+    let driver = SparkleInstaller(onPhase: { phase = $0 }, onRelaunch: {})
+    driver.onSupersedingRelease = { offered = $0 }
+    let updater = SPUUpdater(
+      hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: driver)
+    driver.check(userInitiated: true, action: .install(original))
+    try driver.updater(updater, shouldProceedWithUpdate: nextItem, updateCheck: .updates)
+    driver.showUpdateFound(with: nextItem, state: state) { choices.append($0) }
+    #expect(choices == [.dismiss])
+    driver.updater(updater, didFinishUpdateCycleFor: .updates, error: nil)
+    let replacement = try #require(offered)
+    #expect(phase == .available && replacement.build == "201" && !driver.hasInstallationRequest)
+    driver.check(userInitiated: true, action: .install(replacement))
+    try driver.updater(updater, shouldProceedWithUpdate: nextItem, updateCheck: .updates)
+    driver.showUpdateFound(with: nextItem, state: state) { choices.append($0) }
+    #expect(choices == [.dismiss, .install])
+
+    fields["xstats:sha256"] = String(repeating: "b", count: 64)
+    let repacked = try #require(SUAppcastItem(dictionary: fields))
+    #expect(throws: UpdateError.releaseChanged) {
+      try driver.updater(updater, shouldProceedWithUpdate: repacked, updateCheck: .updates)
+    }
+    // 恢复缓存不会调用上面的委托；最终选择也必须拒绝相同构建的不同包。
+    driver.showUpdateFound(with: repacked, state: state) { choices.append($0) }
+    #expect(choices == [.dismiss, .install, .dismiss])
+    guard case .failed = phase else {
+      Issue.record("Changed digest should block cached installation")
+      return
+    }
+    #expect(offered == replacement)
+  }
+
+  @Test func invalidCachedItemInShowUpdateFoundTransitionsOutOfChecking() throws {
+    var fields = try item(release()).propertiesDictionary
+    fields.removeValue(forKey: "xstats:network-extension-build")
+    let malformed = try #require(SUAppcastItem(dictionary: fields))
+    #expect(throws: UpdateError.self) {
+      try SparkleInstaller.release(from: malformed)
+    }
+    let archive = NSKeyedArchiver(requiringSecureCoding: true)
+    archive.encode(0, forKey: "SPUUserUpdateStateStage")
+    archive.encode(true, forKey: "SPUUserUpdateStateUserInitiated")
+    archive.finishEncoding()
+    let decoder = try NSKeyedUnarchiver(forReadingFrom: archive.encodedData)
+    defer { decoder.finishDecoding() }
+    let state = try #require(SPUUserUpdateState(coder: decoder))
+    var phase: UpdatePhase?
+    var clearedRelease = false
+    var choice: SPUUserUpdateChoice?
+    let driver = SparkleInstaller(onPhase: { phase = $0 }, onRelaunch: {})
+    driver.onNoUpdate = { clearedRelease = true }
+    let updater = SPUUpdater(
+      hostBundle: .main, applicationBundle: .main, userDriver: driver, delegate: driver)
+    driver.check(userInitiated: true, action: .install(release()))
+    try driver.updater(updater, mayPerform: .updates)
+    #expect(phase == .checking)
+    driver.showUpdateFound(with: malformed, state: state) { choice = $0 }
+    #expect(choice == .dismiss && clearedRelease)
+    guard case .failed = phase else {
+      Issue.record("Malformed cached release must leave checking state")
+      return
+    }
+  }
   @Test func installationWaitsForNetworkShutdownBeforeAcceptingInstall() async throws {
     var choice: SPUUserUpdateChoice?
     var entered = false

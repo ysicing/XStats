@@ -274,12 +274,11 @@ struct ActivityPage: View {
         if let previous { dateSelection.date = previous }
       }
       .disabled(previous == nil)
-      if period != .day || !isCurrent {
+      if !isCurrent {
         Button(returnToCurrentLabel) {
           animatePeriodChange = false
           dateSelection.date = nil
         }
-        .disabled(isCurrent)
       }
       IconButton(systemName: "chevron.forward", help: tr("下一时段")) {
         animatePeriodChange = false

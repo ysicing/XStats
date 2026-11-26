@@ -55,8 +55,6 @@ extension Translations {
     活跃时长（设备累计）	Active Time (Device Total)
     各设备的活跃分钟分别计算后相加	Active minutes are counted on each device and added together
     活动时段	Activity Sessions
-    本周	This Week
-    本月	This Month
     昨天	Yesterday
     前天	2 days ago
     大前天	3 days ago

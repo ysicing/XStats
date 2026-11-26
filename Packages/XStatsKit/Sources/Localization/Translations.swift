@@ -36,7 +36,6 @@ extension Translations {
     无法监听此端口，请更换端口或重新开启。	Could not listen on this port. Change the port or turn the dashboard off and on.
     正在启动监控大屏…	Starting monitoring dashboard…
     等待采样	Waiting for metrics
-    已暂停	Paused
     没有启用的监控指标	No monitoring metrics enabled
     连接中断，正在重试	Connection lost. Retrying…
     CPU 占用最高的进程	Top processes by CPU usage
@@ -182,7 +181,6 @@ extension Translations {
     最多收藏 8 项	Save up to 8 favorites
     收藏 {}	Favorite {}
     取消收藏 {}	Unfavorite {}
-    移到废纸篓 {}	Move to Trash {}
     移到废纸篓 — {}	Move to Trash — {}
     正在读取应用…	Loading apps…
     port <端口号 1–65535>	port <port number 1–65535>
@@ -1585,6 +1583,7 @@ extension Translations {
     正在验证更新包与开发者签名…	Verifying update archive and developer signature…
     正在检查…	Checking…
     正在检查更新	Checking for updates
+    更新已变为 {}（构建 {}），请确认后安装。	The update has changed to {} (build {}). Confirm to install it.
     正在检测出口与分流…	Checking egress and routing…
     正在测 {}/{}	Testing {}/{}
     正在测上行	Measuring upload

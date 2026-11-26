@@ -819,7 +819,8 @@ public final class AppController: NSObject, NSApplicationDelegate {
 
   /// 启动 10 秒后启动 Sparkle，由它统一安排后续检查。
   private func startUpdateChecks() {
-    model.updates.onPrompt = { [weak self] in
+    model.updates.onPrompt = { [weak self] refresh in
+      if refresh { self?.model.updates.refreshOpenPrompt() }
       self?.menuBar.dismissPopovers()
       self?.calendarMenuBar.dismiss()
       self?.updateWindow.show()
@@ -828,13 +829,7 @@ public final class AppController: NSObject, NSApplicationDelegate {
       await self?.model.alerts.notifyUpdate(version: version) ?? false
     }
     model.alerts.openUpdates = { [weak self] in
-      guard let self else { return }
-      if self.model.updates.release != nil {
-        self.model.updates.onPrompt()
-      } else {
-        // 通知可跨应用重启保留；重新检查后展示当前有效的更新信息。
-        self.checkForUpdatesFromMenu()
-      }
+      self?.model.updates.onPrompt(true)
     }
     DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
       self?.model.updates.start()

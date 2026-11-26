@@ -154,6 +154,12 @@ struct UpdateProgress: View {
   var body: some View {
     let updates = model.updates
     switch updates.phase {
+    case .available where updates.needsNewConfirmation:
+      if let release = updates.release {
+        InfoBanner(
+          icon: "arrow.up.circle",
+          text: tr("更新已变为 \(release.version)（构建 \(release.build)），请确认后安装。"))
+      }
     case .downloading(let fraction):
       VStack(alignment: .leading, spacing: DS.Space.s2) {
         HStack {
@@ -197,26 +203,41 @@ struct UpdatePromptView: View {
           release: release, currentVersion: updates.currentVersion,
           language: model.settings.language.resolved,
           limitsNotesHeight: true)
+      } else if updates.phase == .upToDate || updates.phase == .idle {
+        Text(tr("没有可用更新")).dsFont(.sm)
       }
       UpdateProgress()
       HStack(spacing: DS.Space.s2) {
         if case .downloading = updates.phase {
           Spacer()
           Button(tr("取消")) { updates.cancel() }.buttonStyle(DSButtonStyle(kind: .secondary))
+        } else if updates.release == nil {
+          Spacer()
+          Button(tr("完成"), action: close)
+            .buttonStyle(DSButtonStyle(kind: .secondary))
+            .disabled(!updates.canCloseUpdatePrompt)
+          if case .failed = updates.phase {
+            Button(tr("检查更新")) { updates.refreshOpenPrompt() }
+              .buttonStyle(DSButtonStyle(kind: .primary))
+              .disabled(updates.isBusy)
+          }
         } else {
           Button(tr("跳过此版本")) {
             updates.skipCurrentRelease()
             close()
           }
           .buttonStyle(DSButtonStyle(kind: .ghost))
+          .disabled(updates.isBusy)
           Spacer()
-          Button(tr("以后再说"), action: close).buttonStyle(DSButtonStyle(kind: .secondary))
+          Button(tr("以后再说"), action: close)
+            .buttonStyle(DSButtonStyle(kind: .secondary))
+            .disabled(!updates.canCloseUpdatePrompt)
           Button(tr("一键安装")) { updates.install() }
             .buttonStyle(DSButtonStyle(kind: .primary))
             .keyboardShortcut(.defaultAction)
+            .disabled(updates.isBusy)
         }
       }
-      .disabled(updates.isBusy && !updates.isDownloading)
     }
     .padding(.horizontal, DS.Space.s6)
     .padding(.bottom, DS.Space.s6)

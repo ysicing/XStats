@@ -86,7 +86,10 @@ struct UpdateNotificationTests {
     let controller = UpdateController(settings: settings, defaults: defaults)
     var prompts = 0
     var notifications = 0
-    controller.onPrompt = { prompts += 1 }
+    controller.onPrompt = { refresh in
+      #expect(!refresh)
+      prompts += 1
+    }
     controller.onUpdateAvailable = { _ in
       notifications += 1
       return true

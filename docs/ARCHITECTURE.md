@@ -479,6 +479,10 @@ installation. Automatic downloads/installation stay disabled. Regional feed fail
 try remaining endpoints serially; archive/install failures do not restart installation
 through another endpoint. XStats preserves its UI, notification preferences and
 availability state without another check timer.
+Opening an update notification or the menu bar's available-update button refreshes
+the offer in the prompt. A manual check presents its result directly. If the
+build advances between review and installation, the main app presents the new
+signed offer for confirmation. A changed package on the same build is rejected.
 
 The regional API forwards original signed XML bytes selected by the published
 manifest and retains legacy JSON compatibility. Artifacts use immutable versioned

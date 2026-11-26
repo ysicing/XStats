@@ -19,6 +19,7 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
   private let onPhase: (UpdatePhase) -> Void
   private let onRelaunch: () -> Void
   public var onRelease: (UpdateRelease, Bool) -> Void = { _, _ in }
+  public var onSupersedingRelease: ((UpdateRelease) -> Void)?
   public var onChecked: () -> Void = {}
   public var onNoUpdate: () -> Void = {}
   public var onCycleFinished: (Bool) -> Void = { _ in }
@@ -57,11 +58,20 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
   }
 
   public var isRunning: Bool { updater?.sessionInProgress == true || installationTask != nil }
-  public var hasInstallationRequest: Bool {
-    if cachedInstallationPending { return true }
+  public var isInstalling: Bool {
     guard !cancelled else { return false }
     if case .install? = action { return true }
     return false
+  }
+  public var isSkipping: Bool {
+    guard !cancelled else { return false }
+    if case .skip? = action { return true }
+    return false
+  }
+  public var isBackgroundCheck: Bool { !userInitiated && action == nil }
+  public var hasInstallationRequest: Bool {
+    if cachedInstallationPending { return true }
+    return isInstalling
   }
 
   public init(
@@ -229,20 +239,33 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
     updateCheck: SPUUpdateCheck
   ) throws {
     let candidate = try Self.release(from: updateItem)
-    // 检查与用户点击之间可能已发布下一版；安装/跳过只能作用于刚确认的那个包。
-    if let action {
-      let expected: UpdateRelease
-      switch action {
-      case .install(let release), .skip(let release): expected = release
-      }
-      guard candidate.build == expected.build, candidate.version == expected.version,
-        candidate.url == expected.url, candidate.size == expected.size,
-        candidate.minimumSystem == expected.minimumSystem, candidate.sha256 == expected.sha256,
-        candidate.networkExtension == expected.networkExtension
-      else {
-        throw UpdateError.releaseChanged
-      }
+    _ = try requiresNewConfirmation(for: candidate)
+  }
+
+  private func requiresNewConfirmation(for candidate: UpdateRelease) throws -> Bool {
+    guard let action else { return false }
+    let expected: UpdateRelease
+    switch action {
+    case .install(let release), .skip(let release): expected = release
     }
+    if candidate.build == expected.build, candidate.version == expected.version,
+      candidate.url == expected.url, candidate.size == expected.size,
+      candidate.minimumSystem == expected.minimumSystem, candidate.sha256 == expected.sha256,
+      candidate.networkExtension == expected.networkExtension
+    {
+      return false
+    }
+    if case .install = action, onSupersedingRelease != nil,
+      let build = UInt64(candidate.build), let confirmedBuild = UInt64(expected.build),
+      build > confirmedBuild, !UpdateFeed.isNewer(expected.version, than: candidate.version)
+    {
+      return true
+    }
+    logger.warning(
+      "更新条目与确认内容不符 expectedBuild=\(expected.build, privacy: .public) candidateBuild=\(candidate.build, privacy: .public) digestChanged=\(candidate.sha256 != expected.sha256)"
+    )
+    if case .install = action { onNoUpdate() }
+    throw UpdateError.releaseChanged
   }
 
   public static func release(from item: SUAppcastItem) throws -> UpdateRelease {
@@ -372,13 +395,28 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
     reply: @escaping (SPUUserUpdateChoice) -> Void
   ) {
     cancellation = nil
-    let signedRelease = try? Self.release(from: appcastItem)
+    let parsedRelease = Result { try Self.release(from: appcastItem) }
     // 即使本轮检查已取消，SDK 报告的已安装缓存仍可能在退出时继续，不能丢掉退出门禁。
     if state.stage == .installing {
       cachedInstallationPending = true
-      cachedExtension = signedRelease?.networkExtension
+      cachedExtension = (try? parsedRelease.get())?.networkExtension
     }
-    guard !cancelled, let release = signedRelease else {
+    guard !cancelled else {
+      reply(.dismiss)
+      return
+    }
+    let release: UpdateRelease
+    do {
+      release = try parsedRelease.get()
+    } catch {
+      let shouldFail = userInitiated || action != nil
+      if case .install = action { onNoUpdate() }
+      action = nil
+      if shouldFail {
+        onPhase(.failed(error.localizedDescription))
+      } else {
+        onPhase(hasKnownRelease() ? .available : .idle)
+      }
       reply(.dismiss)
       return
     }
@@ -388,6 +426,22 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
     // Sparkle 也可能恢复已验证的缓存条目；后续安装失败不能作为更新源失败重试。
     loadedFeed = true
     if let action {
+      // Sparkle 恢复缓存时跳过 shouldProceedWithUpdate；在返回安装选择前核对实际条目。
+      do {
+        if try requiresNewConfirmation(for: release) {
+          self.action = nil
+          logger.notice("更新构建已变更，等待重新确认 build=\(release.build, privacy: .public)")
+          onSupersedingRelease?(release)
+          onPhase(.available)
+          reply(.dismiss)
+          return
+        }
+      } catch {
+        self.action = nil
+        onPhase(.failed(error.localizedDescription))
+        reply(.dismiss)
+        return
+      }
       switch action {
       case .install:
         if state.stage == .installing {
@@ -403,10 +457,10 @@ public final class SparkleInstaller: NSObject, SPUUserDriver, SPUUpdaterDelegate
     } else if !userInitiated, release.version == legacySkippedVersion() {
       // 兼容记录和离线排队只有展示版本号；遇到签名条目后通过公开 reply 交给 Sparkle。
       cachedInstallationPending = false
-      reply(.skip)
-      onLegacySkipMigrated()
       // 跳过新版只结束提醒流程，当前安装仍是旧版。
       onPhase(.idle)
+      reply(.skip)
+      onLegacySkipMigrated()
     } else {
       onPhase(.available)
       onRelease(release, userInitiated)

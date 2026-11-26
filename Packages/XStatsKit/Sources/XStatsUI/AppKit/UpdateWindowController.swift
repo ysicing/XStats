@@ -49,8 +49,7 @@ final class UpdateWindowController: NSObject, NSWindowDelegate {
   }
 
   func windowShouldClose(_ sender: NSWindow) -> Bool {
-    // 正在替换应用时不允许关闭，避免用户以为已取消
-    ![.verifying, .installing].contains(model.updates.phase)
+    model.updates.canCloseUpdatePrompt
   }
 
   func windowWillClose(_ notification: Notification) {

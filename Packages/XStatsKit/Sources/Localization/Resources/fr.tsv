@@ -937,6 +937,7 @@ Telegram（原生 Swift）	Telegram (Swift natif)
 正在验证更新包与开发者签名…	Vérification du paquet de mise à jour et de la signature du développeur…
 正在检查…	Vérification…
 正在检查更新	Recherche de mises à jour
+更新已变为 {}（构建 {}），请确认后安装。	La mise à jour proposée est désormais la version {} (build {}). Confirmez pour l’installer.
 正在检测出口与分流…	Vérification des sorties et du routage…
 正在测 {}/{}	Test {}/{}
 正在测上行	Mesure du débit d’envoi
@@ -2906,7 +2907,6 @@ ps <进程名或 PID>	ps <nom du processus ou PID>
 项目可能已移动或不可用，请重新搜索后再试。	L’élément a peut-être été déplacé ou est indisponible. Relancez la recherche et réessayez.
 收藏 {}	Favori {}
 取消收藏 {}	Retirer des favoris {}
-移到废纸篓 {}	Déplacer vers la Corbeille {}
 移到废纸篓 — {}	Déplacer vers la Corbeille — {}
 Finder 新建文档	Nouveaux documents dans le Finder
 Finder 新建文档设置	Réglages des nouveaux documents
@@ -3005,7 +3005,6 @@ MCP 地址	URL MCP
 无法监听此端口，请更换端口或重新开启。	Impossible d’ouvrir ce port. Changez de port ou désactivez puis réactivez le tableau.
 正在启动监控大屏…	Démarrage du tableau de suivi…
 等待采样	En attente de mesures
-已暂停	En pause
 没有启用的监控指标	Aucune mesure de suivi activée
 连接中断，正在重试	Connexion perdue. Nouvelle tentative…
 CPU 占用最高的进程	Processus utilisant le plus le processeur
@@ -3067,8 +3066,6 @@ HTTP 仅限内网或 Tailscale，WebDAV 登录凭据会通过 HTTP 发送。	HTT
 活跃时长（设备累计）	Temps actif (total des appareils)
 各设备的活跃分钟分别计算后相加	Les minutes d’activité sont comptées pour chaque appareil, puis additionnées
 活动时段	Sessions d’activité
-本周	Cette semaine
-本月	Ce mois-ci
 昨天	Hier
 前天	Avant-hier
 大前天	Il y a 3 jours
