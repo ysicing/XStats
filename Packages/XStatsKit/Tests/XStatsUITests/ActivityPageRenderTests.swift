@@ -1,11 +1,38 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import AppKit
+import Localization
 import SwiftUI
 import Testing
 @testable import XStatsUI
 
 struct ActivityPageRenderTests {
+  @Test(arguments: [
+    DateComponents(year: 2026, month: 1, day: 2),
+    DateComponents(year: 2026, month: 3, day: 10),
+    DateComponents(year: 2026, month: 11, day: 3),
+  ])
+  func dayTitlesFollowLocalCalendarDays(reference: DateComponents) throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
+    let today = try #require(calendar.date(from: reference))
+    let locale = Locale(identifier: "zh_CN")
+    let style = Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone)
+    let relativeTitles = [tr("今天"), tr("昨天"), tr("前天"), tr("大前天")]
+    for offset in 0...4 {
+      let date = try #require(calendar.date(byAdding: .day, value: -offset, to: today))
+      let interval = try #require(calendar.dateInterval(of: .day, for: date))
+      let title = ActivityPageFormat.dateTitle(
+        interval, period: .day, relativeTo: today, calendar: calendar, locale: locale)
+      if offset < relativeTitles.count {
+        #expect(title == relativeTitles[offset])
+      } else {
+        let expectedStyle = reference.month == 1 ? style.year().month().day() : style.month().day()
+        #expect(title == date.formatted(expectedStyle))
+      }
+    }
+  }
+
   @MainActor
   @Test func rankingWrapsLongLabelsInConstrainedLeftToRightAndRightToLeftLayouts() throws {
     let width: CGFloat = 280
@@ -65,7 +92,7 @@ struct ActivityPageRenderTests {
         ) {
           Text(
             ActivityPageFormat.dateTitle(
-              interval, period: period, calendar: calendar, locale: locale)
+              interval, period: period, relativeTo: date, calendar: calendar, locale: locale)
           )
           .font(.headline)
         }
@@ -144,7 +171,7 @@ struct ActivityPageRenderTests {
           ) {
             Text(
               ActivityPageFormat.dateTitle(
-                interval, period: period, calendar: calendar, locale: locale)
+                interval, period: period, relativeTo: date, calendar: calendar, locale: locale)
             )
             .font(.headline)
           }

@@ -3072,6 +3072,12 @@ HTTP 仅限内网或 Tailscale，WebDAV 登录凭据会通过 HTTP 发送。	HTT
 活动时段	Aktivitätssitzungen
 本周	Diese Woche
 本月	Dieser Monat
+昨天	Gestern
+前天	Vorgestern
+大前天	Vor 3 Tagen
+回到今天	Zurück zu heute
+回到本周	Zurück zu dieser Woche
+回到本月	Zurück zu diesem Monat
 返回周视图	Zurück zur Woche
 返回月视图	Zurück zum Monat
 设备累计	Gerätesumme

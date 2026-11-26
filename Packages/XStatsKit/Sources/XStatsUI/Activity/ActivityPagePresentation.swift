@@ -468,12 +468,23 @@ enum ActivityPageFormat {
   }
 
   static func dateTitle(
-    _ interval: DateInterval, period: ActivityPagePeriod, calendar: Calendar, locale: Locale
+    _ interval: DateInterval, period: ActivityPagePeriod, relativeTo reference: Date,
+    calendar: Calendar, locale: Locale
   ) -> String {
     let style = Date.FormatStyle(locale: locale, calendar: calendar, timeZone: calendar.timeZone)
     switch period {
     case .day:
-      return interval.start.formatted(style.year().month().day().weekday(.wide))
+      let today = calendar.startOfDay(for: reference)
+      switch calendar.dateComponents([.day], from: interval.start, to: today).day {
+      case 0: return tr("今天")
+      case 1: return tr("昨天")
+      case 2: return tr("前天")
+      case 3: return tr("大前天")
+      default:
+        let sameYear = calendar.isDate(interval.start, equalTo: today, toGranularity: .year)
+        let dateStyle = style.month().day()
+        return interval.start.formatted(sameYear ? dateStyle : dateStyle.year())
+      }
     case .week:
       let end = calendar.date(byAdding: .day, value: -1, to: interval.end) ?? interval.start
       return (interval.start..<end).formatted(

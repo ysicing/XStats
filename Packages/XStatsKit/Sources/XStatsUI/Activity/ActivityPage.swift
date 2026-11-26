@@ -245,14 +245,15 @@ struct ActivityPage: View {
     let canAdvance = interval.start < current.start
     let previous = calendar.date(byAdding: period.component, value: -1, to: interval.start)
     let next = calendar.date(byAdding: period.component, value: 1, to: interval.start)
-    let title = ActivityPageFormat.dateTitle(
-      interval, period: period, calendar: calendar, locale: locale)
+    let isCurrent = interval == current
+    let dateTitle = ActivityPageFormat.dateTitle(
+      interval, period: period, relativeTo: current.start, calendar: calendar, locale: locale)
     let backLabel = dateSelection.overview?.period == .month ? tr("返回月视图") : tr("返回周视图")
-    let todayLabel =
+    let returnToCurrentLabel =
       switch period {
-      case .day: tr("今天")
-      case .week: tr("本周")
-      case .month: tr("本月")
+      case .day: tr("回到今天")
+      case .week: tr("回到本周")
+      case .month: tr("回到本月")
       }
     let date = VStack(alignment: .leading, spacing: DS.Space.s1) {
       if dateSelection.overview != nil {
@@ -264,7 +265,7 @@ struct ActivityPage: View {
         }
         .buttonStyle(.link)
       }
-      Text(title)
+      Text(dateTitle)
         .font(.headline)
     }
     let controls = HStack(spacing: DS.Space.s2) {
@@ -273,11 +274,13 @@ struct ActivityPage: View {
         if let previous { dateSelection.date = previous }
       }
       .disabled(previous == nil)
-      Button(todayLabel) {
-        animatePeriodChange = false
-        dateSelection.date = nil
+      if period != .day || !isCurrent {
+        Button(returnToCurrentLabel) {
+          animatePeriodChange = false
+          dateSelection.date = nil
+        }
+        .disabled(isCurrent)
       }
-      .disabled(interval == current)
       IconButton(systemName: "chevron.forward", help: tr("下一时段")) {
         animatePeriodChange = false
         if let next, canAdvance { dateSelection.date = next < current.start ? next : nil }

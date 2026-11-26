@@ -57,6 +57,12 @@ extension Translations {
     活动时段	Activity Sessions
     本周	This Week
     本月	This Month
+    昨天	Yesterday
+    前天	2 days ago
+    大前天	3 days ago
+    回到今天	Back to Today
+    回到本周	Back to This Week
+    回到本月	Back to This Month
     返回周视图	Back to Week
     返回月视图	Back to Month
     设备累计	Device Total
