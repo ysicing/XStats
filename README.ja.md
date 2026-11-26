@@ -9,13 +9,13 @@
 
 CPU、メモリ、ネットワーク、温度をひと目で確認し、詳細を開いて推移やアプリの使用状況を見られます。AI、カレンダー、ファン制御などのツールは必要なときに有効にできます。
 
-[![Release](https://img.shields.io/github/v/tag/ysicing/xstats?label=version&style=flat-square)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/github/v/release/ysicing/xstats?filter=v%2A&label=version&style=flat-square)](https://github.com/ysicing/xstats/releases/latest)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B%20%C2%B7%20Apple%20%E3%82%B7%E3%83%AA%E3%82%B3%E3%83%B3-black)](https://github.com/ysicing/xstats/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 [![Twitter](https://img.shields.io/badge/follow-YsiCing-red?style=flat-square&logo=Twitter)](https://twitter.com/YsiCing)
 
-[最新版をダウンロード](https://github.com/ysicing/xstats/releases) · [機能](#機能) · [インストール](#インストール) · [データとプライバシー](#データとプライバシー) · [変更履歴（中国語）](CHANGELOG.md)
+[最新版をダウンロード](https://github.com/ysicing/xstats/releases/latest) · [機能](#機能) · [インストール](#インストール) · [データとプライバシー](#データとプライバシー) · [変更履歴（中国語）](CHANGELOG.md)
 
 [简体中文](README.md) · [English](README.en.md) · **日本語** · [한국어](README.ko.md)
 
@@ -29,7 +29,7 @@ CPU、メモリ、ネットワーク、温度をひと目で確認し、詳細�
 
 **Apple Silicon Mac と macOS 14 以降**が必要です。
 
-[GitHub Releases](https://github.com/ysicing/xstats/releases) から DMG を入手し、XStats を「アプリケーション」にドラッグします。アプリがアップデートを確認し、インストールするかどうかはユーザーが選べます。
+[XStats のリリースページ](https://github.com/ysicing/xstats/releases/latest)から DMG を入手し、XStats を「アプリケーション」にドラッグします。アプリがアップデートを確認し、インストールするかどうかはユーザーが選べます。
 
 Homebrew でもインストールできます。
 
@@ -96,12 +96,12 @@ XStats は Swift、AppKit、SwiftUI で開発した、無料のオープンソ�
 
 ### AI
 
-[Magpie](https://usemagpie.ai) をインストールして起動すると、メニューバーで AI サービスの使用量を確認できます。
+この Mac またはリモートの [Magpie](https://usemagpie.ai) に接続すると、メニューバーで AI サービスの使用量を確認できます。
 
 - **使用量の推移**：トークン、リクエスト数、生成速度、米ドルの推定費用。推定額はサブスクリプションの請求額ではありません。
 - **サブスクリプションアカウント**：プラン、利用枠の使用状況、リセット時刻。
 
-AI 使用量はこの Mac の Magpie に自動接続するか、指定したリモートの Magpie に接続できます。トークンは選択した Magpie を経由したリクエストのみ集計します。
+トークンは選択した Magpie を経由したリクエストのみ集計します。
 
 ### ツール
 
@@ -115,8 +115,8 @@ AI 使用量はこの Mac の Magpie に自動接続するか、指定したリ�
 | <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | スクリーンショットの注釈・ローカルでのマスキング、音声付き画面収録。[単独版](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.14)も利用可能 |
 | **ファン制御** | 対応機種で自動 / 手動制御を切り替え |
 | **スリープ防止** | 蓋を閉じた状態を含め、システムや画面のスリープを防止 |
-| **アプリとサービス** | アプリ、Homebrew パッケージ、起動項目、サービスを管理 |
-| **アプリのアクティビティ（実験的機能）** | 設定の実験的機能で有効にすると、使用中のアプリの時間を記録し、カテゴリ別・デバイス別に確認したり、複数の Mac の記録を合計したりできます。 |
+| **アプリとサービス** | アプリ、Homebrew パッケージ、起動項目、サービスを管理。実験的なアプリのクローン機能を有効にすると、対応アプリを別々のプロファイルで使えます。 |
+| **アプリのアクティビティ（実験的機能）** | 最前面のアプリの使用時間とカテゴリ別ランキングを日・週・月単位で確認。同期を有効にすると、Mac ごとの記録と複数台の合計を切り替えられます。 |
 | **整理と最適化** | キャッシュとビルド成果物の確認、Mole にも対応 · [対象範囲](docs/CLEANUP.md) |
 | **ネットワーク診断** | 速度、DNS、外部接続経路、公開 IP、接続性、WebRTC / DNS 漏洩の検査 |
 | **カレンダー** | 旧暦、中国の祝日と振替出勤日、暦注、予定、リマインダー |
@@ -219,7 +219,7 @@ AI 使用量はこの Mac の Magpie に自動接続するか、指定したリ�
 
 - **アップデートの確認**：バージョンとインストール ID のハッシュを送り、更新情報を取得します。
 - **AI 使用量**：この Mac またはリモートの Magpie から利用枠と統計を取得します。
-- **アプリのアクティビティ**：有効にすると、アプリの使用時間帯とデバイス情報をこの Mac に暗号化して保存します。暗号化された記録は iCloud Drive、WebDAV、パソコン版 Google ドライブの同期フォルダを使って Mac 間で同期でき、この Mac のみに保存することもできます。WebDAV の HTTP 接続はプライベート LAN または Tailscale に限られ、ログイン情報は HTTP で送信されます。
+- **アプリのアクティビティ**：「設定 → 機能 → 実験的機能」で記録を有効にすると、アプリの使用時間帯とデバイス情報は既定でこの Mac にのみ暗号化して保存されます。同期を別途有効にすると、iCloud Drive、WebDAV、パソコン版 Google ドライブの同期フォルダを使って暗号化された記録を共有できます。WebDAV の HTTP 接続はプライベート LAN または Tailscale に限られ、ログイン情報は HTTP で送信されます。
 - **デバイス間同期**：各 Mac の「設定 → 機能 → オプション機能」で「同期」をオンにすると、既定で iCloud Drive を使って同期を開始します。「設定 → 同期」で参加デバイスを確認し、保存先や頻度を変更できます。環境設定の同期は個別に有効にできます。初回に差分があれば項目ごとに確認し、同じ項目に異なる変更が同時に加えられた場合は値を選択します。[同期の仕組み（英語）](docs/ARCHITECTURE.md#cross-device-sync)
 - **オンライン機能**：コンポーネントや地理データベースのダウンロード、ネットワーク診断は各サービスへ接続します。グローバルプローブの対象と結果は他の人が照会できる場合があります。
 - **メニューバー折りたたみ**：macOS 27 の実験的機能です。選択したアプリの非表示と復元のため、システム設定ファイル 1 つへのアクセス許可が必要です。

@@ -9,13 +9,13 @@
 
 CPU、内存、网络与温度一眼可见，展开即可查看趋势与应用占用；AI、日历、风扇控制等工具按需启用。
 
-[![Release](https://img.shields.io/github/v/tag/ysicing/xstats?label=version&style=flat-square)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/github/v/release/ysicing/xstats?filter=v%2A&label=version&style=flat-square)](https://github.com/ysicing/xstats/releases/latest)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B%20%C2%B7%20Apple%20%E8%8A%AF%E7%89%87-black)](https://github.com/ysicing/xstats/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 [![Twitter](https://img.shields.io/badge/follow-YsiCing-red?style=flat-square&logo=Twitter)](https://twitter.com/YsiCing)
 
-[下载最新版](https://github.com/ysicing/xstats/releases) · [功能](#功能) · [安装](#安装) · [数据与隐私](#数据与隐私) · [更新日志](CHANGELOG.md)
+[下载最新版](https://github.com/ysicing/xstats/releases/latest) · [功能](#功能) · [安装](#安装) · [数据与隐私](#数据与隐私) · [更新日志](CHANGELOG.md)
 
 **简体中文** · [English](README.en.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
@@ -29,7 +29,7 @@ CPU、内存、网络与温度一眼可见，展开即可查看趋势与应用�
 
 需要 **Apple 芯片 Mac 与 macOS 14 或更新版本**。
 
-从 [GitHub Releases](https://github.com/ysicing/xstats/releases) 下载 DMG，将 XStats 拖入“应用程序”。应用内置更新检查，是否安装新版本由你决定。
+从 [XStats 发布页](https://github.com/ysicing/xstats/releases/latest) 下载 DMG，将 XStats 拖入“应用程序”。应用内置更新检查，是否安装新版本由你决定。
 
 也可通过 Homebrew 安装：
 
@@ -96,12 +96,12 @@ XStats 使用 Swift、AppKit 与 SwiftUI 原生开发，免费开源，无需注
 
 ### AI
 
-安装并运行 [Magpie](https://usemagpie.ai) 后，可在菜单栏查看 AI 服务用量：
+连接本机或远端的 [Magpie](https://usemagpie.ai)，即可在菜单栏查看 AI 服务用量。
 
 - **用量走势**：Token、请求数、生成速度与美元费用估算，费用不代表订阅账单。
 - **订阅账号**：套餐、额度使用情况与重置时间。
 
-AI 用量可自动连接本机 Magpie，也可手动配置远端 Magpie。Token 仅统计经过所选 Magpie 的请求。
+Token 仅统计经过所选 Magpie 的请求。
 
 ### 工具
 
@@ -115,8 +115,8 @@ AI 用量可自动连接本机 Magpie，也可手动配置远端 Magpie。Token 
 | <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | 截图标注、本地打码与带声音的录屏；也可[单独下载](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.14) |
 | **风扇控制** | 在支持的设备上切换自动或手动控制 |
 | **防休眠** | 保持系统或屏幕唤醒，支持合盖运行 |
-| **应用服务** | 管理应用、Homebrew 软件包、启动项与服务 |
-| **应用活动（实验性）** | 在「设置 → 功能 → 实验性功能」开启后，可记录前台应用的使用时长，按类别和设备查看或汇总 |
+| **应用服务** | 管理应用、Homebrew 软件包、启动项与服务；可开启实验性「应用分身」，为支持的应用创建独立资料 |
+| **应用活动（实验性）** | 按日、周、月查看前台应用时长与类别排行；开启同步后，可按设备筛选或汇总多台 Mac 的记录 |
 | **清理优化** | 审阅缓存与项目产物，支持 Mole 引擎 · [清理范围](docs/CLEANUP.md) |
 | **网络诊断** | 测速、DNS、出口与公网 IP、连通性及 WebRTC / DNS 泄漏检测 |
 | **日历** | 农历、节假日与调休、黄历、系统日程和提醒事项 |
@@ -219,7 +219,7 @@ AI 用量可自动连接本机 Magpie，也可手动配置远端 Magpie。Token 
 
 - **检查更新**：发送版本号与安装标识哈希，获取更新清单。
 - **AI 用量**：从本机或指定的远端 Magpie 读取额度与统计。
-- **应用活动**：开启后，应用使用时段和设备信息加密保存在本机。记录可通过 iCloud Drive、WebDAV 或 Google Drive 桌面版同步文件夹在多台 Mac 间加密同步，也可仅保存在本机。WebDAV 的 HTTP 连接仅限私有局域网或 Tailscale，登录凭据会通过 HTTP 发送。
+- **应用活动**：在「设置 → 功能 → 实验性功能」开启记录后，应用使用时段和设备信息默认仅在本机加密保存。另行开启同步后，可通过 iCloud Drive、WebDAV 或 Google Drive 桌面版同步文件夹交换加密记录。WebDAV 的 HTTP 连接仅限私有局域网或 Tailscale，登录凭据会通过 HTTP 发送。
 - **跨设备同步**：在每台 Mac 的「设置 → 功能 → 可选功能」开启「同步」，默认使用 iCloud Drive。「设置 → 同步」可查看参与设备、调整频率和存储位置。功能设置单独选择加入，首次发现差异时逐项确认，并发修改同一项且值不同时由你选择。详见[同步架构](docs/ARCHITECTURE.md#cross-device-sync)。
 - **联网功能**：组件与地理数据库下载、网络诊断会连接相应服务；全球探针的测量目标与结果可能被他人查询。
 - **菜单栏折叠**：macOS 27 实验功能，需要授权访问单个系统配置文件，以隐藏和恢复所选应用。

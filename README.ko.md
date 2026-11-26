@@ -9,13 +9,13 @@
 
 CPU, 메모리, 네트워크, 온도를 한눈에 보고, 세부 화면에서 추이와 앱 사용량을 확인하세요. AI, 달력, 팬 제어 등의 도구는 필요할 때 켤 수 있습니다.
 
-[![Release](https://img.shields.io/github/v/tag/ysicing/xstats?label=version&style=flat-square)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/github/v/release/ysicing/xstats?filter=v%2A&label=version&style=flat-square)](https://github.com/ysicing/xstats/releases/latest)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B%20%C2%B7%20Apple%20Silicon-black)](https://github.com/ysicing/xstats/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 [![Twitter](https://img.shields.io/badge/follow-YsiCing-red?style=flat-square&logo=Twitter)](https://twitter.com/YsiCing)
 
-[최신 버전 다운로드](https://github.com/ysicing/xstats/releases) · [기능](#기능) · [설치](#설치) · [데이터와 개인정보](#데이터와-개인정보) · [변경 기록(중국어)](CHANGELOG.md)
+[최신 버전 다운로드](https://github.com/ysicing/xstats/releases/latest) · [기능](#기능) · [설치](#설치) · [데이터와 개인정보](#데이터와-개인정보) · [변경 기록(중국어)](CHANGELOG.md)
 
 [简体中文](README.md) · [English](README.en.md) · [日本語](README.ja.md) · **한국어**
 
@@ -29,7 +29,7 @@ CPU, 메모리, 네트워크, 온도를 한눈에 보고, 세부 화면에서 �
 
 **Apple Silicon Mac과 macOS 14 이상**이 필요합니다.
 
-[GitHub Releases](https://github.com/ysicing/xstats/releases)에서 DMG를 받아 XStats를 ‘응용 프로그램’으로 드래그하세요. 앱이 업데이트를 확인하며, 설치 여부는 사용자가 선택합니다.
+[XStats 릴리스 페이지](https://github.com/ysicing/xstats/releases/latest)에서 DMG를 받아 XStats를 ‘응용 프로그램’으로 드래그하세요. 앱이 업데이트를 확인하며, 설치 여부는 사용자가 선택합니다.
 
 Homebrew로도 설치할 수 있습니다.
 
@@ -96,12 +96,12 @@ XStats는 Swift, AppKit, SwiftUI로 만든 무료 오픈소스 네이티브 앱�
 
 ### AI
 
-[Magpie](https://usemagpie.ai)를 설치하고 실행하면 메뉴 막대에서 AI 서비스 사용량을 확인할 수 있습니다.
+이 Mac 또는 원격 서버에서 실행 중인 [Magpie](https://usemagpie.ai)에 연결하면 메뉴 막대에서 AI 서비스 사용량을 확인할 수 있습니다.
 
 - **사용량 추이**: 토큰, 요청 수, 생성 속도와 미국 달러 추정 비용. 추정액은 구독 청구액이 아닙니다.
 - **구독 계정**: 요금제, 한도 사용량과 초기화 시각.
 
-AI 사용량은 이 Mac의 Magpie에 자동으로 연결하거나 사용자가 설정한 원격 Magpie에 연결할 수 있습니다. 토큰은 선택한 Magpie를 거친 요청만 집계합니다.
+토큰은 선택한 Magpie를 거친 요청만 집계합니다.
 
 ### 도구
 
@@ -115,8 +115,8 @@ AI 사용량은 이 Mac의 Magpie에 자동으로 연결하거나 사용자가 �
 | <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | 스크린샷 주석·로컬 정보 가리기, 소리 포함 화면 녹화. [독립 앱](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.14)도 제공 |
 | **팬 제어** | 지원되는 기기에서 자동 / 수동 제어 전환 |
 | **잠자기 방지** | 덮개를 닫은 상태를 포함해 시스템이나 화면을 깨어 있게 유지 |
-| **앱 및 서비스** | 앱, Homebrew 패키지, 시작 항목과 서비스 관리 |
-| **앱 활동(실험적 기능)** | 설정의 실험적 기능에서 켠 뒤 포그라운드 앱 사용 시간을 기록하고 카테고리별·기기별로 확인하거나 여러 Mac의 기록을 합산할 수 있습니다. |
+| **앱 및 서비스** | 앱, Homebrew 패키지, 시작 항목과 서비스를 관리합니다. 실험적 앱 복제 기능을 켜면 지원되는 앱을 별도 프로필로 사용할 수 있습니다. |
+| **앱 활동(실험적 기능)** | 일·주·월별로 포그라운드 앱 사용 시간과 카테고리 순위를 확인합니다. 동기화를 켜면 Mac별 기록이나 여러 기기의 합계를 볼 수 있습니다. |
 | **정리 및 최적화** | 캐시와 빌드 결과물 검토, Mole도 지원 · [정리 범위](docs/CLEANUP.md) |
 | **네트워크 진단** | 속도, DNS, 외부 연결 경로, 공인 IP, 연결 및 WebRTC / DNS 유출 검사 |
 | **달력** | 음력, 중국 공휴일과 대체 근무일, 역서, 일정과 미리 알림 |
@@ -219,7 +219,7 @@ AI 사용량은 이 Mac의 Magpie에 자동으로 연결하거나 사용자가 �
 
 - **업데이트 확인**: 버전과 설치 ID의 해시를 보내 업데이트 정보를 가져옵니다.
 - **AI 사용량**: 로컬 또는 원격 Magpie에서 한도와 통계를 읽습니다.
-- **앱 활동**: 기능을 켜면 앱 사용 구간과 기기 정보를 이 Mac에 암호화해 저장합니다. 암호화된 기록은 iCloud Drive, WebDAV 또는 데스크톱용 Google Drive가 동기화하는 폴더를 통해 여러 Mac과 동기화하거나 이 Mac에만 저장할 수 있습니다. WebDAV의 HTTP 연결은 사설 LAN 또는 Tailscale에서만 허용되며, 이 경우 로그인 정보가 HTTP로 전송됩니다.
+- **앱 활동**: 설정 → 기능 → 실험적 기능에서 기록을 켜면 앱 사용 구간과 기기 정보는 기본적으로 이 Mac에만 암호화해 저장됩니다. 동기화를 별도로 켜면 iCloud Drive, WebDAV 또는 데스크톱용 Google Drive가 동기화하는 폴더를 통해 암호화된 기록을 공유할 수 있습니다. WebDAV의 HTTP 연결은 사설 LAN 또는 Tailscale에서만 허용되며, 이 경우 로그인 정보가 HTTP로 전송됩니다.
 - **기기 간 동기화**: 각 Mac의 설정 → 기능 → 선택 기능에서 동기화를 켜면 기본 저장 위치인 iCloud Drive로 동기화를 시작합니다. 설정 → 동기화에서 참여 기기를 확인하고 저장 위치와 주기를 바꿀 수 있습니다. 환경설정 동기화는 별도로 켤 수 있습니다. 첫 동기화에서 차이가 있는 항목을 확인하고, 같은 항목에 서로 다른 변경이 동시에 생기면 사용할 값을 선택합니다. [동기화 구조(영어)](docs/ARCHITECTURE.md#cross-device-sync)
 - **온라인 기능**: 구성요소와 지리 데이터베이스 다운로드, 네트워크 진단은 해당 서비스에 연결합니다. 글로벌 프로브의 대상과 결과는 다른 사람이 조회할 수 있습니다.
 - **메뉴 막대 접기**: macOS 27의 실험적 기능으로, 선택한 앱을 숨기고 복원하기 위해 시스템 설정 파일 하나에 대한 접근 권한이 필요합니다.

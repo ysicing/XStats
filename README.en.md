@@ -9,13 +9,13 @@
 
 See CPU, memory, network and temperature at a glance, and open the details for trends and app usage. Enable tools such as AI, calendar and fan control when you need them.
 
-[![Release](https://img.shields.io/github/v/tag/ysicing/xstats?label=version&style=flat-square)](https://github.com/ysicing/xstats/releases)
+[![Release](https://img.shields.io/github/v/release/ysicing/xstats?filter=v%2A&label=version&style=flat-square)](https://github.com/ysicing/xstats/releases/latest)
 [![CI](https://github.com/ysicing/xstats/actions/workflows/ci.yml/badge.svg)](https://github.com/ysicing/xstats/actions/workflows/ci.yml)
 [![macOS](https://img.shields.io/badge/macOS-14%2B%20%C2%B7%20Apple%20silicon-black)](https://github.com/ysicing/xstats/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](LICENSE)
 [![Twitter](https://img.shields.io/badge/follow-YsiCing-red?style=flat-square&logo=Twitter)](https://twitter.com/YsiCing)
 
-[Download the latest release](https://github.com/ysicing/xstats/releases) · [Features](#features) · [Install](#install) · [Data and privacy](#data-and-privacy) · [Changelog](CHANGELOG.md)
+[Download the latest release](https://github.com/ysicing/xstats/releases/latest) · [Features](#features) · [Install](#install) · [Data and privacy](#data-and-privacy) · [Changelog](CHANGELOG.md)
 
 [简体中文](README.md) · **English** · [日本語](README.ja.md) · [한국어](README.ko.md)
 
@@ -29,7 +29,7 @@ Accounts, addresses, processes, metrics, usage and cleanup results in screenshot
 
 Requires an **Apple silicon Mac with macOS 14 or later**.
 
-Download the DMG from [GitHub Releases](https://github.com/ysicing/xstats/releases) and drag XStats into Applications. XStats checks for updates, and you decide whether to install them.
+Download the DMG from the [XStats release page](https://github.com/ysicing/xstats/releases/latest) and drag XStats into Applications. XStats checks for updates, and you decide whether to install them.
 
 Or install with Homebrew:
 
@@ -96,12 +96,12 @@ Observation is read-only: all traffic is allowed and communication content is ne
 
 ### AI
 
-Install and run [Magpie](https://usemagpie.ai) to track AI service usage from the menu bar:
+Connect to a local or remote [Magpie](https://usemagpie.ai) instance to see AI service usage in the menu bar.
 
 - **Usage trends**: tokens, requests, generation speed and estimated USD costs. Estimates are not subscription bills.
 - **Subscription accounts**: plans, quota usage and reset times.
 
-AI usage connects to Magpie automatically on this Mac or to a remote gateway you configure. Only requests routed through the selected Magpie instance count toward token usage.
+Only requests routed through the selected Magpie instance count toward token usage.
 
 ### Tools
 
@@ -115,8 +115,8 @@ Command Bar, Launchpad and new documents in Finder are experimental features, ea
 | <img src="Assets/branding/capture/xstats-capture-logo-128.png" width="28" height="28" alt=""> **XStats Capture** | Annotate and redact screenshots locally, record with audio; also a [standalone app](https://github.com/ysicing/XStats/releases/tag/capture-v0.1.14) |
 | **Fan control** | Switch between automatic and manual control on supported Macs |
 | **Keep awake** | Keep the system or display awake, including with the lid closed |
-| **Apps & Services** | Manage apps, Homebrew packages, startup items and services |
-| **App Activity (experimental)** | Enable it in Settings → Features → Experimental to record foreground app usage by category and device, with totals across Macs. |
+| **Apps & Services** | Manage apps, Homebrew packages, startup items and services. Enable experimental App Clones to give supported apps separate profiles. |
+| **App Activity (experimental)** | See time spent in foreground apps and category rankings by day, week or month. With sync enabled, view one Mac or totals across devices. |
 | **Clean & Optimize** | Review caches and build artifacts, with optional Mole support · [Scope](docs/CLEANUP.md) |
 | **Diagnostics** | Speed, DNS, egress, public IP, connectivity and WebRTC / DNS leak tests |
 | **Calendar** | Chinese lunar dates, holidays, make-up workdays, almanac, events and reminders |
@@ -219,7 +219,7 @@ Monitoring data, history and AI usage are processed locally.
 
 - **Update checks**: send the version and a hashed installation ID to retrieve the update feed.
 - **AI usage**: reads quotas and statistics from a local or remote Magpie instance.
-- **App Activity**: when enabled, usage intervals and device information are encrypted on this Mac. Encrypted records can sync across Macs through iCloud Drive, WebDAV or a folder synced by Google Drive for desktop, or stay on this Mac. WebDAV permits HTTP only on private LANs or Tailscale. Login credentials are sent over HTTP when you use it.
+- **App Activity**: enable recording in Settings → Features → Experimental. Usage intervals and device information are encrypted and stay on this Mac by default. Turn on Sync separately to exchange encrypted records via iCloud Drive, WebDAV or a folder synced by Google Drive for desktop. WebDAV permits HTTP only on private LANs or Tailscale. Login credentials are sent over HTTP when you use it.
 - **Cross-device sync**: Turn on Sync in Settings → Features → Optional Features on each Mac. Sync starts with iCloud Drive. Open Settings → Sync to view devices or change the frequency and destination. Preference sync is a separate opt-in. Review any differences on the first sync and choose a value when concurrent edits to the same field conflict. See the [sync architecture](docs/ARCHITECTURE.md#cross-device-sync).
 - **Online features**: component and geography database downloads, along with network diagnostics, connect to their respective services. Global-probe targets and results may be queried by others.
 - **Menu bar folding**: this experimental macOS 27 feature requires access to one system configuration file to hide and restore selected apps.
