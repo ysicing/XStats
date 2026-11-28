@@ -145,6 +145,11 @@ public actor MetricsHub {
     }
     // 关闭期间的累计计数不属于重新启用后的实时速率。
     if newDemand.cpu && !demand.cpu { cpu = CPUSampler() }
+    if (newDemand.processes || newDemand.systemProcesses) && !demand.processes
+      && !demand.systemProcesses
+    {
+      processes.resetCounters()
+    }
     if newDemand.network && !demand.network { network = NetworkSampler() }
     if newDemand.diskDetail && !demand.diskDetail { diskActivity = DiskActivitySampler() }
     if newDemand.appEnergy != demand.appEnergy {
@@ -179,6 +184,7 @@ public actor MetricsHub {
   public func setPaused(_ value: Bool) {
     guard value != paused else { return }
     paused = value
+    if value { processes.resetCounters() }
     if value { network.stopConnectionMonitoring() }
     power.resetBaselines()
     lastPower = .distantPast
@@ -193,6 +199,7 @@ public actor MetricsHub {
     loop?.cancel()
     loop = nil
     handler = nil
+    processes.resetCounters()
     power.resetBaselines()
     appEnergy = AppEnergySampler()
     nextAppEnergyUptime = nil
@@ -287,6 +294,7 @@ public actor MetricsHub {
     }
     if demand.processes || demand.systemProcesses {
       snapshot.processes = processes.sample(includeSystem: demand.systemProcesses)
+      snapshot.processCPUReady = processes.cpuReady
       snapshot.systemCounts = SystemCounts.read()
     }
     if !demand.temperatures.isEmpty || demand.fans {

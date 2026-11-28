@@ -4,6 +4,7 @@ import Foundation
 public struct ProcessSampler {
   /// 只表示本次补充系统进程成功，不把读取失败解释成系统进程不存在。
   public private(set) var systemSampleSucceeded = false
+  private(set) var cpuReady = false
   private struct Identity: Hashable {
     let pid: Int32
     let startTime: UInt64
@@ -38,10 +39,19 @@ public struct ProcessSampler {
 
   public init() {}
 
+  mutating func resetCounters() {
+    previous.removeAll(keepingCapacity: true)
+    previousTime = 0
+    previousSystem.removeAll(keepingCapacity: true)
+    previousSystemDate = nil
+    cpuReady = false
+  }
+
   /// 返回按 CPU 排序的进程。当前用户自己的进程读 proc_pid_rusage，数据最全；
   /// `includeSystem` 为真时再用 /bin/ps（系统自带、有 root 权限）补上其他用户与系统的进程，只有 CPU、内存与 CPU 时间。
   public mutating func sample(includeSystem: Bool = false) -> [ProcessUsage] {
     systemSampleSucceeded = false
+    cpuReady = false
     let capacity = Int(proc_listallpids(nil, 0)) + 64
     guard capacity > 64 else { return [] }
     var pids = [pid_t](repeating: 0, count: capacity)
@@ -118,6 +128,7 @@ public struct ProcessSampler {
     previous = counters
     previousTime = now
     metaCache = liveMeta
+    cpuReady = elapsed > 0 && !results.isEmpty
 
     if includeSystem {
       results += systemProcesses(excluding: owned)

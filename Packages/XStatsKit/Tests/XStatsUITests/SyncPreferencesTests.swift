@@ -870,6 +870,62 @@ struct SyncPreferencesTests {
     #expect(receiver.settings.appearance == .light)
   }
 
+  @Test func forgettingADeviceDoesNotRestoreSupersededSettings() throws {
+    let receiver = Peer()
+    let source = Peer()
+    defer {
+      receiver.clean()
+      source.clean()
+    }
+    var documents: [UUID: Data] = [:]
+    let (sync, other) = try joined(receiver, source, documents: &documents)
+    source.settings.appearance = .dark
+    try exchange(other, in: &documents)
+    try exchange(sync, in: &documents)
+    #expect(receiver.settings.appearance == .dark)
+
+    documents[source.id] = nil
+    try sync.forgetDevice(source.id)
+    let reopened = try receiver.open()
+    try exchange(reopened, in: &documents)
+    try exchange(reopened, in: &documents)
+    #expect(receiver.settings.appearance == .dark)
+    #expect(reopened.conflicts.isEmpty)
+
+    receiver.settings.appearance = .light
+    try exchange(reopened, in: &documents)
+    try exchange(other, in: &documents)
+    #expect(source.settings.appearance == .light)
+  }
+
+  @Test func oversizedClockIsRejectedBeforePublishing() throws {
+    let receiver = Peer()
+    defer { receiver.clean() }
+    let sync = try receiver.open()
+    try sync.setSelectedFields([.appearance])
+    let priorAuthor = UUID()
+    let count = ActivitySyncRemotePath.maximumMetadataEntries
+    let authors = [priorAuthor] + (1..<count).map { _ in UUID() }
+    let clock = authors.flatMap { [$0.uuidString as Any, 1 as Any] }
+    let document: [String: Any] = [
+      "schema": 1,
+      "publication": UUID().uuidString,
+      "device": ["id": priorAuthor.uuidString],
+      "fields": [
+        "appearance", ["value": AppearanceMode.system.rawValue, "clock": clock] as [String: Any],
+      ] as [Any],
+    ]
+    let remote = try JSONSerialization.data(withJSONObject: document)
+    var documents = [priorAuthor: remote]
+    try exchange(sync, in: &documents)
+    let before = documents
+    receiver.settings.appearance = .dark
+    #expect(throws: SyncPreferences.Failure.invalidDocument) {
+      _ = try sync.prepare(documents, activitySyncedAt: nil)
+    }
+    #expect(documents == before)
+  }
+
   @Test func forgettingADeviceClearsItsSavedFirstChoiceCandidates() throws {
     let source = Peer()
     let receiver = Peer()

@@ -160,6 +160,19 @@ struct LiveSamplerTests {
     #expect(processes.contains { $0.pid == 1 && !$0.isOwned && $0.userName == "root" })
   }
 
+  @Test func processCPUUsesTwoSamplesAfterReset() {
+    var sampler = ProcessSampler()
+    _ = sampler.sample()
+    #expect(!sampler.cpuReady)
+    _ = sampler.sample()
+    #expect(sampler.cpuReady)
+
+    sampler.resetCounters()
+    let firstAfterReset = sampler.sample()
+    #expect(!sampler.cpuReady)
+    #expect(firstAfterReset.allSatisfy { $0.cpu == 0 })
+  }
+
   @Test func diskHasCapacity() throws {
     let disk = try #require(DiskSampler.sample())
     #expect(disk.total > 0)

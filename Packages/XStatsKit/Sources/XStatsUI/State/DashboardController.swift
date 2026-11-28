@@ -144,6 +144,7 @@ final class DashboardController {
   @ObservationIgnored private var sampleDate: Date?
   @ObservationIgnored private var hasProcessSample = false
   @ObservationIgnored private var processSampleDate: Date?
+  @ObservationIgnored private var processCPUReady = false
   @ObservationIgnored private var healthSampleDate: Date?
   @ObservationIgnored private var healthTemperatures: [TemperatureSummary]?
   @ObservationIgnored weak var alerts: AlertController?
@@ -206,10 +207,11 @@ final class DashboardController {
   func record(_ snapshot: MetricsSnapshot) {
     guard !sampling.isEmpty, !paused else { return }
     if snapshot.processes != nil {
-      if hasViewerDemand { hasProcessSample = true }
+      if hasViewerDemand { hasProcessSample = snapshot.processCPUReady }
       if hasViewerDemand || sampling.contains(.cpuProcesses) || sampling.contains(.memoryProcesses)
       {
         processSampleDate = snapshot.date
+        processCPUReady = snapshot.processCPUReady
       }
     }
     if sampling.contains(.health) {
@@ -324,6 +326,7 @@ final class DashboardController {
     sampleDate = nil
     hasProcessSample = false
     processSampleDate = nil
+    processCPUReady = false
     healthSampleDate = nil
     healthTemperatures = nil
   }
@@ -350,6 +353,7 @@ final class DashboardController {
           !remaining.contains(.memoryProcesses)
         {
           self.processSampleDate = nil
+          self.processCPUReady = false
         }
         if !remaining.contains(.health) {
           self.healthSampleDate = nil
@@ -398,7 +402,7 @@ final class DashboardController {
   private func processReading(sort: ProcessSort, limit: Int, store: MetricsStore) -> ProcessReading
   {
     if paused { return ProcessReading(status: .paused, sortBy: sort.rawValue) }
-    guard let processSampleDate else {
+    guard let processSampleDate, sort != .cpu || processCPUReady else {
       return ProcessReading(status: .sampling, sortBy: sort.rawValue)
     }
     let uid = getuid()

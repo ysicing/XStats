@@ -330,6 +330,17 @@ struct DashboardTests {
     }
     store.apply(sample)
     dashboard.record(sample)
+    let firstCPU = try await callTool(
+      #""name":"xstats_top_processes""#, dashboard: dashboard, settings: settings, store: store)
+    #expect(firstCPU["status"] as? String == "sampling")
+    #expect(firstCPU["processes"] == nil)
+    let firstMemory = try await callTool(
+      #""name":"xstats_top_processes","arguments":{"sortBy":"memory"}"#,
+      dashboard: dashboard, settings: settings, store: store)
+    #expect(firstMemory["status"] as? String == "live")
+    sample.processCPUReady = true
+    store.apply(sample)
+    dashboard.record(sample)
     let cpu = try await callTool(
       #""name":"xstats_top_processes""#, dashboard: dashboard, settings: settings, store: store)
     let cpuProcesses = try #require(cpu["processes"] as? [[String: Any]])
@@ -496,6 +507,7 @@ struct DashboardTests {
     var sample = MetricsSnapshot()
     sample.disk = DiskUsage(volumeName: "Private Volume", total: 100, available: 45)
     sample.processes = [foreign, owned]
+    sample.processCPUReady = true
     sample.network = NetworkRate(
       interfaceName: "en0", downloadBytesPerSecond: 100, uploadBytesPerSecond: 50,
       totalDownloaded: 100, totalUploaded: 50)

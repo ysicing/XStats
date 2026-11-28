@@ -482,7 +482,9 @@ public final class SyncPreferences {
       guard counter < UInt64.max else { throw Failure.sequenceExhausted }
       next.sequence = counter + 1
       clock[deviceID] = next.sequence
-      outbound.fields[field] = PreferenceVersion(value: value, clock: clock)
+      let version = PreferenceVersion(value: value, clock: clock)
+      guard version.hasValidClock(for: deviceID) else { throw Failure.invalidDocument }
+      outbound.fields[field] = version
     }
 
     // 设备槽位只宣告上一轮已认证的时间；本轮准备时间随计划持久化，回读成功才生效。
@@ -702,22 +704,25 @@ public final class SyncPreferences {
   private func snapshots(in records: [UUID: Document]) -> [Field: PreferenceSnapshot] {
     var result: [Field: PreferenceSnapshot] = [:]
     for field in selectedFields {
-      // 离线设备若仍有槽位可继续参与合并。已删除的槽位只保留基线中的因果时钟。
-      var versions =
-        state.baseline[field]?.heads.filter { author, version in
-          author == deviceID
-            ? state.withdrawnOwnVersions?[field] != version
-            : records[author]?.fields[field] != nil
-        } ?? [:]
+      let baseline = state.baseline[field]?.heads ?? [:]
+      let withdrawn = state.withdrawnOwnVersions?[field]
+      // 已移除的版本仍可压住它曾取代的旧版本，但不能再次作为同步选项。
+      let missing = baseline.filter { author, _ in
+        author != deviceID && records[author]?.fields[field] == nil
+      }
+      var versions = baseline.filter { author, version in
+        author == deviceID ? withdrawn != version : missing[author] == nil
+      }
       for (author, document) in records {
         guard let version = document.fields[field] else { continue }
-        if author == deviceID, state.withdrawnOwnVersions?[field] == version { continue }
+        if author == deviceID, withdrawn == version { continue }
         if let known = versions[author], known.clock.covers(version.clock) { continue }
         versions[author] = version
       }
       // 版本的字段级向量仅覆盖写入者已看到的版本。同值并发的向量继续保留。
       let heads = versions.filter { _, version in
-        !versions.values.contains { $0.clock != version.clock && $0.clock.covers(version.clock) }
+        !versions.values.contains { $0.strictlySucceeds(version) }
+          && !missing.values.contains { $0.strictlySucceeds(version) }
       }
       result[field] = PreferenceSnapshot(
         local: localValue(field), edit: state.edits[field], heads: heads)
@@ -737,9 +742,7 @@ public final class SyncPreferences {
             && name.rangeOfCharacter(from: .controlCharacters) == nil
         }) ?? true,
         document.fields.allSatisfy({ field, version in
-          field.accepts(version.value) && version.clock[author, default: 0] > 0
-            && version.clock.count <= ActivitySyncRemotePath.maximumMetadataEntries
-            && version.clock.values.allSatisfy { $0 > 0 }
+          field.accepts(version.value) && version.hasValidClock(for: author)
         })
       else { throw Failure.invalidDocument }
       records[author] = document
@@ -929,6 +932,16 @@ private struct PreferenceSnapshot: Codable, Equatable, Sendable {
 private struct PreferenceVersion: Codable, Equatable, Sendable {
   let value: String
   let clock: [UUID: UInt64]
+
+  func hasValidClock(for author: UUID) -> Bool {
+    clock[author, default: 0] > 0
+      && clock.count <= ActivitySyncRemotePath.maximumMetadataEntries
+      && clock.values.allSatisfy { $0 > 0 }
+  }
+
+  func strictlySucceeds(_ other: Self) -> Bool {
+    clock != other.clock && clock.covers(other.clock)
+  }
 }
 
 extension Dictionary where Key == UUID, Value == UInt64 {
