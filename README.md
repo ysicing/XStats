@@ -235,7 +235,7 @@ Token 仅统计经过所选 Magpie 的请求。
 <!-- changelog:start -->
 <!-- 由 scripts/sync_changelog.py 从 CHANGELOG.md 生成，请勿手改。 -->
 
-最新版本 **1.7.0**（2026-11-26） · [完整更新日志](CHANGELOG.md)
+最新版本 **1.7.1**（2026-11-28） · [完整更新日志](CHANGELOG.md)
 
 <!-- changelog:end -->
 

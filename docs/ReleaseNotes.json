@@ -1,23 +1,23 @@
 {
-  "version": "1.7.0",
+  "version": "1.7.1",
   "sourceNotes": [
-    "新增实验性应用活动统计，按日、周、月查看前台应用使用时长，并按类别和设备汇总",
-    "新增可选的跨设备加密同步",
-    "升级后首次打开主窗口时，可查看中英文新版亮点",
-    "更新窗口按新增、改进和修复等类别整理跨版本日志，最多显示最近十个版本",
-    "区分 iCloud Drive 不可用与等待文件下载，并减少活动报表和同步中的重复读取",
-    "修复应用活动同步和睡眠唤醒后的记录问题，以及部分更新提示的显示问题",
-    "移除旧版设置备份的手动导入入口，功能设置可通过设置中的可选同步功能传到其他 Mac"
+    "应用活动支持自定义应用分类，并将所选时段和设备的报表导出为 Markdown 或 CSV",
+    "应用活动新增 30 天和 90 天本机保留期，云端副本继续保留",
+    "监控大屏新增看板模式，以及进程排行和系统健康只读 MCP 工具",
+    "改进活动日期导航与同步状态显示，支持从同步列表移除已停用的设备",
+    "打开更新窗口时刷新可用版本，安装前发现更高构建时要求重新确认",
+    "侧边栏在检测到 Telegram 时提供频道入口",
+    "修复移除同步设备后已确认设置回退，以及 CPU 进程排行首轮采样被误报为实时读数的问题"
   ],
   "translations": {
     "en": [
-      "Enable experimental App Activity to review time spent in foreground apps by day, week, or month, grouped by category and device. Records are encrypted on this Mac.",
-      "Optional encrypted sync combines App Activity from multiple Macs and lets you choose which feature settings to sync on each Mac.",
-      "The first time you open the main window after updating, What's New shows highlights in Chinese or English. When you skip releases, it shows up to five highlights from the last five releases.",
-      "The update window groups changes by category across up to ten recent releases.",
-      "Distinguishes unavailable iCloud Drive from a file waiting to download, and reduces repeated reads during activity reporting and sync.",
-      "Fixes App Activity sync, recording after wake, and some update prompt display issues.",
-      "Removes manual import of legacy settings backups. Use optional sync in Settings to bring feature settings to other Macs."
+      "App Activity supports custom app categories and Markdown or CSV report exports for the selected period and device.",
+      "Adds 30-day and 90-day local retention options for App Activity. Cloud copies are preserved.",
+      "Adds a kiosk mode to the Monitoring Dashboard, plus read-only MCP tools for top processes and system health.",
+      "Improves activity date navigation and sync status, and lets you remove retired devices from the sync list. Synced activity records are preserved, and a removed Mac can rejoin when it syncs again.",
+      "Refreshes available releases when the update window opens and asks for confirmation again if a newer build is found before installation.",
+      "The sidebar offers a channel link when Telegram is installed.",
+      "Fixes accepted settings reverting after a sync device is removed, and prevents the first CPU process sample from being reported as live usage."
     ]
   }
 }

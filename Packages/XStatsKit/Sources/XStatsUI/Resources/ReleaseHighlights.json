@@ -1,6 +1,27 @@
 {
   "releases": [
     {
+      "version": "1.7.1",
+      "features": [
+        {
+          "id": "activity",
+          "zh": { "title": "活动报表", "detail": "自定义应用分类，将所选时段的报表导出为 Markdown 或 CSV。" },
+          "en": { "title": "Activity Reports", "detail": "Customize app categories and export reports for a selected period as Markdown or CSV." },
+          "symbol": "chart.bar.xaxis",
+          "priority": 3,
+          "experimental": true
+        },
+        {
+          "id": "dashboard",
+          "zh": { "title": "看板与诊断", "detail": "用看板模式查看实时指标，通过只读 MCP 查询进程排行和系统健康。" },
+          "en": { "title": "Dashboard and Diagnostics", "detail": "Use kiosk mode for live metrics and query top processes and system health through read-only MCP tools." },
+          "symbol": "display",
+          "priority": 2,
+          "experimental": true
+        }
+      ]
+    },
+    {
       "version": "1.7.0",
       "features": [
         {
